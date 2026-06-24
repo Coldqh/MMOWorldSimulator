@@ -16,6 +16,28 @@ import type { ScreenId } from "../../types/game";
 
 type WorldTab = "overview" | "players";
 
+const npcLocationWeight = (npcLevel: number, minLevel: number, maxLevel: number, hash: number) => {
+  if (npcLevel >= minLevel && npcLevel <= maxLevel) return 1000 - (hash % 120);
+  const near = Math.min(Math.abs(npcLevel - minLevel), Math.abs(npcLevel - maxLevel));
+  if (near <= 2) return 650 - near * 80 - (hash % 80);
+  if (npcLevel > maxLevel + 5) return 18 - (hash % 18);
+  return 120 - Math.min(100, near * 18) - (hash % 30);
+};
+
+const getLocationRange = (
+  server: ReturnType<typeof useGameStore.getState>["server"],
+) => {
+  if (server.location.mode === "spot") {
+    const spot = getSpotById(server.location.spotId ?? "");
+    return spot?.levelRange ?? [1, 20];
+  }
+  if (server.location.mode === "zone") {
+    const zone = getZoneById(server.location.zoneId ?? "");
+    return zone?.levelRange ?? [1, 20];
+  }
+  return [1, 20];
+};
+
 const getLocationPlayers = (
   server: ReturnType<typeof useGameStore.getState>["server"],
 ) => {
@@ -26,20 +48,32 @@ const getLocationPlayers = (
         ? (server.location.spotId ?? "spot")
         : (server.location.zoneId ?? "zone");
 
+  const [minLevel, maxLevel] = getLocationRange(server);
+  const locationFocus = server.location.mode === "spot"
+    ? ['PVE_FARMER', 'RAIDER', 'COLLECTOR', 'HARDCORE', 'GUILD_PLAYER']
+    : ['PVE_FARMER', 'RAIDER', 'GUILD_PLAYER', 'CASUAL', 'HARDCORE'];
+
   return server.npcs
-    .filter((npc) => {
+    .map((npc) => {
       const hash = [...`${npc.id}_${key}_${server.serverDay}`].reduce(
         (sum, char) => sum + char.charCodeAt(0),
         0,
       );
-      if (server.location.mode === "city") return hash % 4 === 0;
-      if (server.location.mode === "spot") return ['PVE_FARMER', 'RAIDER', 'COLLECTOR', 'HARDCORE', 'GUILD_PLAYER'].includes(npc.roleFocus) && hash % 6 === 0;
-      return ['PVE_FARMER', 'RAIDER', 'GUILD_PLAYER', 'CASUAL', 'HARDCORE'].includes(npc.roleFocus) && hash % 5 === 0;
+      let score = 0;
+      if (server.location.mode === "city") {
+        score = hash % 4 === 0 ? 300 - (hash % 100) : -999;
+      } else {
+        const focusOk = locationFocus.includes(npc.roleFocus);
+        const presenceOk = server.location.mode === "spot" ? hash % 5 === 0 : hash % 4 === 0;
+        score = presenceOk && focusOk ? npcLocationWeight(npc.level, minLevel, maxLevel, hash) : -999;
+      }
+      return { npc, score };
     })
-    .sort((a, b) => b.level + b.gearScore / 50 - (a.level + a.gearScore / 50))
-    .slice(0, 18);
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score || b.npc.gearScore - a.npc.gearScore)
+    .slice(0, 18)
+    .map((entry) => entry.npc);
 };
-
 const placeStatus = (
   server: ReturnType<typeof useGameStore.getState>["server"],
 ) => {
@@ -301,35 +335,42 @@ export const WorldScreen = () => {
       </section>
 
       {travelOpen && (
-        <section className="panel">
-          <div className="section-title">Выбор локации</div>
-          <div className="card-grid">
-            {ZONES.map((zone) => {
-              const dungeons = DUNGEONS.filter(
-                (dungeon) => dungeon.zoneId === zone.id,
-              );
-              return (
-                <button
-                  key={zone.id}
-                  className="content-card"
-                  onClick={() => {
-                    travelToZone(zone.id);
-                    setTravelOpen(false);
-                  }}
-                  disabled={Boolean(combat)}
-                >
-                  <strong>{zone.name}</strong>
-                  <span>
-                    Lv. {zone.levelRange[0]}–{zone.levelRange[1]}
-                  </span>
-                  <span>
-                    {zone.spotIds.length} спота · данжей {dungeons.length}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
+        <div className="modal-backdrop travel-modal-backdrop" onClick={() => setTravelOpen(false)}>
+          <section className="result-modal travel-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-top">
+              <div>
+                <div className="section-title">Перемещение</div>
+                <h2>Выбор локации</h2>
+              </div>
+              <button onClick={() => setTravelOpen(false)}>Закрыть</button>
+            </div>
+            <div className="card-grid">
+              {ZONES
+                .filter((zone) => server.player.level >= zone.levelRange[0])
+                .sort((a, b) => b.levelRange[0] - a.levelRange[0] || b.levelRange[1] - a.levelRange[1])
+                .map((zone) => {
+                  const dungeons = DUNGEONS.filter(
+                    (dungeon) => dungeon.zoneId === zone.id,
+                  );
+                  return (
+                    <button
+                      key={zone.id}
+                      className="content-card"
+                      onClick={() => {
+                        travelToZone(zone.id);
+                        setTravelOpen(false);
+                      }}
+                      disabled={Boolean(combat)}
+                    >
+                      <strong>{zone.name}</strong>
+                      <span>Lv. {zone.levelRange[0]}–{zone.levelRange[1]}</span>
+                      <span>{zone.spotIds.length} спота · данжей {dungeons.length}</span>
+                    </button>
+                  );
+                })}
+            </div>
+          </section>
+        </div>
       )}
 
     </div>

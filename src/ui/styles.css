@@ -633,3 +633,28 @@ button:hover:not(:disabled) { border-color: rgba(96,165,250,0.75); }
   .stat-grid-compact { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .party-combat-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* v0.4.5 fixes */
+.combat-log {
+  max-height: 220px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.travel-modal-backdrop {
+  z-index: 140;
+}
+.travel-modal {
+  width: min(720px, 94vw);
+}
+.action-panel {
+  border-color: rgba(56, 189, 248, 0.18);
+}
+@media (max-width: 899px) {
+  .combat-log { max-height: 150px; }
+  .travel-modal { width: min(390px, 94vw); max-height: 86vh; overflow-y: auto; }
+}
+@media (min-width: 900px) {
+  .topbar { top: 0 !important; }
+  .side-drawer { top: 58px !important; height: calc(100vh - 58px) !important; }
+}

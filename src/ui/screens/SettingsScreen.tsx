@@ -19,7 +19,7 @@ export const SettingsScreen = () => {
   useEffect(() => {
     let mounted = true;
     registerPwa().then((registration) => {
-      if (mounted && registration) setOfflineReady(true);
+      if (mounted) setOfflineReady(Boolean(registration));
     });
     return () => { mounted = false; };
   }, []);

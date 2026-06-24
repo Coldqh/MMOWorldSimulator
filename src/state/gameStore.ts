@@ -933,36 +933,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const guild = server.guilds.find((entry) => entry.id === guildId);
     if (!guild || server.player.guildId) return;
     if (server.player.level < (guild.minLevel ?? 1)) {
-      set({ modal: { id: `modal_guild_level_${guild.id}`, type: "guild", title: "Вход закрыт", text: guild.name, lines: [`Нужен уровень ${guild.minLevel ?? 1}.`] } });
+      set({ modal: { id: `modal_guild_level_${guild.id}`, type: "guild", title: "Недоступно", text: guild.name, lines: [`Нужен уровень ${guild.minLevel ?? 1}.`] } });
       return;
     }
-
-    const rng = createRng(
-      server.seed + server.serverDay * 8000 + server.currentMinute,
-    );
-    const nextGuilds = server.guilds.map((entry) =>
-      entry.id === guild.id
-        ? { ...entry, memberIds: Array.from(new Set([...entry.memberIds, server.player.id])) }
-        : entry,
-    );
-    const next = addNews(
-      {
-        ...server,
-        player: { ...server.player, guildId: guild.id },
-        guilds: nextGuilds,
-        guildApplications: server.guildApplications.filter((entry) => entry.status !== "pending"),
-      },
-      rng,
-      "guild",
-      `${server.player.name} вступил в ${guild.name}.`,
-      false,
-    );
+    const next = {
+      ...server,
+      player: { ...server.player, guildId: guild.id },
+      guildApplications: server.guildApplications.filter((entry) => entry.guildId !== guild.id),
+      guilds: server.guilds.map((entry) => entry.id === guild.id ? { ...entry, memberIds: [...new Set([...entry.memberIds, server.player.id])] } : entry),
+    };
     commit(set, next, undefined, {
       id: `modal_guild_join_${guild.id}`,
       type: "guild",
-      title: "Принят в гильдию",
+      title: "Ты принят",
       text: guild.name,
-      lines: [`Теперь ты в ${guild.name}.`],
+      lines: [`Гильдия: ${guild.name}.`, `ГМ: ${server.npcs.find((npc) => npc.id === guild.leaderId)?.name ?? 'нет'}.`],
     });
   },
 

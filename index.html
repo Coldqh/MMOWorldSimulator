@@ -11,9 +11,26 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
     <title>MMO World Simulator</title>
+      <style>
+      html, body { margin: 0; min-height: 100%; background: #07090d; color: #e5edf7; }
+      .boot-screen { min-height: 100vh; display: grid; place-items: center; background: radial-gradient(circle at top, #111827, #07090d 58%); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .boot-card { width: min(320px, calc(100vw - 44px)); padding: 22px; border: 1px solid rgba(148,163,184,.18); border-radius: 18px; background: rgba(15,23,42,.72); box-shadow: 0 24px 70px rgba(0,0,0,.35); }
+      .boot-logo { font-weight: 900; letter-spacing: .02em; font-size: 18px; }
+      .boot-text { margin-top: 10px; color: #9ca3af; font-size: 13px; }
+      .boot-line { height: 4px; margin-top: 14px; border-radius: 999px; background: linear-gradient(90deg,#38bdf8,#818cf8,#38bdf8); background-size: 200% 100%; animation: bootMove 1.2s linear infinite; }
+      @keyframes bootMove { from { background-position: 0% 50%; } to { background-position: 200% 50%; } }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot-screen">
+        <div class="boot-card">
+          <div class="boot-logo">MMO World Simulator</div>
+          <div class="boot-line"></div>
+          <div class="boot-text">Загрузка сервера...</div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

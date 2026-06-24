@@ -213,10 +213,22 @@ const rebalanceGuildMemberships = (server: ServerState, guilds: Guild[], normali
       .filter((npc) => npc.level >= minLevel)
       .filter((npc) => (guild.tier ?? 'low') === 'high' ? npc.level >= 20 : npc.level < 20)
       .sort((a, b) => {
-        const guildIsPvp = guild.type === 'PVP' || guild.type === 'HARDCORE';
-        const scoreA = guildIsPvp ? a.arenaRating + a.gearScore * 0.15 : a.gearScore + a.level * 20;
-        const scoreB = guildIsPvp ? b.arenaRating + b.gearScore * 0.15 : b.gearScore + b.level * 20;
-        return scoreB - scoreA;
+        const hashA = (seed + guildIndex * 13007 + a.id.length * 97 + a.level * 31 + a.gearScore) % 100000;
+        const hashB = (seed + guildIndex * 13007 + b.id.length * 97 + b.level * 31 + b.gearScore) % 100000;
+        const tier = guild.tier ?? 'low';
+        if (tier === 'high') {
+          const scoreA = a.arenaRating + a.gearScore * 0.35 + a.level * 30;
+          const scoreB = b.arenaRating + b.gearScore * 0.35 + b.level * 30;
+          return scoreB - scoreA || hashA - hashB;
+        }
+        if (tier === 'mid') {
+          const bucketA = a.level >= 10 && a.level <= 19 ? 0 : 1;
+          const bucketB = b.level >= 10 && b.level <= 19 ? 0 : 1;
+          return bucketA - bucketB || hashA - hashB;
+        }
+        const bucketA = a.level <= 10 ? 0 : a.level <= 15 ? 1 : 2;
+        const bucketB = b.level <= 10 ? 0 : b.level <= 15 ? 1 : 2;
+        return bucketA - bucketB || hashA - hashB;
       });
 
     while (pool.length < target) {

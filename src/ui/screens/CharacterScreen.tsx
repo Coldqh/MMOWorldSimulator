@@ -1,5 +1,5 @@
 import { CLASSES } from '../../content/classes';
-import { getItemById, rarityLabel } from '../../content/items';
+import { getItemById } from '../../content/items';
 import { getRaceById } from '../../content/races';
 import { useGameStore } from '../../state/gameStore';
 import { canEquipItem, getGearScore, getPlayerStats } from '../../systems/itemSystem';
@@ -69,6 +69,14 @@ export const CharacterScreen = () => {
         </div>
       </section>
 
+      <section className="panel action-panel">
+        <div className="section-title">Действия</div>
+        <div className="action-grid">
+          <button onClick={recoverFullHp}>Восстановить · ~{recoveryMinutes} мин</button>
+          <button onClick={skipDay}>Пропустить день</button>
+        </div>
+      </section>
+
       <section className="panel">
         <div className="section-title">Экипировка</div>
         <div className="list-lines">
@@ -105,19 +113,10 @@ export const CharacterScreen = () => {
                   </button>
                   {item && <small>{item.slot ? ` · ${slotLabel[item.slot]}` : ''}{statLine(entry.itemId) ? ` · ${statLine(entry.itemId)}` : ''}</small>}
                 </span>
-                {item?.rarity && <strong>{rarityLabel[item.rarity]}</strong>}
                 {equippable && <button onClick={() => equipItem(entry.itemId, entry.enhancement ?? 0, entry.cardIds ?? [])}>Надеть</button>}
               </div>
             );
           })}
-        </div>
-      </section>
-
-      <section className="panel">
-        <div className="section-title">Действия</div>
-        <div className="action-grid">
-          <button onClick={recoverFullHp}>Восстановить · ~{recoveryMinutes} мин</button>
-          <button onClick={skipDay}>Пропустить день</button>
         </div>
       </section>
     </div>

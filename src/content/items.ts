@@ -59,6 +59,33 @@ export const ITEMS: ItemDefinition[] = [
   { id: 'crystal_mount_whistle', name: 'Свисток кристального кабана', type: 'mount', rarity: 'legendary', levelReq: 1, classTags: [], stats: { speed: 2 }, effects: [], socketSlots: 0, tradeable: true, price: 5000, announceIfDropped: true }
 ];
 
+const addPotion = (id: string, name: string, levelReq: number, kind: 'hp' | 'mana', value: number, price: number) => {
+  if (ITEMS.some((item) => item.id === id)) return;
+  ITEMS.push({
+    id,
+    name,
+    type: 'consumable',
+    rarity: levelReq >= 20 ? 'epic' : levelReq >= 15 ? 'rare' : levelReq >= 10 ? 'uncommon' : 'common',
+    levelReq,
+    classTags: [],
+    stats: {},
+    effects: kind === 'hp' ? [{ type: 'HEAL', value }] : [],
+    socketSlots: 0,
+    tradeable: true,
+    price,
+    announceIfDropped: false,
+  });
+};
+
+addPotion('health_potion_5', 'Зелье здоровья 5', 5, 'hp', 80, 55);
+addPotion('mana_potion_5', 'Зелье маны 5', 5, 'mana', 65, 58);
+addPotion('health_potion_10', 'Зелье здоровья 10', 10, 'hp', 150, 150);
+addPotion('mana_potion_10', 'Зелье маны 10', 10, 'mana', 120, 160);
+addPotion('health_potion_15', 'Зелье здоровья 15', 15, 'hp', 260, 360);
+addPotion('mana_potion_15', 'Зелье маны 15', 15, 'mana', 210, 390);
+addPotion('health_potion_20', 'Зелье здоровья 20', 20, 'hp', 420, 850);
+addPotion('mana_potion_20', 'Зелье маны 20', 20, 'mana', 340, 900);
+
 export const normalizeLegacyItemId = (id: string) => {
   const wyrm = id.match(/^wyrmspire(_gold)?_(warrior|ranger|mage|priest)_(head|chest|legs|boots|ring|amulet)$/);
   if (wyrm) return `wyrmspire${wyrm[1] ?? ''}_${wyrm[3]}`;

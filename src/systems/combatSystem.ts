@@ -18,6 +18,33 @@ import { addInventoryItem, getPlayerStats, removeInventoryItem } from './itemSys
 import { rollLoot } from './lootSystem';
 import { addPlayerXp, xpForNextLevel, xpRewardForMob } from './progressionSystem';
 
+
+const bestPotionStack = (inventory: InventoryStack[], playerLevel: number, kind: 'hp' | 'mana') => {
+  const ids = kind === 'hp'
+    ? ['health_potion_20', 'health_potion_15', 'health_potion_10', 'health_potion_5', 'minor_potion']
+    : ['mana_potion_20', 'mana_potion_15', 'mana_potion_10', 'mana_potion_5', 'mana_potion'];
+  return inventory
+    .map((entry) => ({ entry, item: getItemById(entry.itemId) }))
+    .filter((pair) => pair.item && pair.entry.amount > 0 && ids.includes(pair.entry.itemId) && (pair.item?.levelReq ?? 1) <= playerLevel)
+    .sort((a, b) => (b.item!.levelReq - a.item!.levelReq) || (b.item!.price - a.item!.price))[0];
+};
+
+const potionValue = (itemId: string, kind: 'hp' | 'mana') => {
+  const table: Record<string, number> = {
+    minor_potion: 35,
+    mana_potion: 30,
+    health_potion_5: 80,
+    mana_potion_5: 65,
+    health_potion_10: 150,
+    mana_potion_10: 120,
+    health_potion_15: 260,
+    mana_potion_15: 210,
+    health_potion_20: 420,
+    mana_potion_20: 340,
+  };
+  return table[itemId] ?? (kind === 'hp' ? 35 : 30);
+};
+
 export const classCombatRole = (classId?: string): PartyCombatMember['role'] => {
   if (classId === 'warrior') return 'tank';
   if (classId === 'priest') return 'healer';
@@ -459,18 +486,20 @@ export const resolveCombatAction = (server: ServerState, combat: CombatState, ac
     player.shield += 8 + Math.floor(player.defense * 0.8);
     log.push('Защита.');
   } else if (actionId === 'potion') {
-    const potion = server.player.inventory.find((entry) => entry.itemId === 'minor_potion' && (entry.enhancement ?? 0) === 0);
-    if (potion && potion.amount > 0) {
-      player.hp = Math.min(player.maxHp, player.hp + 35);
-      server = { ...server, player: { ...server.player, inventory: removeInventoryItem(server.player.inventory, 'minor_potion', 1, 0) } };
-      log.push('Зелье лечения: +35 HP.');
+    const potion = bestPotionStack(server.player.inventory, server.player.level, 'hp');
+    if (potion) {
+      const heal = potionValue(potion.entry.itemId, 'hp');
+      player.hp = Math.min(player.maxHp, player.hp + heal);
+      server = { ...server, player: { ...server.player, inventory: removeInventoryItem(server.player.inventory, potion.entry.itemId, 1, potion.entry.enhancement ?? 0, potion.entry.cardIds ?? []) } };
+      log.push(`${potion.item?.name ?? 'Зелье лечения'}: +${heal} HP.`);
     } else log.push('Зелья лечения нет.');
   } else if (actionId === 'mana_potion') {
-    const potion = server.player.inventory.find((entry) => entry.itemId === 'mana_potion' && (entry.enhancement ?? 0) === 0);
-    if (potion && potion.amount > 0) {
-      player.mana = Math.min(player.maxMana, player.mana + 30);
-      server = { ...server, player: { ...server.player, inventory: removeInventoryItem(server.player.inventory, 'mana_potion', 1, 0) } };
-      log.push('Зелье маны: +30 Mana.');
+    const potion = bestPotionStack(server.player.inventory, server.player.level, 'mana');
+    if (potion) {
+      const mana = potionValue(potion.entry.itemId, 'mana');
+      player.mana = Math.min(player.maxMana, player.mana + mana);
+      server = { ...server, player: { ...server.player, inventory: removeInventoryItem(server.player.inventory, potion.entry.itemId, 1, potion.entry.enhancement ?? 0, potion.entry.cardIds ?? []) } };
+      log.push(`${potion.item?.name ?? 'Зелье маны'}: +${mana} Mana.`);
     } else log.push('Зелья маны нет.');
   } else if (actionId === 'basic') {
     const result = dealDamage(player, enemy, player.attack, rng);
