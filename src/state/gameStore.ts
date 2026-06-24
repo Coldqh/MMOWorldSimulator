@@ -933,48 +933,36 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const guild = server.guilds.find((entry) => entry.id === guildId);
     if (!guild || server.player.guildId) return;
     if (server.player.level < (guild.minLevel ?? 1)) {
-      set({ modal: { id: `modal_guild_level_${guild.id}`, type: "guild", title: "Заявка недоступна", text: guild.name, lines: [`Нужен уровень ${guild.minLevel ?? 1}.`] } });
+      set({ modal: { id: `modal_guild_level_${guild.id}`, type: "guild", title: "Вход закрыт", text: guild.name, lines: [`Нужен уровень ${guild.minLevel ?? 1}.`] } });
       return;
     }
-    const hasPending = server.guildApplications.some(
-      (entry) => entry.guildId === guildId && entry.status === "pending",
-    );
-    if (hasPending) return;
 
     const rng = createRng(
       server.seed + server.serverDay * 8000 + server.currentMinute,
     );
-    const delay = rng.int(90, 360);
-    const resolveAt = addMinutesToClock(
-      server.serverDay,
-      server.currentMinute,
-      delay,
+    const nextGuilds = server.guilds.map((entry) =>
+      entry.id === guild.id
+        ? { ...entry, memberIds: Array.from(new Set([...entry.memberIds, server.player.id])) }
+        : entry,
     );
-    const application = {
-      id: uid("guild_app", rng),
-      guildId,
-      status: "pending" as const,
-      createdDay: server.serverDay,
-      createdMinute: server.currentMinute,
-      resolveDay: resolveAt.day,
-      resolveMinute: resolveAt.minute,
-    };
     const next = addNews(
       {
         ...server,
-        guildApplications: [...server.guildApplications, application],
+        player: { ...server.player, guildId: guild.id },
+        guilds: nextGuilds,
+        guildApplications: server.guildApplications.filter((entry) => entry.status !== "pending"),
       },
       rng,
       "guild",
-      `${server.player.name}: заявка в ${guild.name}.`,
+      `${server.player.name} вступил в ${guild.name}.`,
       false,
     );
     commit(set, next, undefined, {
-      id: `modal_guild_apply_${application.id}`,
+      id: `modal_guild_join_${guild.id}`,
       type: "guild",
-      title: "Заявка отправлена",
+      title: "Принят в гильдию",
       text: guild.name,
-      lines: [`Ответ примерно через ${delay} мин.`],
+      lines: [`Теперь ты в ${guild.name}.`],
     });
   },
 

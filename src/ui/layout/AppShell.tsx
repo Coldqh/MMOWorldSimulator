@@ -33,9 +33,7 @@ const screens: Record<ScreenId, ReactNode> = {
 const bottomNav: Array<{ id: ScreenId; label: string }> = [
   { id: 'character', label: '🧍 Герой' },
   { id: 'world', label: '🌍 Мир' },
-  { id: 'dungeon', label: '⚔️ Данжи' },
-  { id: 'raid', label: '🐉 Рейды' },
-  { id: 'server', label: '📜 Сервер' },
+  { id: 'guild', label: '🏰 Гильдия' },
 ];
 
 const sideNav: Array<{ id: ScreenId; label: string; cityOnly?: boolean }> = [
@@ -127,7 +125,7 @@ export const AppShell = () => {
 
       <nav className="bottom-nav">
         {bottomNav.map((entry) => {
-          const lockedByDungeon = dungeonOpen && entry.id !== 'character' && entry.id !== 'dungeon';
+          const lockedByDungeon = dungeonOpen && entry.id !== 'character';
           return (
             <button key={entry.id} className={activeScreen === entry.id ? 'active' : ''} onClick={() => setScreen(entry.id)} disabled={lockedByDungeon}>
               {entry.label}

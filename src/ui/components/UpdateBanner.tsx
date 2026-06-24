@@ -4,14 +4,12 @@ import { applyLatestVersion, checkRemoteVersion, registerPwa, UPDATE_EVENT, type
 
 export const UpdateBanner = () => {
   const [update, setUpdate] = useState<AppUpdateDetail | null>(null);
-  const [offlineReady, setOfflineReady] = useState(false);
-  const [checking, setChecking] = useState(false);
 
   useEffect(() => {
     let mounted = true;
     registerPwa().then((registration) => {
       if (!mounted) return;
-      if (registration) setOfflineReady(true);
+      void registration;
       void checkRemoteVersion();
     });
 
@@ -32,15 +30,6 @@ export const UpdateBanner = () => {
     };
   }, []);
 
-  const manualCheck = async () => {
-    setChecking(true);
-    const next = await checkRemoteVersion();
-    setChecking(false);
-    if (!next) {
-      setUpdate(null);
-    }
-  };
-
   if (update) {
     return (
       <div className="update-banner update-banner-ready">
@@ -53,10 +42,5 @@ export const UpdateBanner = () => {
     );
   }
 
-  return (
-    <div className="update-banner update-banner-quiet">
-      <span>{offlineReady ? 'Offline ready' : 'Offline режим готовится'} · v{APP_VERSION}</span>
-      <button onClick={() => void manualCheck()} disabled={checking}>{checking ? 'Проверка...' : 'Проверить'}</button>
-    </div>
-  );
+  return null;
 };

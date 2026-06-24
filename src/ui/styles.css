@@ -552,3 +552,84 @@ button:hover:not(:disabled) { border-color: rgba(96,165,250,0.75); }
   .topbar { top: 36px; }
   .side-drawer { top: 94px !important; height: calc(100vh - 94px) !important; }
 }
+
+
+/* v0.4.4 mobile compact + hidden quiet PWA status */
+.update-banner-quiet { display: none !important; }
+
+@media (max-width: 899px) {
+  body { font-size: 12px; }
+  .app-shell { max-width: 100%; }
+  .topbar {
+    grid-template-columns: 34px 1fr auto;
+    gap: 6px;
+    padding: 6px 7px;
+    min-height: 46px;
+  }
+  .menu-button { width: 32px; height: 32px; border-radius: 10px; font-size: 16px; }
+  .app-title { font-size: 13px; }
+  .topbar .muted { font-size: 10px; }
+  .topbar-player { font-size: 10px; gap: 0; line-height: 1.2; }
+  .screen-frame { padding: 7px 7px 64px; }
+  .screen-stack, .start-screen, .choice-list, .list-lines, .news-list { gap: 6px; }
+  .panel { padding: 8px; border-radius: 12px; }
+  .hero-panel, .start-panel, .premium-panel { border-radius: 13px; }
+  h1 { font-size: 17px; margin-bottom: 3px; }
+  h2 { font-size: 15px; margin-bottom: 4px; }
+  h3 { font-size: 13px; margin-bottom: 4px; }
+  p { margin-bottom: 6px; }
+  small { font-size: 10px; }
+  .section-title { margin-bottom: 5px; font-size: 9px; letter-spacing: 0.06em; }
+  button { padding: 6px 7px; border-radius: 9px; font-size: 11px; }
+  .stat-grid, .action-grid, .combat-bars, .rank-columns { gap: 5px; }
+  .stat-grid span, .reward-box { padding: 6px; border-radius: 9px; font-size: 11px; }
+  .stat-grid-compact { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .content-card, .choice-row, .info-card { gap: 3px; min-height: auto; padding: 8px; border-radius: 11px; }
+  .list-line { gap: 7px; padding: 6px 0; font-size: 11px; }
+  .list-line strong { font-size: 11px; }
+  .list-line button { font-size: 11px; }
+  .tag-list, .chip-row { gap: 4px; }
+  .chip-row button, .tag-list span { padding: 5px 7px; font-size: 10px; }
+  .resource-meta { font-size: 10px; }
+  .resource-track { height: 8px; }
+  .bar-stack { gap: 6px; margin: 7px 0; }
+  .bottom-nav {
+    width: 100%;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    padding: 5px;
+  }
+  .bottom-nav button { padding: 7px 2px; border-radius: 10px; font-size: 10px; }
+  .side-drawer { width: min(250px, 82vw); padding: 10px; }
+  .side-title { margin-bottom: 8px; font-size: 11px; }
+  .side-list { gap: 6px; }
+  .side-list button { padding: 7px 8px; font-size: 11px; }
+  .modal-backdrop { padding: 8px; }
+  .result-modal { max-height: 90vh; padding: 10px; border-radius: 15px; }
+  .result-modal h2 { font-size: 17px; }
+  .modal-lines, .combat-log { padding: 7px; border-radius: 10px; font-size: 11px; line-height: 1.35; }
+  .reward-grid { gap: 5px; margin: 7px 0; }
+  .reward-box strong { font-size: 15px; }
+  .profile-grid-modal { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+  .profile-cell { padding: 7px; border-radius: 10px; gap: 2px; }
+  .profile-cell span { font-size: 9px; }
+  .profile-cell strong { font-size: 11px; }
+  .combat-overlay { padding: 7px; }
+  .combat-panel { border-radius: 15px; }
+  .party-combat-board { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+  .party-member-card { padding: 5px; gap: 3px; border-radius: 9px; }
+  .party-member-top strong { font-size: 10px; }
+  .party-member-top span, .party-round-stats span { font-size: 8px; }
+  .party-member-card .resource-meta { font-size: 8px; }
+  .party-member-card .resource-track { height: 6px; }
+  .dungeon-overlay-top { padding: 7px; }
+  .dungeon-overlay-body { padding: 7px; }
+  .mini-tabs button { padding: 6px 7px; font-size: 10px; }
+  .text-input { padding: 8px; border-radius: 10px; font-size: 12px; }
+}
+
+@media (max-width: 380px) {
+  .profile-grid-modal { grid-template-columns: 1fr; }
+  .stat-grid-compact { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .party-combat-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

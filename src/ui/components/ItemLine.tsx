@@ -1,4 +1,4 @@
-import { getItemById, rarityLabel } from '../../content/items';
+import { getItemById } from '../../content/items';
 
 interface Props {
   itemId: string;
@@ -14,7 +14,7 @@ export const ItemLine = ({ itemId, amount, enhancement = 0, cardIds = [], showLe
 
   return (
     <span className={`rarity rarity-${item.rarity}`}>
-      {item.name}{enhancement > 0 ? ` +${enhancement}` : ''}{showLevel ? ` · Lv. ${item.levelReq}` : ''}{cardIds.length > 0 ? ` · 🃏${cardIds.length}` : ''}{amount !== undefined ? ` ×${amount}` : ''} <small>{rarityLabel[item.rarity]}</small>
+      {item.name}{enhancement > 0 ? ` +${enhancement}` : ''}{showLevel ? ` · Lv. ${item.levelReq}` : ''}{cardIds.length > 0 ? ` · 🃏${cardIds.length}` : ''}{amount !== undefined ? ` ×${amount}` : ''}
     </span>
   );
 };
