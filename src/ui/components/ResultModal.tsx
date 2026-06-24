@@ -4,7 +4,7 @@ import { useGameStore } from '../../state/gameStore';
 import { getInstanceGearScore } from '../../systems/itemSystem';
 
 const choiceLabel: Record<string, string> = {
-  need: 'Нужна',
+  need: 'Нужно',
   want: 'Хочу',
   pass: 'Отказ',
 };
@@ -45,6 +45,7 @@ export const ResultModal = () => {
   const openItemProfile = useGameStore((state) => state.openItemProfile);
   const socketCard = useGameStore((state) => state.socketCard);
   const openGuildProfile = useGameStore((state) => state.openGuildProfile);
+  const openGuildRoster = useGameStore((state) => state.openGuildRoster);
   const pendingLoot = server.pendingLootRoll;
 
   if (!modal && !pendingLoot) return null;
@@ -100,6 +101,7 @@ export const ResultModal = () => {
   const socketActions = actionLines.filter((line) => line.startsWith('ACTION_SOCKET_') && !line.startsWith('ACTION_SOCKET_STATE:'));
   const npcItemActions = actionLines.filter((line) => line.startsWith('ACTION_NPC_ITEM|'));
   const guildAction = actionLines.find((line) => line.startsWith('ACTION_GUILD_PROFILE:'));
+  const guildRosterAction = actionLines.find((line) => line.startsWith('ACTION_GUILD_ROSTER:'));
   const profileMode = modal.type === 'item' || modal.type === 'npc' || modal.type === 'loot';
 
   return (
@@ -157,6 +159,11 @@ export const ResultModal = () => {
         {guildAction && (() => {
           const [, guildId, guildName] = guildAction.split(':');
           return <button className="wide-button" onClick={() => openGuildProfile(guildId)}>Гильдия: {guildName}</button>;
+        })()}
+
+        {guildRosterAction && (() => {
+          const [, guildId] = guildRosterAction.split(':');
+          return <button className="wide-button" onClick={() => openGuildRoster(guildId)}>Ростер</button>;
         })()}
 
         {npcItemActions.length > 0 && (

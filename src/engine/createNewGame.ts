@@ -72,19 +72,19 @@ const createGuilds = (): Guild[] => {
 const npcLevelForGuild = (guild: Guild, rng: ReturnType<typeof createRng>) => {
   const tier = guild.tier ?? 'low';
   if (tier === 'high') return 20;
-  if (tier === 'mid') return rng.int(10, 19);
-  // Low guilds can have anyone below cap, but most are early/mid-game.
+  if (tier === 'mid') return rng.int(10, 20);
+  // Low guilds have the whole server spread, but most members are 1-10.
   const roll = rng.next();
-  if (roll < 0.76) return rng.int(1, 9);
-  if (roll < 0.96) return rng.int(10, 15);
-  return rng.int(16, 19);
+  if (roll < 0.70) return rng.int(1, 10);
+  if (roll < 0.90) return rng.int(11, 15);
+  return rng.int(16, 20);
 };
 
 const normalizeLevelForGuildTier = (currentLevel: number, guild: Guild, rng: ReturnType<typeof createRng>) => {
   const tier = guild.tier ?? 'low';
   if (tier === 'high') return 20;
-  if (tier === 'mid') return currentLevel >= 10 && currentLevel < 20 ? currentLevel : rng.int(10, 19);
-  if (currentLevel >= 1 && currentLevel < 20) return currentLevel;
+  if (tier === 'mid') return currentLevel >= 10 && currentLevel <= 20 ? currentLevel : rng.int(10, 20);
+  if (currentLevel >= 1 && currentLevel <= 20) return currentLevel;
   return npcLevelForGuild(guild, rng);
 };
 
@@ -103,7 +103,8 @@ const upgradeNpcForGuild = (npc: NpcPlayer, guild: Guild, seed: number, order = 
   const tier = guild.tier ?? 'low';
   const minLevel = guild.minLevel ?? minLevelForTier(tier);
   let level = Math.max(normalizeLevelForGuildTier(npc.level, guild, rng), minLevel);
-  if (tier !== 'high') level = Math.min(19, level);
+  if (tier === 'mid') level = Math.max(10, Math.min(20, level));
+  if (tier === 'low') level = Math.max(1, Math.min(20, level));
   const focus = ['PVP', 'HARDCORE'].includes(guild.type)
     ? rng.pick(['PVP_PLAYER', 'HARDCORE', 'LEADER', 'GUILD_PLAYER'] as RoleFocus[])
     : guild.type === 'PVE'
@@ -211,7 +212,7 @@ const rebalanceGuildMemberships = (server: ServerState, guilds: Guild[], normali
     let pool = npcs
       .filter((npc) => !assigned.has(npc.id))
       .filter((npc) => npc.level >= minLevel)
-      .filter((npc) => (guild.tier ?? 'low') === 'high' ? npc.level >= 20 : npc.level < 20)
+      .filter((npc) => (guild.tier ?? 'low') === 'high' ? npc.level >= 20 : (guild.tier ?? 'low') === 'mid' ? npc.level >= 10 && npc.level <= 20 : npc.level >= 1 && npc.level <= 20)
       .sort((a, b) => {
         const hashA = (seed + guildIndex * 13007 + a.id.length * 97 + a.level * 31 + a.gearScore) % 100000;
         const hashB = (seed + guildIndex * 13007 + b.id.length * 97 + b.level * 31 + b.gearScore) % 100000;
@@ -240,7 +241,21 @@ const rebalanceGuildMemberships = (server: ServerState, guilds: Guild[], normali
     }
 
     const chosen = pool.slice(0, target).map((npc, order) => {
-      const upgraded = upgradeNpcForGuild(updatedNpcs.get(npc.id) ?? npc, guild, seed, guildIndex * 100 + order);
+      let upgraded = upgradeNpcForGuild(updatedNpcs.get(npc.id) ?? npc, guild, seed, guildIndex * 100 + order);
+      const tier = guild.tier ?? 'low';
+      const rng = createRng(seed + guildIndex * 7700 + order * 109);
+      if (tier === 'low') {
+        const bucket = order % 10;
+        const forcedLevel = bucket < 7 ? rng.int(1, 10) : bucket < 9 ? rng.int(11, 15) : rng.int(16, 20);
+        const equipment = generateEquipmentForClassLevel(upgraded.classId, forcedLevel, rng);
+        const gearScore = getGearScore(equipment);
+        upgraded = { ...upgraded, level: forcedLevel, equipment, gearScore, arenaRating: Math.round(estimateArenaRatingValue(forcedLevel, gearScore, upgraded.roleFocus)), gold: Math.round(estimateWealthValue(forcedLevel, gearScore, upgraded.roleFocus)) };
+      } else if (tier === 'mid') {
+        const forcedLevel = rng.int(10, 20);
+        const equipment = generateScaledEquipmentForClassLevel(upgraded.classId, forcedLevel, rng, 0.22 + rng.next() * 0.45);
+        const gearScore = getGearScore(equipment);
+        upgraded = { ...upgraded, level: forcedLevel, equipment, gearScore, arenaRating: Math.round(estimateArenaRatingValue(forcedLevel, gearScore, upgraded.roleFocus)), gold: Math.round(estimateWealthValue(forcedLevel, gearScore, upgraded.roleFocus)) };
+      }
       updatedNpcs.set(upgraded.id, upgraded);
       assigned.add(upgraded.id);
       return upgraded.id;

@@ -178,6 +178,30 @@ const buildInstance = (itemId: string, seed: string, enhancement = 0, cardIds: s
   };
 };
 
+
+const chooseNpcCardsForItem = (classId: string, level: number, item: ItemDefinition, slots: number, rng: Rng, power = 0.5): string[] => {
+  if (slots <= 0) return [];
+  const cards = ITEMS
+    .filter((entry) => entry.type === 'card' && entry.levelReq <= level)
+    .sort((a, b) => getInstanceGearScore(b, 0) - getInstanceGearScore(a, 0));
+  if (cards.length === 0) return [];
+  const chance = Math.min(0.72, 0.12 + power * 0.45 + (level >= 20 ? 0.14 : 0));
+  const result: string[] = [];
+  for (let i = 0; i < slots; i += 1) {
+    if (!rng.chance(chance - i * 0.16)) continue;
+    const preferred = cards.filter((card) => {
+      if ((item.stats.magic ?? 0) > (item.stats.attack ?? 0)) return (card.stats.magic ?? 0) > 0 || (card.stats.mana ?? 0) > 0;
+      if (classId === 'warrior') return (card.stats.defense ?? 0) > 0 || (card.stats.hp ?? 0) > 0 || (card.stats.attack ?? 0) > 0;
+      if (classId === 'ranger') return (card.stats.attack ?? 0) > 0 || (card.stats.speed ?? 0) > 0;
+      return (card.stats.magic ?? 0) > 0 || (card.stats.mana ?? 0) > 0;
+    });
+    const pool = preferred.length > 0 ? preferred : cards;
+    const card = pool[Math.min(pool.length - 1, rng.int(0, Math.min(pool.length - 1, 8)))];
+    if (card && !result.includes(card.id)) result.push(card.id);
+  }
+  return result;
+};
+
 export const bestItemsForNpc = (classId: string, level: number, slot: EquipmentSlot, limit = 8) => {
   return ITEMS
     .filter((item) => item.slot === slot && canNpcUseItem({ classId, level }, item))
@@ -361,7 +385,11 @@ export const generateScaledEquipmentForClassLevel = (classId: string, level: num
     const item = chooseNpcItem(classId, level, slot, rng, normalizedPower);
     if (!item) return;
     const enhancement = enhancementForNpc(level, item.rarity, rng, normalizedPower);
-    equipment[slot] = buildInstance(item.id, `scaled_${classId}_${level}_${slot}_${Math.round(normalizedPower * 1000)}_${rng.int(1, 999999)}`, enhancement);
+    const seed = `scaled_${classId}_${level}_${slot}_${Math.round(normalizedPower * 1000)}_${rng.int(1, 999999)}`;
+    let instance = buildInstance(item.id, seed, enhancement);
+    const cards = chooseNpcCardsForItem(classId, level, item, instance.socketSlots ?? 0, rng, normalizedPower);
+    instance = { ...instance, cardIds: cards };
+    equipment[slot] = instance;
   });
   return equipment;
 };

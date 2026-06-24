@@ -78,6 +78,7 @@ export const CharacterScreen = () => {
       </section>
 
 
+
       <section className="panel">
         <div className="section-title">Действия</div>
         <div className="action-grid">

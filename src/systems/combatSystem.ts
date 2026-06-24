@@ -182,10 +182,10 @@ const resetRoundStats = (members: PartyCombatMember[] = []) =>
 const updateMember = (members: PartyCombatMember[], id: string, patch: Partial<PartyCombatMember>) =>
   members.map((member) => (member.id === id ? { ...member, ...patch } : member));
 
-export const startSpotCombat = (server: ServerState, spotId: string, rng: Rng): CombatState | null => {
+export const startSpotCombat = (server: ServerState, spotId: string, rng: Rng, forcedMobId?: string): CombatState | null => {
   const spot = getSpotById(spotId);
   if (!spot) return null;
-  const mobId = rng.pick(spot.mobIds);
+  const mobId = forcedMobId && spot.mobIds.includes(forcedMobId) ? forcedMobId : rng.pick(spot.mobIds);
   const enemy = createMobCombatant(mobId);
   if (!enemy) return null;
   enemy.maxHp = Math.max(1, Math.round(enemy.maxHp * 1.875));
@@ -251,7 +251,7 @@ export const startBossCombat = (
     dungeonEncounterIndex,
     dungeonFloorEnemyCount,
     isFinalDungeonEncounter,
-    allowLoot: (source !== 'dungeon' && source !== 'raid') || (isBoss && isFinalDungeonEncounter),
+    allowLoot: (source !== 'dungeon' && source !== 'raid') || isBoss,
     turn: 1,
     log: partyNpcIds.length > 0 ? [`Пати: ${partyNpcIds.length + 1}. Цель: ${title ?? enemy.name}.`] : [`Цель: ${title ?? enemy.name}.`],
     status: 'active',
@@ -433,7 +433,7 @@ const finishDefeat = (server: ServerState, combat: CombatState, rng: Rng): { ser
 const resolvePartyRound = (server: ServerState, combat: CombatState, enemy: Combatant, player: Combatant, log: string[], rng: Rng) => {
   if (!combat.partyRoles || combat.partyNpcIds.length === 0 || enemy.hp <= 0) return { enemy, player, partyMembers: combat.partyMembers ?? [] };
   const roles = combat.partyRoles;
-  let members = resetRoundStats(combat.partyMembers ?? createPartyMembers(server, combat.partyNpcIds, roles));
+  let members = combat.partyMembers ?? createPartyMembers(server, combat.partyNpcIds, roles);
   let nextEnemy = enemy;
   let nextPlayer = player;
 
@@ -466,16 +466,23 @@ const resolvePartyRound = (server: ServerState, combat: CombatState, enemy: Comb
         if (member.hp <= 0 || member.hp >= member.maxHp) return member;
         const applied = Math.min(member.maxHp - member.hp, aoeHeal);
         totalHeal += applied;
-        return { ...member, hp: member.hp + applied, healingLastRound: member.id === healerMember.id ? member.healingLastRound : member.healingLastRound + applied };
+        if (member.id === server.player.id) nextPlayer = { ...nextPlayer, hp: Math.min(nextPlayer.maxHp, nextPlayer.hp + applied) };
+        return { ...member, hp: member.hp + applied, healingLastRound: member.healingLastRound + applied };
       });
       members = updateMember(members, healerMember.id, { mana: Math.max(0, healerMember.mana - 18), healingLastRound: totalHeal });
-      log.push(`${healerMember.name}: АоЕ хилл +${totalHeal}.`);
-    } else if (tankMember) {
-      const heal = Math.min(tankMember.maxHp - tankMember.hp, rng.int(17, 30) + healerStats.heal);
-      if (heal > 0) {
-        members = updateMember(members, tankMember.id, { hp: tankMember.hp + heal });
-        members = updateMember(members, healerMember.id, { healingLastRound: heal, mana: Math.max(0, healerMember.mana - 9) });
-        log.push(`${healerMember.name}: лечение танка +${heal}.`);
+      log.push(`${healerMember.name}: общий хилл +${totalHeal}.`);
+    } else {
+      const preferred = tankMember && tankMember.hp > 0 && tankMember.hp < tankMember.maxHp
+        ? tankMember
+        : injured.sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
+      if (preferred) {
+        const heal = Math.min(preferred.maxHp - preferred.hp, rng.int(17, 30) + healerStats.heal);
+        if (heal > 0) {
+          if (preferred.id === server.player.id) nextPlayer = { ...nextPlayer, hp: Math.min(nextPlayer.maxHp, nextPlayer.hp + heal) };
+          members = updateMember(members, preferred.id, { hp: preferred.hp + heal });
+          members = updateMember(members, healerMember.id, { healingLastRound: heal, mana: Math.max(0, healerMember.mana - 9) });
+          log.push(`${healerMember.name}: лечение ${preferred.name} +${heal}.`);
+        }
       } else {
         log.push(`${healerMember.name}: готовит хилл.`);
       }

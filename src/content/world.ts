@@ -300,6 +300,32 @@ replaceTableEntries('lt_wyrmspire_raid', [
 ], 0.08);
 
 
+
+// v0.4.8: sane mob names, full 1-20 spot coverage, and extra high-level targets.
+const renameMob = (id: string, name: string) => {
+  const mob = MOBS.find((entry) => entry.id === id);
+  if (mob) mob.name = name;
+};
+renameMob('mireglass_caster', 'Колдун Топкого Стекла');
+renameMob('skyfall_harrier', 'Гарпунщик Небесного Перевала');
+renameMob('mire_depths_beast', 'Болотный зверь');
+renameMob('blueglass_mender', 'Чинитель Синего Стекла');
+
+if (!MOBS.some((mob) => mob.id === 'wyrmspire_cultist')) {
+  MOBS.push({ id: 'wyrmspire_cultist', name: 'Культист Вирмшпиля', level: 20, stats: { hp: 620, mana: 180, attack: 52, magic: 76, defense: 30, speed: 8 }, xp: 780, gold: [210, 360], lootTableId: 'lt_wyrmspire_raid', tags: ['humanoid', 'magic'] });
+}
+const wyrmSpot = SPOTS.find((spot) => spot.id === 'wyrmspire_approach');
+if (wyrmSpot && !wyrmSpot.mobIds.includes('wyrmspire_cultist')) wyrmSpot.mobIds.push('wyrmspire_cultist');
+
+// Make sure there is at least one non-boss mob for every level from 1 to 20.
+for (let level = 1; level <= 20; level += 1) {
+  if (MOBS.some((mob) => mob.level === level && !mob.tags.includes('boss'))) continue;
+  const id = `wild_level_${level}_mob`;
+  if (MOBS.some((mob) => mob.id === id)) continue;
+  const table = level <= 4 ? 'lt_greenfield_trash' : level <= 8 ? 'lt_redcap_camp' : level <= 12 ? 'lt_ashen_mire' : level <= 15 ? 'lt_skyfall_pass' : level <= 19 ? 'lt_frostspire' : 'lt_wyrmspire_raid';
+  MOBS.push({ id, name: `Дикий враг ${level} уровня`, level, stats: { hp: 42 + level * 36, mana: level >= 8 ? 20 + level * 5 : 0, attack: 6 + level * 4, magic: level >= 8 ? 3 + level * 3 : 0, defense: 2 + level * 2, speed: 4 + Math.floor(level / 3) }, xp: 16 + level * 22, gold: [Math.max(2, level * 8), Math.max(8, level * 16)], lootTableId: table, tags: ['beast'] });
+}
+
 // v0.3.9: every mob and boss has its own card.
 const slugifyMobId = (id: string) => `card_${id}`;
 const cardRarityForMob = (mob: MobDefinition): Rarity => {
@@ -349,6 +375,17 @@ MOBS.forEach((mob) => {
   const table = LOOT_TABLES.find((entry) => entry.id === mob.lootTableId);
   if (table && !table.entries.some((entry) => entry.itemId === cardId)) {
     table.entries.push({ itemId: cardId, chance: cardDropChanceForMob(mob) });
+  }
+});
+
+
+
+// v0.4.8: update existing card names after mob renames.
+MOBS.forEach((mob) => {
+  const card = ITEMS.find((item) => item.id === `card_${mob.id}`);
+  if (card) {
+    card.name = `Карта: ${mob.name}`;
+    card.levelReq = mob.level;
   }
 });
 

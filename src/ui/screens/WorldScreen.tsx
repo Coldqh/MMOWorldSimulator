@@ -274,17 +274,11 @@ export const WorldScreen = () => {
                   <div key={mob.id} className="list-line">
                     <span>{mob.name}</span>
                     <strong>Lv. {mob.level}</strong>
+                    <button onClick={() => startFarm(currentSpot.id, mob.id)} disabled={Boolean(combat)}>Напасть</button>
                   </div>
                 ) : null;
               })}
             </div>
-            <button
-              className="primary-button wide-button"
-              onClick={() => startFarm(currentSpot.id)}
-              disabled={Boolean(combat)}
-            >
-              Напасть на моба
-            </button>
           </section>
 
           <section className="panel">

@@ -21,7 +21,7 @@ See `GITHUB_PAGES_SETUP.md`.
 
 ## Offline / PWA
 
-Version `0.4.1` adds:
+Version `0.4.0` adds:
 
 - Service Worker cache.
 - Web App Manifest.

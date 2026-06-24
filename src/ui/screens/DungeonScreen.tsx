@@ -33,7 +33,7 @@ export const DungeonScreen = () => {
   const missingHp = Math.max(0, stats.hp - Math.min(server.player.hp, stats.hp));
   const missingMana = Math.max(0, stats.mana - Math.min(server.player.mana, stats.mana));
   const restMinutes = Math.max(8, Math.ceil(missingHp / 5) + Math.ceil(missingMana / 10));
-  const canRest = Boolean(run && encounterIndex === 0 && !combat);
+  const canRest = Boolean(run && !combat);
 
   if (run && runDungeon && floor) {
     const role = run.partyRoles?.tankId === server.player.id ? 'tank' : run.partyRoles?.healerId === server.player.id ? 'healer' : 'dps';
@@ -75,10 +75,10 @@ export const DungeonScreen = () => {
             <button className="primary-button" onClick={startDungeonFloor} disabled={Boolean(combat) || !currentMob}>
               {currentMob ? `Бой: ${currentMob.name}` : 'Этаж пройден'}
             </button>
-            <button onClick={restDungeonParty} disabled={!canRest}>Отдых · ~{restMinutes} мин</button>
+            <button onClick={restDungeonParty} disabled={!canRest}>Отдых</button>
             <button className="danger-button" onClick={leaveDungeonRun} disabled={Boolean(combat)}>Покинуть</button>
           </div>
-          {!canRest && !combat && encounterIndex > 0 && <p className="muted mt-small">Отдых доступен между этажами.</p>}
+          
         </section>
 
         <section className="panel">

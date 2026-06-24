@@ -307,12 +307,7 @@ const resolveGuildApplications = (server: ServerState, rng: Rng): ServerState =>
     const guild = next.guilds.find((entry) => entry.id === app.guildId);
     if (!guild) return;
 
-    const levelFactor = Math.min(0.25, next.player.level * 0.025);
-    const repFactor = Math.min(0.18, next.player.reputation * 0.006);
-    const policyFactor = guild.recruitmentPolicy === 'open' ? 0.38 : guild.recruitmentPolicy === 'invite' ? 0.18 : 0.05;
-    const stabilityPenalty = guild.stability < 35 ? -0.12 : 0;
-    const chance = Math.max(0.12, Math.min(0.86, 0.28 + policyFactor + levelFactor + repFactor + stabilityPenalty));
-    const accepted = rng.chance(chance);
+    const accepted = true;
 
     if (accepted) {
       next = {

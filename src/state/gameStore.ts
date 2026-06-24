@@ -72,7 +72,7 @@ interface GameStore {
   travelToZone: (zoneId: string) => void;
   enterSpot: (spotId: string) => void;
   leaveSpot: () => void;
-  startFarm: (spotId: string) => void;
+  startFarm: (spotId: string, mobId?: string) => void;
   startDungeon: (dungeonId: string) => void;
   startDungeonFloor: () => void;
   restDungeonParty: () => void;
@@ -97,6 +97,7 @@ interface GameStore {
   leaveGuild: () => void;
   openNpcProfile: (npcId: string) => void;
   openGuildProfile: (guildId: string) => void;
+  openGuildRoster: (guildId: string) => void;
 }
 
 
@@ -355,7 +356,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ activeScreen: "world" });
   },
 
-  startFarm: (spotId) => {
+  startFarm: (spotId, mobId) => {
     const { server } = get();
     if (!server.characterCreated || server.currentDungeonRun) return;
     if (server.location.mode !== "spot" || server.location.spotId !== spotId)
@@ -363,7 +364,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const rng = createRng(
       server.seed + server.serverDay * 1000 + server.currentMinute,
     );
-    const combat = startSpotCombat(server, spotId, rng);
+    const combat = startSpotCombat(server, spotId, rng, mobId);
     if (!combat) return;
     commit(set, server, combat, null);
   },
@@ -532,14 +533,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const playerGear = getGearScore(server.player.equipment);
     const candidates = server.npcs
       .filter((npc) => ['PVP_PLAYER', 'HARDCORE', 'GUILD_PLAYER', 'LEADER'].includes(npc.roleFocus))
-      .filter((npc) => Math.abs(npc.level - server.player.level) <= 3)
+      .filter((npc) => server.player.level >= 20 ? npc.level === 20 : Math.abs(npc.level - server.player.level) <= 1)
       .filter((npc) => Math.abs(npc.arenaRating - server.player.arenaRating) <= 300)
       .filter((npc) => Math.abs(npc.gearScore - playerGear) <= Math.max(180, playerGear * 0.38))
       .sort((a, b) =>
         (Math.abs(a.arenaRating - server.player.arenaRating) + Math.abs(a.gearScore - playerGear) * 0.8) -
         (Math.abs(b.arenaRating - server.player.arenaRating) + Math.abs(b.gearScore - playerGear) * 0.8),
       );
-    const pool = candidates.length >= 4 ? candidates.slice(0, 18) : server.npcs.filter((npc) => ['PVP_PLAYER', 'HARDCORE', 'GUILD_PLAYER', 'LEADER'].includes(npc.roleFocus));
+    const fallbackPool = server.npcs.filter((npc) => ['PVP_PLAYER', 'HARDCORE', 'GUILD_PLAYER', 'LEADER'].includes(npc.roleFocus)).filter((npc) => server.player.level >= 20 ? npc.level === 20 : Math.abs(npc.level - server.player.level) <= 1);
+    const pool = candidates.length >= 4 ? candidates.slice(0, 18) : fallbackPool;
     const opponent = rng.pick(pool.length > 0 ? pool : server.npcs);
     const opponentStats = getPlayerStats({ ...server.player, id: opponent.id, name: opponent.name, raceId: opponent.raceId, classId: opponent.classId, level: opponent.level, xp: 0, gold: opponent.gold, inventory: opponent.inventory, equipment: opponent.equipment, guildId: opponent.guildId, reputation: opponent.reputation, arenaRating: opponent.arenaRating });
     const buildArenaFighter = (base: ReturnType<typeof createPlayerCombatant>, gearScore: number) => {
@@ -675,15 +677,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
           ? makeRewardModal(result.combat, server.seed + server.currentMinute)
           : makeDeathModal(result.combat, server.seed + server.currentMinute);
       nextCombat = null;
-
-      if (result.combat.status === "victory" && (result.combat.source === "dungeon" || result.combat.source === "raid") && nextServer.currentDungeonRun && !nextServer.pendingLootRoll) {
-        const autoRng = createRng(nextServer.seed + nextServer.serverDay * 9191 + nextServer.currentMinute + result.combat.turn);
-        const autoCombat = startDungeonFloorCombat(nextServer, autoRng);
-        if (autoCombat) {
-          nextCombat = autoCombat;
-          nextServer = { ...nextServer, currentDungeonRun: { ...nextServer.currentDungeonRun, status: "inCombat" } };
-        }
-      }
 
       if (result.combat.status === "defeat" && result.combat.source !== 'dungeon' && result.combat.source !== 'raid') set({ activeScreen: "world" });
     }
@@ -892,11 +885,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     let next: ServerState = { ...server, pendingLootRoll: undefined };
     const lines = [
       `Выпало: ${item.name}.`,
-      `${server.player.name}: ${choice === "need" ? "Нужна" : choice === "want" ? "Хочу" : "Отказ"} · ${choice === "pass" ? "-" : playerRoll % 100 || 100}`,
+      `${server.player.name}: ${choice === "need" ? "Нужно" : choice === "want" ? "Хочу" : "Отказ"} · ${choice === "pass" ? "-" : playerRoll % 100 || 100}`,
     ];
     npcRolls.forEach((entry) =>
       lines.push(
-        `${entry.name}: ${entry.choice === "need" ? "Нужна" : entry.choice === "want" ? "Хочу" : "Отказ"}${entry.choice === "pass" ? "" : ` · ${entry.roll % 100 || 100}`}`,
+        `${entry.name}: ${entry.choice === "need" ? "Нужно" : entry.choice === "want" ? "Хочу" : "Отказ"}${entry.choice === "pass" ? "" : ` · ${entry.roll % 100 || 100}`}`,
       ),
     );
     if (winner.id === server.player.id && choice !== "pass") {
@@ -1064,31 +1057,55 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   },
 
+  openGuildRoster: (guildId) => {
+    const { server } = get();
+    const guild = server.guilds.find((entry) => entry.id === guildId);
+    if (!guild) return;
+    const roleWeight = (id: string) => guild.leaderId === id ? 0 : guild.deputyId === id ? 1 : (guild.officerIds ?? []).includes(id) ? 2 : 3;
+    const members = guild.memberIds
+      .map((id) => id === server.player.id ? server.player : server.npcs.find((npc) => npc.id === id))
+      .filter(Boolean)
+      .sort((a: any, b: any) => roleWeight(a.id) - roleWeight(b.id) || b.level - a.level || (b.gearScore ?? getGearScore(b.equipment ?? {})) - (a.gearScore ?? getGearScore(a.equipment ?? {})));
+    set({
+      modal: {
+        id: `modal_guild_roster_${guild.id}`,
+        type: 'guild',
+        title: `${guild.name}: ростер`,
+        text: `${members.length} игроков`,
+        lines: members.map((member: any) => {
+          const role = guild.leaderId === member.id ? '👑 ГМ' : guild.deputyId === member.id ? '🛡️ Зам' : (guild.officerIds ?? []).includes(member.id) ? '⚔️ Офицер' : 'Участник';
+          const gear = member.id === server.player.id ? getGearScore(server.player.equipment) : member.gearScore;
+          return `${role}: ${member.name}${member.id === server.player.id ? ' · ты' : ''} · Lv. ${member.level} · Gear ${gear}`;
+        }),
+      },
+    });
+  },
+
   openGuildProfile: (guildId) => {
     const { server } = get();
     const guild = server.guilds.find((entry) => entry.id === guildId);
     if (!guild) return;
     const members = guild.memberIds.map((id) => server.npcs.find((npc) => npc.id === id)).filter(Boolean);
     const leader = server.npcs.find((npc) => npc.id === guild.leaderId);
+    const deputy = server.npcs.find((npc) => npc.id === guild.deputyId);
     set({
       modal: {
         id: `modal_guild_${guild.id}`,
         type: 'guild',
         title: guild.name,
-        text: `${guild.type} · ${members.length} игроков`,
+        text: `${guild.type} · ${guild.tier ?? 'low'} · ${members.length} игроков`,
         lines: [
           `Уровень: ${guild.level}`,
-          `Тир: ${guild.tier ?? 'low'} · вход с ${guild.minLevel ?? 1}`,
+          `Вход: ${guild.minLevel ?? 1}+`,
           `ГМ: ${leader?.name ?? 'нет'}`,
-          `Зам: ${server.npcs.find((npc) => npc.id === guild.deputyId)?.name ?? 'нет'}`,
+          `Зам: ${deputy?.name ?? 'нет'}`,
           `Офицеры: ${(guild.officerIds ?? []).map((id) => server.npcs.find((npc) => npc.id === id)?.name ?? id).join(', ') || 'нет'}`,
-          `PvP рейтинг: ${guild.pvpRating}`,
-          `Репутация: ${guild.reputation}`,
-          `Рейд-прогресс: ${guild.raidProgress}%`,
+          `PvP: ${guild.pvpRating}`,
+          `Gear: ${guild.reputation}`,
+          `Рейд: ${guild.raidProgress}%`,
           `Стабильность: ${guild.stability}%`,
-          ...members.slice(0, 12).map((npc) => `Участник: ${npc?.name} · Lv. ${npc?.level} · Gear ${npc?.gearScore}`),
+          `ACTION_GUILD_ROSTER:${guild.id}`,
         ],
       },
     });
-  },
-}));
+  },}));
