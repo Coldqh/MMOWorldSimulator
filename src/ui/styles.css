@@ -675,3 +675,33 @@ button:hover:not(:disabled) { border-color: rgba(96,165,250,0.75); }
   .consumable-menu { grid-template-columns: 1fr; gap: 5px; padding: 6px; }
   .consumable-menu button { padding: 7px 8px; font-size: 11px; }
 }
+
+/* v0.4.7 library */
+.library-row.known-row {
+  border-color: rgba(34, 197, 94, 0.18);
+  background: rgba(22, 163, 74, 0.045);
+}
+.library-set-block {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 13px;
+  background: rgba(15, 23, 42, 0.54);
+}
+.compact-token-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.small-token {
+  font-size: 11px;
+  padding: 5px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(2, 6, 23, 0.42);
+}
+@media (max-width: 899px) {
+  .library-set-block { padding: 7px; gap: 6px; }
+  .small-token { font-size: 10px; padding: 4px 6px; }
+}

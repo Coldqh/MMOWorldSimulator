@@ -99,6 +99,25 @@ interface GameStore {
   openGuildProfile: (guildId: string) => void;
 }
 
+
+const collectOwnedItemIds = (server: ServerState): string[] => {
+  const ids = new Set<string>();
+  Object.values(server.player?.equipment ?? {}).forEach((instance: any) => { if (instance?.itemId) ids.add(normalizeLegacyItemId(instance.itemId)); });
+  (server.player?.inventory ?? []).forEach((entry) => ids.add(normalizeLegacyItemId(entry.itemId)));
+  return Array.from(ids);
+};
+
+const addCollectionProgress = (server: ServerState, itemIds: string[] = [], mobIds: string[] = []): ServerState => {
+  const current = server.collectionProgress ?? { obtainedItemIds: collectOwnedItemIds(server), defeatedMobIds: [] };
+  return {
+    ...server,
+    collectionProgress: {
+      obtainedItemIds: Array.from(new Set([...(current.obtainedItemIds ?? []), ...collectOwnedItemIds(server), ...itemIds.map(normalizeLegacyItemId)])),
+      defeatedMobIds: Array.from(new Set([...(current.defeatedMobIds ?? []), ...mobIds])),
+    },
+  };
+};
+
 const notificationToModal = (notification: ServerNotification): GameModal => ({
   id: notification.id,
   type: notification.type,
@@ -177,16 +196,19 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
     serverChronicle: server.serverChronicle ?? [],
     pendingLootRoll: server.pendingLootRoll,
     currentDungeonRun: validRun ? { ...validRun, currentEncounterIndex: validRun.currentEncounterIndex ?? 0 } : undefined,
+    collectionProgress: server.collectionProgress ?? { obtainedItemIds: [], defeatedMobIds: [] },
   };
+  const baseWithProgress = addCollectionProgress(baseServer);
+
   if (mode === "light" && !needsMigration) {
     return {
-      ...baseServer,
-      worldNews: baseServer.worldNews.slice(-80),
-      market: baseServer.market.length > 1200 ? baseServer.market.slice(-1200) : baseServer.market,
+      ...baseWithProgress,
+      worldNews: baseWithProgress.worldNews.slice(-80),
+      market: baseWithProgress.market.length > 1200 ? baseWithProgress.market.slice(-1200) : baseWithProgress.market,
     };
   }
 
-  const rosterReady = ensureServerRoster(baseServer);
+  const rosterReady = ensureServerRoster(baseWithProgress);
   const withMarket = normalizeMarketListings(rosterReady, marketRng);
   return updateRankings(withMarket);
 };
@@ -637,6 +659,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
             ? Math.max(8, Math.ceil((floor?.timeCostMinutes ?? 35) / Math.max(1, floor?.mobIds.length ?? 1)))
             : 30;
 
+      if (result.combat.status === "victory") {
+        const defeated = result.combat.enemyMobIds && result.combat.enemyMobIds.length > 0
+          ? result.combat.enemyMobIds
+          : result.combat.enemyMobId
+            ? [result.combat.enemyMobId]
+            : [];
+        const obtained = result.combat.reward?.items?.map((entry) => entry.itemId) ?? [];
+        nextServer = addCollectionProgress(nextServer, obtained, defeated);
+      }
+
       nextServer = simulateServerForMinutes(nextServer, timeCost, rng);
       modal =
         result.combat.status === "victory"
@@ -875,6 +907,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           inventory: addInventoryItem(next.player.inventory, item.id, 1, 0),
         },
       };
+      next = addCollectionProgress(next, [item.id], []);
       next = addNews(
         next,
         rng,

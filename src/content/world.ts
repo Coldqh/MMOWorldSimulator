@@ -351,3 +351,11 @@ MOBS.forEach((mob) => {
     table.entries.push({ itemId: cardId, chance: cardDropChanceForMob(mob) });
   }
 });
+
+// v0.4.7 spot tuning: spot mobs have twice the current HP after the v0.4.6 reduction.
+const v047SpotMobIds = new Set(SPOTS.flatMap((spot) => spot.mobIds));
+MOBS.forEach((mob) => {
+  if (v047SpotMobIds.has(mob.id) && !mob.tags.includes('dungeon') && !mob.tags.includes('raid') && !mob.tags.includes('boss')) {
+    mob.stats.hp = Math.round(mob.stats.hp * 2);
+  }
+});

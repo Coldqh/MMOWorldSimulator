@@ -383,6 +383,12 @@ export interface WorldLocationState {
   spotId?: Id;
 }
 
+
+export interface CollectionProgress {
+  obtainedItemIds: Id[];
+  defeatedMobIds: Id[];
+}
+
 export interface ServerState {
   version: string;
   seed: number;
@@ -405,6 +411,7 @@ export interface ServerState {
   serverChronicle?: NewsEntry[];
   pendingLootRoll?: PendingLootRoll;
   currentDungeonRun?: DungeonRunState;
+  collectionProgress?: CollectionProgress;
 }
 
 export interface Combatant {
@@ -474,4 +481,5 @@ export type ScreenId =
   | "arena"
   | "enhance"
   | "raid"
-  | "settings";
+  | "settings"
+  | "library";

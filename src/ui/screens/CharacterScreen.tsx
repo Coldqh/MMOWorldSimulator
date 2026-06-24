@@ -77,6 +77,15 @@ export const CharacterScreen = () => {
         </div>
       </section>
 
+
+      <section className="panel">
+        <div className="section-title">Действия</div>
+        <div className="action-grid">
+          <button onClick={recoverFullHp}>Восстановить · ~{recoveryMinutes} мин</button>
+          <button onClick={skipDay}>Пропустить день</button>
+        </div>
+      </section>
+
       <section className="panel">
         <div className="section-title">Экипировка</div>
         <div className="list-lines">

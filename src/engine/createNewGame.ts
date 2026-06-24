@@ -407,7 +407,14 @@ export const createNewGame = (
     serverWeek: 1,
     contentPatch: 1,
     metaTag: 'fresh_start',
-    serverChronicle: []
+    serverChronicle: [],
+    collectionProgress: {
+      obtainedItemIds: Array.from(new Set([
+        ...Object.values(createStarterPlayer(playerName || 'Newbie', raceId, classId, seed).equipment).filter(Boolean).map((entry: any) => entry.itemId),
+        ...createStarterPlayer(playerName || 'Newbie', raceId, classId, seed).inventory.map((entry) => entry.itemId),
+      ])),
+      defeatedMobIds: [],
+    }
   };
 
   return updateRankings(ensureServerRoster(server));

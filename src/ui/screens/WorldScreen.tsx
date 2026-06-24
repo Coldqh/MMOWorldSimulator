@@ -19,9 +19,10 @@ type WorldTab = "overview" | "players";
 const npcLocationWeight = (npcLevel: number, minLevel: number, maxLevel: number, hash: number) => {
   if (npcLevel >= minLevel && npcLevel <= maxLevel) return 1000 - (hash % 120);
   const near = Math.min(Math.abs(npcLevel - minLevel), Math.abs(npcLevel - maxLevel));
-  if (near <= 2) return 650 - near * 80 - (hash % 80);
-  if (npcLevel > maxLevel + 5) return 18 - (hash % 18);
-  return 120 - Math.min(100, near * 18) - (hash % 30);
+  if (near <= 2) return 640 - near * 90 - (hash % 90);
+  if (npcLevel > maxLevel + 4) return hash % 190 === 0 ? 24 : -999;
+  if (npcLevel < minLevel - 4) return hash % 90 === 0 ? 35 : -999;
+  return 90 - Math.min(85, near * 22) - (hash % 35);
 };
 
 const getLocationRange = (

@@ -348,3 +348,62 @@ ITEMS.forEach((item) => {
     item.price = Math.max(item.price, Math.round(50000 + item.levelReq * item.levelReq * 2000 + statPower * rarityScore[item.rarity] * 24000));
   }
 });
+
+
+// v0.4.7 class-bound gear and named base sets.
+const setFamilyByRarityLevel: Record<string, string> = {
+  'common_1': 'Первой вылазки',
+  'common_5': 'Старого тракта',
+  'common_10': 'Пограничной стражи',
+  'common_15': 'Северного привала',
+  'common_20': 'Последнего рубежа',
+  'uncommon_3': 'Зелёной дороги',
+  'uncommon_8': 'Лесного дозора',
+  'uncommon_13': 'Топяной заставы',
+  'uncommon_18': 'Ледяного перевала',
+  'rare_5': 'Синей заставы',
+  'rare_10': 'Серебряного тракта',
+  'rare_15': 'Глубокой топи',
+  'rare_20': 'Стеклянного дозора',
+  'epic_10': 'Чёрного корня',
+  'epic_20': 'Вершины шпиля',
+};
+
+const classGearFlavor: Record<string, string> = {
+  warrior: 'Воина',
+  ranger: 'Стрелка',
+  mage: 'Мага',
+  priest: 'Жреца',
+};
+
+const inferSingleClassForItem = (item: ItemDefinition): string => {
+  const id = item.id.toLowerCase();
+  const name = item.name.toLowerCase();
+  const raw = `${id} ${name}`;
+  const setMatch = item.id.match(/^set_(common|uncommon|rare|epic)_(warrior|ranger|mage|priest)_(\d+)_(weapon|head|chest|legs|boots|ring|amulet)$/);
+  if (setMatch) return setMatch[2];
+  const instanceMatch = item.id.match(/^(old_lantern|thorn_crypt|blackroot|mire_depths|glass_catacomb|glass_catacomb_epic|wyrmspire|wyrmspire_gold)_(warrior|ranger|mage|priest)_(weapon|head|chest|legs|boots|ring|amulet)$/);
+  if (instanceMatch) return instanceMatch[2];
+  if (raw.includes('priest') || raw.includes('жрец') || raw.includes('часовн') || raw.includes('палад') || raw.includes('молит')) return 'priest';
+  if (raw.includes('mage') || raw.includes('маг') || raw.includes('мант') || raw.includes('посох') || raw.includes('сфера') || raw.includes('фокус') || raw.includes('жезл') || raw.includes('скипетр')) return 'mage';
+  if (raw.includes('ranger') || raw.includes('стрел') || raw.includes('лук') || raw.includes('охот') || raw.includes('следоп') || raw.includes('бегун')) return 'ranger';
+  if (raw.includes('warrior') || raw.includes('воин') || raw.includes('меч') || raw.includes('алебард') || raw.includes('панцир') || raw.includes('шлем') || raw.includes('страж')) return 'warrior';
+  const stats = item.stats ?? {};
+  if ((stats.magic ?? 0) > (stats.attack ?? 0)) return (stats.mana ?? 0) > (stats.hp ?? 0) ? 'mage' : 'priest';
+  if ((stats.speed ?? 0) > 0 && (stats.defense ?? 0) <= 3) return 'ranger';
+  if ((stats.defense ?? 0) >= (stats.attack ?? 0)) return 'warrior';
+  return 'ranger';
+};
+
+ITEMS.forEach((item) => {
+  if (!item.slot || item.rarity === 'legendary') return;
+  const singleClass = inferSingleClassForItem(item);
+  item.classTags = [singleClass];
+  const setMatch = item.id.match(/^set_(common|uncommon|rare|epic)_(warrior|ranger|mage|priest)_(\d+)_(weapon|head|chest|legs|boots|ring|amulet)$/);
+  if (setMatch) {
+    const [, rarity, classId, level, slot] = setMatch;
+    const family = setFamilyByRarityLevel[`${rarity}_${level}`] ?? `${rarityName[rarity as Rarity]} ${level}`;
+    item.name = `${slotName[slot]} ${family} ${classGearFlavor[classId]}`;
+    item.setId = `${rarity}_${classId}_${level}`;
+  }
+});
