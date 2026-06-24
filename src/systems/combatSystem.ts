@@ -458,12 +458,12 @@ const resolvePartyRound = (server: ServerState, combat: CombatState, enemy: Comb
   const tankMember = members.find((member) => member.id === roles.tankId);
   if (healerMember && healerMember.id !== server.player.id) {
     const healerStats = npcCombatStats(server, healerMember.id);
-    const injured = members.filter((member) => member.hp > 0 && member.hp < member.maxHp);
+    const injured = members.filter((member) => member.hp > 0 && member.hp < member.maxHp * 0.95);
     if (injured.length >= 3 && healerMember.mana >= 18) {
       const aoeHeal = rng.int(10, 18) + Math.floor(healerStats.heal * 0.55);
       let totalHeal = 0;
       members = members.map((member) => {
-        if (member.hp <= 0 || member.hp >= member.maxHp) return member;
+        if (member.hp <= 0 || member.hp >= member.maxHp * 0.95) return member;
         const applied = Math.min(member.maxHp - member.hp, aoeHeal);
         totalHeal += applied;
         if (member.id === server.player.id) nextPlayer = { ...nextPlayer, hp: Math.min(nextPlayer.maxHp, nextPlayer.hp + applied) };
@@ -472,7 +472,7 @@ const resolvePartyRound = (server: ServerState, combat: CombatState, enemy: Comb
       members = updateMember(members, healerMember.id, { mana: Math.max(0, healerMember.mana - 18), healingLastRound: totalHeal });
       log.push(`${healerMember.name}: общий хилл +${totalHeal}.`);
     } else {
-      const preferred = tankMember && tankMember.hp > 0 && tankMember.hp < tankMember.maxHp
+      const preferred = tankMember && tankMember.hp > 0 && tankMember.hp < tankMember.maxHp * 0.95
         ? tankMember
         : injured.sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
       if (preferred) {
@@ -484,7 +484,7 @@ const resolvePartyRound = (server: ServerState, combat: CombatState, enemy: Comb
           log.push(`${healerMember.name}: лечение ${preferred.name} +${heal}.`);
         }
       } else {
-        log.push(`${healerMember.name}: готовит хилл.`);
+        npcAutoAttack(healerMember.id);
       }
     }
   }

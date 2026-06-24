@@ -1,5 +1,4 @@
 import { useGameStore } from '../../state/gameStore';
-import { NewsList } from '../components/NewsList';
 import { arenaRankIcon, arenaRankName } from '../../systems/progressionSystem';
 import { getGearScore } from '../../systems/itemSystem';
 
@@ -65,11 +64,6 @@ export const ServerScreen = () => {
             {(server.rankings.guildReputationTop ?? []).slice(0, 8).map((id, index) => { const guild = guildsById.get(id); return <p key={id}>{index + 1}. {guildButton(id)} · Lv. {guild?.level ?? 1} · Rep {guild?.reputation ?? 0}</p>; })}
           </div>
         </div>
-      </section>
-
-      <section className="panel">
-        <div className="section-title">Серверная лента</div>
-        <NewsList items={server.worldNews} limit={60} />
       </section>
     </div>
   );

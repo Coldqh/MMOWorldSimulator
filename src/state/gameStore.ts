@@ -176,9 +176,9 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
           arenaRating: Number.isFinite(npc.arenaRating) ? npc.arenaRating : 900,
         })),
     guilds: server.guilds ?? [],
-    market: server.market ?? [],
-    worldNews: (server.worldNews ?? []).filter(
-      (entry) => (entry.type as string) !== "siege" && !/фарм|фармит|уровень|апнул|повысил/i.test(entry.text),
+    market: needsMigration ? [] : (server.market ?? []),
+    worldNews: needsMigration ? [] : (server.worldNews ?? []).filter(
+      (entry) => (entry.type as string) !== "siege" && !/фарм|фармит|уровень|апнул|повысил|рейд-прогресс|мета|лидер арены|высокий онлайн|рост влияния|потеря влияния/i.test(entry.text),
     ),
     rankings: {
       arenaTop: server.rankings?.arenaTop ?? [],
@@ -1029,7 +1029,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     };
     const equipmentLines = equipmentEntries(npc.equipment ?? {}).map(({ slot, instance }) => {
       const item = getItemById(instance.itemId);
-      const label = `${slot}: ${item?.name ?? instance.itemId}${instance.enhancement > 0 ? ` +${instance.enhancement}` : ''}`;
+      const label = `${slot}: ${item?.name ?? instance.itemId}${instance.enhancement > 0 ? ` +${instance.enhancement}` : ''}${item ? ` · Lv. ${item.levelReq}` : ''}`;
       return `ACTION_NPC_ITEM|${instance.itemId}|${instance.enhancement}|${item?.rarity ?? 'common'}|${label}`;
     });
     const gearScore = getGearScore(npc.equipment ?? {});

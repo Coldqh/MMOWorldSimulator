@@ -407,3 +407,10 @@ ITEMS.forEach((item) => {
     item.setId = `${rarity}_${classId}_${level}`;
   }
 });
+
+// v0.4.9 economy: enhancement stones are cheaper.
+ITEMS.forEach((item) => {
+  if (item.type === 'material' && /камень усиления/i.test(item.name)) {
+    item.price = Math.max(1, Math.round(item.price / 3));
+  }
+});

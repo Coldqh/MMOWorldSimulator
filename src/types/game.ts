@@ -210,6 +210,8 @@ export interface NpcPlayer {
   inventory: InventoryStack[];
   equipment: Equipment;
   arenaRating: number;
+  nextLevelAtDay?: number;
+  nextLevelAtMinute?: number;
 }
 
 export interface Guild {
@@ -482,4 +484,5 @@ export type ScreenId =
   | "enhance"
   | "raid"
   | "settings"
-  | "library";
+  | "library"
+  | "news";

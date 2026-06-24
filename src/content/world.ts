@@ -396,3 +396,17 @@ MOBS.forEach((mob) => {
     mob.stats.hp = Math.round(mob.stats.hp * 2);
   }
 });
+
+// v0.4.9 card pricing: First Wyrm card is 80k, all other cards scale by card gear value.
+const cardGearValue = (itemId: string) => {
+  const item = getItemById(itemId);
+  if (!item) return 1;
+  return Math.max(1, Object.values(item.stats).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0) * (rarityScore[item.rarity] ?? 1));
+};
+const wyrmCardValue = cardGearValue('card_first_wyrm');
+const cardGoldPerValue = 80000 / Math.max(1, wyrmCardValue);
+ITEMS.forEach((item) => {
+  if (item.type === 'card') {
+    item.price = Math.max(50, Math.round(cardGearValue(item.id) * cardGoldPerValue));
+  }
+});

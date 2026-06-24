@@ -10,6 +10,7 @@ import { MarketScreen } from '../screens/MarketScreen';
 import { RaidScreen } from '../screens/RaidScreen';
 import { ServerScreen } from '../screens/ServerScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
+import { NewsScreen } from '../screens/NewsScreen';
 import { StartScreen } from '../screens/StartScreen';
 import { EnhanceScreen } from '../screens/EnhanceScreen';
 import { WorldScreen } from '../screens/WorldScreen';
@@ -30,6 +31,7 @@ const screens: Record<ScreenId, ReactNode> = {
   raid: <RaidScreen />,
   settings: <SettingsScreen />,
   library: <LibraryScreen />,
+  news: <NewsScreen />,
 };
 
 const bottomNav: Array<{ id: ScreenId; label: string }> = [
@@ -44,6 +46,7 @@ const sideNav: Array<{ id: ScreenId; label: string; cityOnly?: boolean }> = [
   { id: 'dungeon', label: '⚔️ Данжи' },
   { id: 'raid', label: '🐉 Рейды' },
   { id: 'server', label: '📜 Сервер' },
+  { id: 'news', label: '🗞️ Новости' },
   { id: 'library', label: '📚 Библиотека' },
   { id: 'guild', label: '🏰 Гильдия' },
   { id: 'market', label: '🛒 Рынок', cityOnly: true },

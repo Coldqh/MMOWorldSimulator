@@ -18,11 +18,8 @@ type WorldTab = "overview" | "players";
 
 const npcLocationWeight = (npcLevel: number, minLevel: number, maxLevel: number, hash: number) => {
   if (npcLevel >= minLevel && npcLevel <= maxLevel) return 1000 - (hash % 120);
-  const near = Math.min(Math.abs(npcLevel - minLevel), Math.abs(npcLevel - maxLevel));
-  if (near <= 2) return 640 - near * 90 - (hash % 90);
-  if (npcLevel > maxLevel + 4) return hash % 190 === 0 ? 24 : -999;
-  if (npcLevel < minLevel - 4) return hash % 90 === 0 ? 35 : -999;
-  return 90 - Math.min(85, near * 22) - (hash % 35);
+  if (npcLevel > maxLevel && hash % 997 === 0) return 18 - Math.min(14, npcLevel - maxLevel);
+  return -999;
 };
 
 const getLocationRange = (
@@ -72,7 +69,12 @@ const getLocationPlayers = (
     })
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score || b.npc.gearScore - a.npc.gearScore)
-    .slice(0, 18)
+    .reduce((acc, entry) => {
+      if (server.location.mode === 'city') return acc.length < 18 ? [...acc, entry] : acc;
+      const highCount = acc.filter((row) => row.npc.level > maxLevel).length;
+      if (entry.npc.level > maxLevel && highCount >= 5) return acc;
+      return acc.length < 18 ? [...acc, entry] : acc;
+    }, [] as Array<{ npc: typeof server.npcs[number]; score: number }>)
     .map((entry) => entry.npc);
 };
 const placeStatus = (

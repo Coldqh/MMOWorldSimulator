@@ -34,8 +34,15 @@ export const addPlayerXp = (player: Player, amount: number): Player => {
 
 
 export const estimateArenaRatingValue = (level: number, gearScore: number, focus?: string) => {
-  const pvpBonus = focus === 'PVP_PLAYER' ? 1.2 : focus === 'HARDCORE' ? 1.16 : focus === 'GUILD_PLAYER' ? 1.1 : focus === 'LEADER' ? 1.08 : 1;
-  return Math.round((720 + level * 34 + gearScore * 0.72) * pvpBonus);
+  const pvpBonus = focus === 'PVP_PLAYER' ? 1.14 : focus === 'HARDCORE' ? 1.1 : focus === 'GUILD_PLAYER' ? 1.05 : focus === 'LEADER' ? 1.04 : 1;
+  let base = 780 + level * 22 + gearScore * 0.09;
+  if (level >= 20) base = 1760 + Math.max(0, gearScore - 1900) * 0.18;
+  else if (level >= 19) base = 1640 + Math.max(0, gearScore - 1600) * 0.1;
+  else if (level >= 15) base = 1320 + (level - 15) * 75 + gearScore * 0.06;
+  else if (level >= 10) base = 1050 + (level - 10) * 58 + gearScore * 0.045;
+  else base = 760 + level * 34 + gearScore * 0.035;
+  const lowRankChance = focus === 'PVE_FARMER' || focus === 'CASUAL' || focus === 'TRADER' ? 0.92 : 1;
+  return Math.round(base * pvpBonus * lowRankChance);
 };
 
 export const estimateWealthValue = (level: number, gearScore: number, focus?: string) => {
@@ -44,17 +51,17 @@ export const estimateWealthValue = (level: number, gearScore: number, focus?: st
 };
 
 export const arenaRankName = (rating: number) => {
-  if (rating >= 1800) return 'Mythic';
-  if (rating >= 1550) return 'Diamond';
-  if (rating >= 1300) return 'Gold';
+  if (rating >= 2200) return 'Mythic';
+  if (rating >= 1750) return 'Diamond';
+  if (rating >= 1325) return 'Gold';
   if (rating >= 1050) return 'Silver';
   return 'Bronze';
 };
 
 export const arenaRankIcon = (rating: number) => {
-  if (rating >= 1800) return '🔮';
-  if (rating >= 1550) return '💎';
-  if (rating >= 1300) return '🥇';
+  if (rating >= 2200) return '🔮';
+  if (rating >= 1750) return '💎';
+  if (rating >= 1325) return '🥇';
   if (rating >= 1050) return '🥈';
   return '🥉';
 };

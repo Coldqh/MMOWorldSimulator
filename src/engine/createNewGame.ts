@@ -326,6 +326,103 @@ const redistributeMaxLevelGearSpread = (npcs: NpcPlayer[], seed: number): NpcPla
   });
 };
 
+
+const levelingMinutesForLevel = (level: number, rng: ReturnType<typeof createRng>) => {
+  const base = 240 + level * level * 42;
+  return Math.round(base * (0.8 + rng.next() * 0.4));
+};
+
+const setNpcLevelTimer = (npc: NpcPlayer, seed: number, index: number): NpcPlayer => {
+  if (npc.level >= 20) return { ...npc, nextLevelAtDay: undefined, nextLevelAtMinute: undefined };
+  const rng = createRng(seed + 510000 + index * 113);
+  const add = levelingMinutesForLevel(npc.level, rng);
+  const total = add;
+  return {
+    ...npc,
+    nextLevelAtDay: Math.floor(total / 1440) + 1,
+    nextLevelAtMinute: total % 1440,
+  };
+};
+
+const rebuildNpcForLevel = (npc: NpcPlayer, level: number, seed: number, index: number): NpcPlayer => {
+  const rng = createRng(seed + 470000 + index * 131 + level * 17);
+  const isCap = level >= 20;
+  const isStrong = npc.roleFocus === 'PVP_PLAYER' || npc.roleFocus === 'HARDCORE' || npc.roleFocus === 'RAIDER' || npc.roleFocus === 'LEADER';
+  const power = isCap ? Math.min(1, 0.22 + (index % 150) / 150 * 0.78 + (isStrong ? 0.08 : 0)) : 0.12 + rng.next() * 0.46;
+  const equipment = isCap ? generateScaledEquipmentForClassLevel(npc.classId, 20, rng, power) : generateEquipmentForClassLevel(npc.classId, level, rng);
+  const gearScore = getGearScore(equipment);
+  const roleFocus = isCap && isStrong ? npc.roleFocus : npc.roleFocus;
+  const arenaRating = Math.round(estimateArenaRatingValue(level, gearScore, roleFocus) * (0.92 + rng.next() * 0.18));
+  const gold = Math.round(estimateWealthValue(level, gearScore, roleFocus) * (0.65 + rng.next() * 0.9));
+  return setNpcLevelTimer({ ...npc, level, xp: 0, equipment, gearScore, arenaRating, gold }, seed, index);
+};
+
+const enforceRosterLevelSpread = (npcs: NpcPlayer[], seed: number): NpcPlayer[] => {
+  const total = Math.max(NPC_TARGET_COUNT, npcs.length);
+  const capCount = Math.round(total * 0.30);
+  const lowerCount = Math.max(0, total - capCount);
+  const lowerLevels: number[] = [];
+  for (let i = 0; i < lowerCount; i += 1) lowerLevels.push((i % 19) + 1);
+  const sorted = [...npcs].sort((a, b) => {
+    const focus = (npc: NpcPlayer) => npc.roleFocus === 'PVP_PLAYER' || npc.roleFocus === 'HARDCORE' ? 4 : npc.roleFocus === 'RAIDER' || npc.roleFocus === 'LEADER' ? 3 : npc.roleFocus === 'GUILD_PLAYER' ? 2 : 1;
+    return focus(b) - focus(a) || b.gearScore - a.gearScore || a.id.localeCompare(b.id);
+  });
+  const capIds = new Set(sorted.slice(0, capCount).map((npc) => npc.id));
+  let lowerIndex = 0;
+  return npcs.map((npc, index) => {
+    const level = capIds.has(npc.id) ? 20 : lowerLevels[lowerIndex++ % Math.max(1, lowerLevels.length)];
+    return rebuildNpcForLevel(npc, level, seed, index);
+  });
+};
+
+const assignGuildsByTier = (server: ServerState, guilds: Guild[], npcs: NpcPlayer[]): { guilds: Guild[]; npcs: NpcPlayer[] } => {
+  const seed = server.seed ?? Date.now();
+  const highGuilds = guilds.filter((guild) => (guild.tier ?? 'low') === 'high');
+  const midGuilds = guilds.filter((guild) => (guild.tier ?? 'low') === 'mid');
+  const lowGuilds = guilds.filter((guild) => (guild.tier ?? 'low') === 'low');
+  const groups = new Map<string, string[]>();
+  guilds.forEach((guild) => groups.set(guild.id, []));
+  const shuffled = [...npcs].sort((a, b) => {
+    const ha = (seed + a.id.length * 71 + a.level * 131 + a.gearScore) % 100000;
+    const hb = (seed + b.id.length * 71 + b.level * 131 + b.gearScore) % 100000;
+    return ha - hb;
+  });
+
+  const pushToSmallest = (guildPool: Guild[], npc: NpcPlayer) => {
+    if (guildPool.length === 0) return;
+    const guild = [...guildPool].sort((a, b) => (groups.get(a.id)?.length ?? 0) - (groups.get(b.id)?.length ?? 0))[0];
+    groups.get(guild.id)?.push(npc.id);
+    npc.guildId = guild.id;
+  };
+
+  shuffled.forEach((npc) => {
+    if (npc.level >= 20 && highGuilds.length > 0 && (groups.get(highGuilds[0].id)?.length ?? 0) < 9999) pushToSmallest(highGuilds, npc);
+    else if (npc.level >= 10 && midGuilds.length > 0) pushToSmallest(midGuilds, npc);
+    else pushToSmallest(lowGuilds.length > 0 ? lowGuilds : guilds, npc);
+  });
+
+  const npcsById = new Map(shuffled.map((npc) => [npc.id, npc]));
+  const nextGuilds = guilds.map((guild) => {
+    const members = (groups.get(guild.id) ?? [])
+      .map((id) => npcsById.get(id))
+      .filter(Boolean) as NpcPlayer[];
+    const leaderScore = (npc: NpcPlayer) => guild.type === 'PVP'
+      ? npc.arenaRating * 1.3 + npc.gearScore * 0.25 + npc.activityLevel * 75
+      : guild.type === 'TRADE'
+        ? npc.gold * 0.03 + npc.gearScore * 0.25 + npc.activityLevel * 80
+        : npc.gearScore * 0.9 + npc.arenaRating * 0.25 + npc.activityLevel * 75;
+    const officers = [...members].sort((a, b) => leaderScore(b) - leaderScore(a));
+    return {
+      ...guild,
+      memberIds: members.map((npc) => npc.id),
+      leaderId: officers[0]?.id,
+      deputyId: officers[1]?.id,
+      officerIds: officers.slice(2, 6).map((npc) => npc.id),
+    };
+  });
+  return { guilds: nextGuilds, npcs: shuffled };
+};
+
 export const ensureServerRoster = (server: ServerState): ServerState => {
   const seed = server.seed ?? Date.now();
   const baseGuilds = server.guilds.length >= 20 ? server.guilds : createGuilds();
@@ -341,29 +438,20 @@ export const ensureServerRoster = (server: ServerState): ServerState => {
     };
   });
 
-  let npcs = (server.npcs ?? []).map((npc, index) => {
-    const normalized = normalizeNpcEquipmentAndGear(npc, createRng(seed + 33000 + index * 17));
-    const rating = estimateArenaRatingValue(normalized.level, normalized.gearScore, normalized.roleFocus);
-    const expectedGold = estimateWealthValue(normalized.level, normalized.gearScore, normalized.roleFocus);
-    const tooRichForLevel = normalized.level < 10 && normalized.gold > expectedGold * 2.2;
-    return {
-      ...normalized,
-      arenaRating: Math.max(650, Math.round((Number.isFinite(normalized.arenaRating) ? normalized.arenaRating * 0.2 : 0) + rating * 0.8)),
-      gold: tooRichForLevel || normalized.gold < expectedGold * 0.35 ? Math.round(expectedGold * (0.75 + (index % 7) * 0.07)) : Math.round(Math.min(normalized.gold, expectedGold * 2.4)),
-    };
-  });
-
-  const generated = generateBalancedNpcRoster(guilds, seed + 120000, npcs.length, NPC_TARGET_COUNT);
-  npcs = [...npcs, ...generated].slice(0, NPC_TARGET_COUNT);
-
-  const balanced = rebalanceGuildMemberships(server, guilds, npcs);
-  const spreadNpcs = redistributeMaxLevelGearSpread(balanced.npcs, seed);
-  const withPlayerGuild = balanced.guilds.map((guild) => {
+  let npcs = (server.npcs ?? []).map((npc, index) => normalizeNpcEquipmentAndGear(npc, createRng(seed + 33000 + index * 17)));
+  while (npcs.length < NPC_TARGET_COUNT) {
+    const index = npcs.length;
+    npcs.push(createNpc(index, guilds, seed + 120000, (index % 19) + 1));
+  }
+  npcs = npcs.slice(0, NPC_TARGET_COUNT);
+  npcs = enforceRosterLevelSpread(npcs, seed);
+  const assigned = assignGuildsByTier(server, guilds, npcs);
+  const withPlayerGuild = assigned.guilds.map((guild) => {
     const playerAllowed = server.player.guildId === guild.id && server.player.level >= (guild.minLevel ?? 1);
-    return playerAllowed ? { ...guild, memberIds: [...guild.memberIds, server.player.id] } : guild;
+    return playerAllowed ? { ...guild, memberIds: [...new Set([...guild.memberIds, server.player.id])] } : guild;
   });
 
-  return { ...server, npcs: spreadNpcs, guilds: withPlayerGuild };
+  return { ...server, npcs: assigned.npcs, guilds: withPlayerGuild };
 };
 
 export const createNewGame = (
@@ -411,11 +499,7 @@ export const createNewGame = (
       guildPvpTop: [],
       guildReputationTop: [],
     },
-    worldNews: characterCreated ? [
-      { id: 'news_start_1', day: 1, minute: 6 * 60, type: 'system', text: 'Сервер открыт.', important: true },
-      { id: 'news_start_2', day: 1, minute: 6 * 60, type: 'guild', text: 'Silver Hares открыли набор.', important: false },
-      { id: 'news_start_3', day: 1, minute: 6 * 60, type: 'dungeon', text: 'Подвал Старого Фонаря: нужен 5+ уровень.', important: false }
-    ] : [],
+    worldNews: [],
     unlockedContent: ['greenfield', 'moonwood', 'redcap_hills', 'iron_quarry', 'ashen_mire', 'skyfall_pass', 'frostspire_ridge', 'wyrmspire_peak'],
     guildApplications: [],
     notifications: [],

@@ -1,4 +1,7 @@
 import { ITEMS, getItemById } from '../content/items';
+import { CLASSES } from '../content/classes';
+import { RACES } from '../content/races';
+import { NPC_NAMES } from '../content/npc';
 import { MOBS, SPOTS, ZONES, getLootTableById } from '../content/world';
 import { advanceServerClock } from '../engine/time';
 import { addNews } from '../engine/news';
@@ -6,10 +9,10 @@ import type { Rng } from '../engine/rng';
 import { uid } from '../engine/rng';
 import type { Guild, GuildType, ItemInstance, NpcPlayer, ServerState } from '../types/game';
 import { estimateArenaRatingValue, estimateWealthValue, updateRankings } from './progressionSystem';
-import { equipNpcItemIfBetter, getGearScore } from './itemSystem';
+import { equipNpcItemIfBetter, generateEquipmentForClassLevel, getGearScore } from './itemSystem';
 import { estimateItemPrice } from './marketSystem';
 
-const xpForNpcLevel = (level: number) => 170 + level * level * 45;
+const levelingMinutesForNpcLevel = (level: number, rng: Rng) => Math.round((240 + level * level * 42) * (0.8 + rng.next() * 0.4));
 
 const goalByFocus: Record<string, string[]> = {
   PVE_FARMER: ['редкий дроп', 'новый спот', 'шмот на уровень'],
@@ -34,7 +37,7 @@ const makeNpcListing = (server: ServerState, rng: Rng, npc: NpcPlayer, itemId: s
   const item = getItemById(itemId);
   if (!item || !item.tradeable || item.type === 'quest' || item.rarity === 'unique') return server;
   const basePrice = estimateItemPrice(item);
-  const percent = rng.int(-20, 200);
+  const percent = rng.int(0, 200);
   return {
     ...server,
     market: [
@@ -60,8 +63,8 @@ const sellOldItem = (server: ServerState, rng: Rng, npc: NpcPlayer, oldItem?: It
 };
 
 const rollNpcLoot = (npc: NpcPlayer, rng: Rng) => {
-  const candidates = MOBS.filter((mob) => Math.abs(mob.level - npc.level) <= 2 && !mob.tags.includes('boss') && !mob.tags.includes('raid'));
-  const mob = candidates.length > 0 ? rng.pick(candidates) : rng.pick(MOBS.filter((entry) => !entry.tags.includes('boss')));
+  const candidates = MOBS.filter((mob) => Math.abs(mob.level - npc.level) <= 2 && !mob.tags.includes('raid'));
+  const mob = candidates.length > 0 ? rng.pick(candidates) : rng.pick(MOBS.filter((entry) => !entry.tags.includes('raid')));
   const table = getLootTableById(mob.lootTableId);
   if (!table) return undefined;
   const activityMod = Math.min(1.25, 0.75 + npc.activityLevel * 0.04);
@@ -73,17 +76,19 @@ const rollNpcLoot = (npc: NpcPlayer, rng: Rng) => {
   });
   if (entries.length === 0) return undefined;
   const entry = rng.pick(entries);
-  return getItemById(entry.itemId);
+  const item = getItemById(entry.itemId);
+  return item ? { item, mob } : undefined;
 };
 
 const maybeNpcLootUpgrade = (server: ServerState, npc: NpcPlayer, rng: Rng): { server: ServerState; npc: NpcPlayer } => {
   if (!rng.chance(0.12)) return { server, npc };
-  const item = rollNpcLoot(npc, rng);
-  if (!item) return { server, npc };
+  const loot = rollNpcLoot(npc, rng);
+  if (!loot) return { server, npc };
+  const { item, mob } = loot;
 
   if (item.type === 'card') {
     const nextNpc = { ...npc, inventory: [...npc.inventory, { itemId: item.id, amount: 1 }] };
-    const nextServer = addNews(server, rng, 'drop', `${npc.name} выбил ${item.name}.`, true);
+    const nextServer = mob.tags.includes('boss') ? addNews(server, rng, 'drop', `${npc.name} выбил карту босса: ${item.name}.`, true) : server;
     return { server: nextServer, npc: nextNpc };
   }
 
@@ -123,25 +128,86 @@ const maybeNpcBuyUpgrade = (server: ServerState, npc: NpcPlayer, rng: Rng): { se
   return { server: nextServer, npc: { ...result.npc, gold: Math.max(0, npc.gold - listing.price) } };
 };
 
+
+const nowTotalMinutes = (server: ServerState) => (server.serverDay - 1) * 1440 + server.currentMinute;
+const targetTotalMinutes = (day?: number, minute?: number) => day && minute !== undefined ? (day - 1) * 1440 + minute : 0;
+
+const scheduleNextNpcLevel = (server: ServerState, npc: NpcPlayer, rng: Rng): NpcPlayer => {
+  if (npc.level >= 20) return { ...npc, nextLevelAtDay: undefined, nextLevelAtMinute: undefined };
+  const add = levelingMinutesForNpcLevel(npc.level, rng);
+  const total = nowTotalMinutes(server) + add;
+  return { ...npc, nextLevelAtDay: Math.floor(total / 1440) + 1, nextLevelAtMinute: total % 1440 };
+};
+
+const rebuildNpcAfterLevel = (npc: NpcPlayer, rng: Rng): NpcPlayer => {
+  const equipment = generateEquipmentForClassLevel(npc.classId, npc.level, rng);
+  const gearScore = getGearScore(equipment);
+  return {
+    ...npc,
+    equipment,
+    gearScore,
+    arenaRating: Math.round(estimateArenaRatingValue(npc.level, gearScore, npc.roleFocus) * (0.9 + rng.next() * 0.2)),
+    gold: Math.max(npc.gold, Math.round(estimateWealthValue(npc.level, gearScore, npc.roleFocus) * (0.55 + rng.next() * 0.35))),
+  };
+};
+
+const spawnLevelOneNpc = (server: ServerState, rng: Rng): ServerState => {
+  const index = server.npcs.length;
+  const cls = rng.pick(CLASSES);
+  const race = rng.pick(RACES);
+  const equipment = generateEquipmentForClassLevel(cls.id, 1, rng);
+  const gearScore = getGearScore(equipment);
+  const lowGuilds = server.guilds.filter((guild) => (guild.tier ?? 'low') === 'low');
+  const guild = lowGuilds.length > 0 ? rng.pick(lowGuilds) : undefined;
+  const npc: NpcPlayer = {
+    id: `npc_new_${server.serverDay}_${server.currentMinute}_${index}_${rng.int(1000, 9999)}`,
+    name: `${rng.pick(NPC_NAMES)}${rng.int(1, 99)}`,
+    raceId: race.id,
+    classId: cls.id,
+    level: 1,
+    xp: 0,
+    gearScore,
+    gold: rng.int(20, 80),
+    guildId: guild?.id,
+    roleFocus: rng.pick(['PVE_FARMER', 'CASUAL', 'GUILD_PLAYER', 'COLLECTOR'] as any),
+    currentGoal: 'первый уровень и шмот',
+    reputation: 0,
+    activityLevel: rng.int(1, 7),
+    ambition: rng.int(1, 7),
+    risk: rng.int(1, 6),
+    socialWeight: rng.int(1, 8),
+    inventory: [],
+    equipment,
+    arenaRating: estimateArenaRatingValue(1, gearScore, 'PVE_FARMER'),
+  };
+  const scheduled = scheduleNextNpcLevel(server, npc, rng);
+  return {
+    ...server,
+    npcs: [...server.npcs, scheduled],
+    guilds: guild ? server.guilds.map((entry) => entry.id === guild.id ? { ...entry, memberIds: [...entry.memberIds, scheduled.id] } : entry) : server.guilds,
+  };
+};
+
 const simulateNpcAction = (server: ServerState, npc: NpcPlayer, rng: Rng): { server: ServerState; npc: NpcPlayer } => {
   let nextNpc = refreshGoal({ ...npc, gearScore: getGearScore(npc.equipment ?? {}) }, rng);
   let nextServer = server;
 
-  const xpGain = rng.int(4, 18) * Math.max(1, npc.activityLevel);
-  nextNpc.xp += xpGain;
   nextNpc.gold += rng.int(3, 18) + Math.floor(npc.level * 4) + (nextNpc.roleFocus === 'RAIDER' ? rng.int(20, 60) : 0) + (nextNpc.roleFocus === 'TRADER' ? rng.int(18, 95) : 0);
-
-  if (nextNpc.xp > xpForNpcLevel(nextNpc.level)) {
-    nextNpc.level = Math.min(20, nextNpc.level + 1);
-    nextNpc.xp = 0;
+  if (nextNpc.level < 20 && targetTotalMinutes(nextNpc.nextLevelAtDay, nextNpc.nextLevelAtMinute) <= nowTotalMinutes(server)) {
+    const before = nextNpc.level;
+    nextNpc = { ...nextNpc, level: Math.min(20, nextNpc.level + 1), xp: 0 };
+    nextNpc = rebuildNpcAfterLevel(nextNpc, rng);
+    nextNpc = scheduleNextNpcLevel(server, nextNpc, rng);
+    if (before < 20 && nextNpc.level >= 20) {
+      nextServer = spawnLevelOneNpc(nextServer, rng);
+    }
+  } else if (!nextNpc.nextLevelAtDay && nextNpc.level < 20) {
+    nextNpc = scheduleNextNpcLevel(server, nextNpc, rng);
   }
 
   if (nextNpc.roleFocus === 'PVP_PLAYER' && rng.chance(0.2)) {
     const before = nextNpc.arenaRating;
     nextNpc.arenaRating = Math.max(100, nextNpc.arenaRating + rng.int(-18, 30));
-    if (before < 1700 && nextNpc.arenaRating >= 1700) {
-      nextServer = addNews(nextServer, rng, 'pvp', `${nextNpc.name} вышел в Mythic.`, true);
-    }
   }
 
   const expectedRating = estimateArenaRatingValue(nextNpc.level, nextNpc.gearScore, nextNpc.roleFocus);
@@ -184,7 +250,7 @@ const simulateGuildRoster = (server: ServerState, rng: Rng): ServerState => {
         npcs: next.npcs.map((npc) => npc.id === joiner.id ? { ...npc, guildId: guild.id } : npc),
         guilds: next.guilds.map((entry) => entry.id === guild.id ? { ...entry, memberIds: [...new Set([...entry.memberIds, joiner.id])] } : entry)
       };
-      if (rng.chance(0.18)) next = addNews(next, rng, 'guild', `${joiner.name} вступил в ${guild.name}.`, false);
+      if (guild.memberIds.includes(next.player.id)) next = addNews(next, rng, 'guild', `${joiner.name} вступил в твою гильдию ${guild.name}.`, true);
     }
   }
 
@@ -200,7 +266,7 @@ const simulateGuildRoster = (server: ServerState, rng: Rng): ServerState => {
           npcs: next.npcs.map((entry) => entry.id === npcId ? { ...entry, guildId: undefined } : entry),
           guilds: next.guilds.map((entry) => entry.id === guild.id ? { ...entry, memberIds: entry.memberIds.filter((id) => id !== npcId), stability: Math.max(0, entry.stability - rng.int(1, 5)) } : entry)
         };
-        if (npc.roleFocus === 'DRAMA' || rng.chance(0.16)) next = addNews(next, rng, 'guild', `${npc.name} вышел из ${guild.name}.`, false);
+        if (guild.memberIds.includes(next.player.id)) next = addNews(next, rng, 'guild', `${npc.name} вышел из твоей гильдии ${guild.name}.`, true);
       }
     }
   }
@@ -245,7 +311,7 @@ const simulateGuildLifecycle = (server: ServerState, rng: Rng): ServerState => {
       guilds: [...next.guilds, { ...guild, memberIds: candidates.map((npc) => npc.id), leaderId: candidates[0]?.id, deputyId: candidates[1]?.id, officerIds: candidates.slice(2, 6).map((npc) => npc.id) }],
       npcs: next.npcs.map((npc) => candidates.some((c) => c.id === npc.id) ? { ...npc, guildId: guild.id } : npc),
     };
-    if (rng.chance(0.55)) next = addNews(next, rng, 'guild', `Создана гильдия ${guild.name}.`, false);
+    next = addNews(next, rng, 'guild', `Появилась новая гильдия: ${guild.name}.`, true);
   }
 
   if (next.guilds.length > 20 && rng.chance(0.018)) {
@@ -256,7 +322,7 @@ const simulateGuildLifecycle = (server: ServerState, rng: Rng): ServerState => {
         guilds: next.guilds.filter((guild) => guild.id !== weak.id),
         npcs: next.npcs.map((npc) => npc.guildId === weak.id ? { ...npc, guildId: undefined } : npc),
       };
-      next = addNews(next, rng, 'guild', `${weak.name} распалась.`, true);
+      next = addNews(next, rng, 'guild', `Гильдия ${weak.name} распалась.`, true);
     }
   }
   return next;
@@ -272,9 +338,6 @@ const simulateGuilds = (server: ServerState, rng: Rng): ServerState => {
       ...next,
       guilds: next.guilds.map((entry) => entry.id === guild.id ? { ...entry, reputation: Math.max(0, entry.reputation + shift), stability: Math.max(0, Math.min(100, entry.stability + rng.int(-6, 4))) } : entry)
     };
-    if (Math.abs(shift) >= 8) {
-      next = addNews(next, rng, 'guild', `${guild.name}: ${shift > 0 ? 'рост влияния' : 'потеря влияния'}.`, false);
-    }
   }
 
   if (rng.chance(0.06)) {
@@ -284,7 +347,7 @@ const simulateGuilds = (server: ServerState, rng: Rng): ServerState => {
       ...next,
       guilds: next.guilds.map((entry) => entry.id === guild.id ? { ...entry, raidProgress: Math.min(100, entry.raidProgress + progress) } : entry)
     };
-    if (guild.raidProgress + progress >= 50 && rng.chance(0.12)) next = addNews(next, rng, 'raid', `${guild.name}: рейд-прогресс ${Math.min(100, guild.raidProgress + progress)}%.`, false);
+    
   }
 
   return next;
@@ -326,7 +389,7 @@ const resolveGuildApplications = (server: ServerState, rng: Rng): ServerState =>
           }
         ]
       };
-      next = addNews(next, rng, 'guild', `${next.player.name} принят в ${guild.name}.`, false);
+
     } else {
       next = {
         ...next,
@@ -342,7 +405,7 @@ const resolveGuildApplications = (server: ServerState, rng: Rng): ServerState =>
           }
         ]
       };
-      next = addNews(next, rng, 'guild', `${guild.name}: заявка отклонена.`, false);
+
     }
   });
 
@@ -355,14 +418,40 @@ const applyServerWeekUpdate = (server: ServerState, rng: Rng): ServerState => {
   const metaPool = ['танки в тяжёлом шмоте', 'маги на AoE', 'стрелки на арене', 'рейдовые пати', 'охота за картами'];
   const metaTag = rng.pick(metaPool);
   const patch = (server.contentPatch ?? 1) + (rng.chance(0.35) ? 1 : 0);
-  let next: ServerState = { ...server, serverWeek: currentWeek, contentPatch: patch, metaTag };
-  const bestGuild = [...next.guilds].sort((a, b) => b.reputation + b.raidProgress - (a.reputation + a.raidProgress))[0];
-  const arenaLeaderId = next.rankings.arenaTop[0];
-  const arenaLeader = arenaLeaderId === next.player.id ? next.player.name : next.npcs.find((npc) => npc.id === arenaLeaderId)?.name;
-  next = addNews(next, rng, 'system', `Неделя ${currentWeek}: мета — ${metaTag}.`, true);
-  if (bestGuild) next = addNews(next, rng, 'guild', `Неделя ${currentWeek}: сильная гильдия — ${bestGuild.name}.`, true);
-  if (arenaLeader) next = addNews(next, rng, 'pvp', `Неделя ${currentWeek}: лидер арены — ${arenaLeader}.`, true);
-  return { ...next, serverChronicle: [...(next.serverChronicle ?? []), ...next.worldNews.slice(-3)].slice(-30) };
+  return { ...server, serverWeek: currentWeek, contentPatch: patch, metaTag };
+};
+
+
+const playerGuildRole = (guild: Guild | undefined, playerId: string) => {
+  if (!guild) return 'none';
+  if (guild.leaderId === playerId) return 'ГМ';
+  if (guild.deputyId === playerId) return 'Зам';
+  if ((guild.officerIds ?? []).includes(playerId)) return 'Офицер';
+  if (guild.memberIds.includes(playerId)) return 'Участник';
+  return 'none';
+};
+
+const announceGuildChanges = (before: ServerState, after: ServerState, rng: Rng): ServerState => {
+  let next = after;
+  const beforeGuilds = new Map(before.guilds.map((guild) => [guild.id, guild]));
+  after.guilds.forEach((guild) => {
+    const old = beforeGuilds.get(guild.id);
+    if (old && old.leaderId && guild.leaderId && old.leaderId !== guild.leaderId) {
+      const name = after.npcs.find((npc) => npc.id === guild.leaderId)?.name ?? (guild.leaderId === after.player.id ? after.player.name : guild.leaderId);
+      next = addNews(next, rng, 'guild', `${guild.name}: новый ГМ — ${name}.`, true);
+    }
+  });
+
+  const beforePlayerGuild = before.guilds.find((guild) => guild.id === before.player.guildId);
+  const afterPlayerGuild = after.guilds.find((guild) => guild.id === after.player.guildId);
+  if (beforePlayerGuild && afterPlayerGuild) {
+    const oldRole = playerGuildRole(beforePlayerGuild, before.player.id);
+    const newRole = playerGuildRole(afterPlayerGuild, after.player.id);
+    if (oldRole !== newRole && newRole !== 'none') {
+      next = addNews(next, rng, 'guild', `${afterPlayerGuild.name}: твоя роль изменилась — ${newRole}.`, true);
+    }
+  }
+  return next;
 };
 
 const trimRuntimeState = (server: ServerState): ServerState => ({
@@ -387,17 +476,14 @@ export const simulateServerForMinutes = (server: ServerState, minutes: number, r
   }
 
   if (actionCount > 0 || minutes >= 120) {
+    const beforeGuildUpdate = next;
     next = simulateGuilds(next, rng);
     next = updateRankings(next);
+    next = announceGuildChanges(beforeGuildUpdate, next, rng);
   }
 
   next = resolveGuildApplications(next, rng);
   next = applyServerWeekUpdate(next, rng);
-
-  if (minutes >= 60 && rng.chance(0.018)) {
-    const zone = rng.pick(ZONES);
-    next = addNews(next, rng, 'system', `${zone.name}: высокий онлайн.`, false);
-  }
 
   return trimRuntimeState(next);
 };

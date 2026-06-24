@@ -197,7 +197,7 @@ export const MarketScreen = () => {
                     </div>
                     <small>база {best.basePrice ?? (item ? estimateItemPrice(item) : best.price)}g · продавцов {group.listings.length}</small>
                     <div className="seller-list">
-                      {group.listings.slice(0, 8).map((listing) => (
+                      {group.listings.slice(0, 3).map((listing) => (
                         <div key={listing.id} className="seller-row">
                           <span>
                             <button className="text-button inline-button" onClick={() => openNpcProfile(listing.sellerId)}>{server.npcs.find((npc) => npc.id === listing.sellerId)?.name ?? listing.sellerId}</button>
