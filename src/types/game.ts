@@ -1,0 +1,477 @@
+export type Id = string;
+
+export type Rarity =
+  | "common"
+  | "uncommon"
+  | "rare"
+  | "epic"
+  | "legendary"
+  | "mythic"
+  | "unique";
+export type ItemType =
+  | "weapon"
+  | "armor"
+  | "accessory"
+  | "card"
+  | "consumable"
+  | "material"
+  | "mount"
+  | "pet"
+  | "cosmetic"
+  | "quest";
+export type EquipmentSlot =
+  | "weapon"
+  | "head"
+  | "chest"
+  | "legs"
+  | "boots"
+  | "ring"
+  | "amulet";
+export type RoleFocus =
+  | "PVE_FARMER"
+  | "RAIDER"
+  | "PVP_PLAYER"
+  | "GUILD_PLAYER"
+  | "COLLECTOR"
+  | "TRADER"
+  | "CASUAL"
+  | "HARDCORE"
+  | "LEADER"
+  | "DRAMA";
+export type GuildType =
+  | "PVE"
+  | "PVP"
+  | "CASUAL"
+  | "HARDCORE"
+  | "TRADE"
+  | "NEWBIE"
+  | "MIXED";
+export type NewsType =
+  | "drop"
+  | "guild"
+  | "raid"
+  | "pvp"
+  | "market"
+  | "system"
+  | "enhance"
+  | "dungeon";
+export type CombatSource = "spot" | "dungeon" | "raid" | "arena" | "boss";
+export type ModalType =
+  | "reward"
+  | "death"
+  | "system"
+  | "settings"
+  | "guild"
+  | "dungeon"
+  | "loot"
+  | "enhance"
+  | "item"
+  | "npc";
+
+export interface StatBlock {
+  hp: number;
+  mana: number;
+  attack: number;
+  magic: number;
+  defense: number;
+  speed: number;
+}
+
+export interface EffectDefinition {
+  type: "DAMAGE" | "HEAL" | "SHIELD" | "BUFF_ATTACK" | "BUFF_DEFENSE";
+  scale?: "attack" | "magic" | "defense";
+  value: number;
+  duration?: number;
+}
+
+export interface SkillDefinition {
+  id: Id;
+  name: string;
+  classIds: Id[];
+  manaCost: number;
+  cooldown: number;
+  description: string;
+  effects: EffectDefinition[];
+}
+
+export interface ClassDefinition {
+  id: Id;
+  name: string;
+  role: string;
+  description: string;
+  baseStats: StatBlock;
+  skillIds: Id[];
+}
+
+export interface RaceDefinition {
+  id: Id;
+  name: string;
+  description: string;
+  statBonus: Partial<StatBlock>;
+  tags: string[];
+}
+
+export interface ItemDefinition {
+  id: Id;
+  name: string;
+  type: ItemType;
+  rarity: Rarity;
+  levelReq: number;
+  classTags: Id[];
+  slot?: EquipmentSlot;
+  stats: Partial<StatBlock>;
+  effects: EffectDefinition[];
+  socketSlots: number;
+  tradeable: boolean;
+  price: number;
+  announceIfDropped: boolean;
+  setId?: Id;
+}
+
+export interface ItemInstance {
+  instanceId: Id;
+  itemId: Id;
+  enhancement: number;
+  cardIds?: Id[];
+  socketSlots?: number;
+  boundTo?: Id;
+}
+
+export interface InventoryStack {
+  itemId: Id;
+  amount: number;
+  enhancement?: number;
+  cardIds?: Id[];
+  socketSlots?: number;
+}
+
+export interface RewardSummary {
+  xp: number;
+  gold: number;
+  items: InventoryStack[];
+  lines: string[];
+}
+
+export interface GameModal {
+  id: Id;
+  type: ModalType;
+  title: string;
+  text: string;
+  reward?: RewardSummary;
+  lines?: string[];
+  rarity?: Rarity;
+  itemId?: Id;
+}
+
+export interface Equipment {
+  weapon?: ItemInstance;
+  head?: ItemInstance;
+  chest?: ItemInstance;
+  legs?: ItemInstance;
+  boots?: ItemInstance;
+  ring?: ItemInstance;
+  amulet?: ItemInstance;
+}
+
+export interface Player {
+  id: Id;
+  name: string;
+  raceId: Id;
+  classId: Id;
+  level: number;
+  xp: number;
+  gold: number;
+  hp: number;
+  mana: number;
+  inventory: InventoryStack[];
+  equipment: Equipment;
+  guildId?: Id;
+  reputation: number;
+  arenaRating: number;
+}
+
+export interface NpcPlayer {
+  id: Id;
+  name: string;
+  raceId: Id;
+  classId: Id;
+  level: number;
+  xp: number;
+  gearScore: number;
+  gold: number;
+  guildId?: Id;
+  roleFocus: RoleFocus;
+  currentGoal: string;
+  reputation: number;
+  activityLevel: number;
+  ambition: number;
+  risk: number;
+  socialWeight: number;
+  inventory: InventoryStack[];
+  equipment: Equipment;
+  arenaRating: number;
+}
+
+export interface Guild {
+  id: Id;
+  name: string;
+  type: GuildType;
+  level: number;
+  reputation: number;
+  memberIds: Id[];
+  leaderId?: Id;
+  deputyId?: Id;
+  officerIds?: Id[];
+  tier?: 'low' | 'mid' | 'high';
+  minLevel?: number;
+  focus: string;
+  castleControl?: Id;
+  raidProgress: number;
+  pvpRating: number;
+  stability: number;
+  recruitmentPolicy: "open" | "invite" | "strict";
+}
+
+export interface GuildApplication {
+  id: Id;
+  guildId: Id;
+  status: "pending" | "accepted" | "declined";
+  createdDay: number;
+  createdMinute: number;
+  resolveDay: number;
+  resolveMinute: number;
+  resultText?: string;
+}
+
+export interface ServerNotification {
+  id: Id;
+  type: ModalType;
+  title: string;
+  text: string;
+  lines: string[];
+}
+
+export type LootChoice = "need" | "want" | "pass";
+
+export interface PendingLootRoll {
+  id: Id;
+  itemId: Id;
+  source: "dungeon" | "raid";
+  partyNpcIds: Id[];
+  createdDay: number;
+  createdMinute: number;
+}
+
+export interface PartyRoleMap {
+  tankId: Id;
+  healerId: Id;
+  dpsIds: Id[];
+}
+
+export interface MobDefinition {
+  id: Id;
+  name: string;
+  level: number;
+  stats: StatBlock;
+  xp: number;
+  gold: [number, number];
+  lootTableId: Id;
+  tags: string[];
+}
+
+export interface SpotDefinition {
+  id: Id;
+  zoneId: Id;
+  name: string;
+  levelRange: [number, number];
+  mobIds: Id[];
+  timeCostMinutes: number;
+  risk: number;
+  tags: string[];
+}
+
+export interface ZoneDefinition {
+  id: Id;
+  name: string;
+  levelRange: [number, number];
+  description: string;
+  spotIds: Id[];
+}
+
+export interface LootEntry {
+  itemId: Id;
+  chance: number;
+  minLevel?: number;
+  maxLevel?: number;
+}
+
+export interface LootTable {
+  id: Id;
+  entries: LootEntry[];
+}
+
+export interface DungeonFloorDefinition {
+  id: Id;
+  name: string;
+  type: "mobs" | "event" | "miniBoss" | "boss";
+  mobIds: Id[];
+  timeCostMinutes: number;
+}
+
+export interface DungeonDefinition {
+  id: Id;
+  zoneId: Id;
+  name: string;
+  levelRange: [number, number];
+  partySize: number;
+  timeCostMinutes: number;
+  contentType?: "dungeon" | "raid";
+  bossMobId: Id;
+  lootTableId: Id;
+  description: string;
+  floors: DungeonFloorDefinition[];
+}
+
+export interface DungeonRunState {
+  id: Id;
+  dungeonId: Id;
+  partyNpcIds: Id[];
+  partyRoles?: PartyRoleMap;
+  currentFloor: number;
+  currentEncounterIndex: number;
+  status: "betweenFloors" | "inCombat" | "completed";
+  contentType?: "dungeon" | "raid";
+  startedDay: number;
+  startedMinute: number;
+}
+
+export interface NewsEntry {
+  id: Id;
+  day: number;
+  minute: number;
+  type: NewsType;
+  text: string;
+  important: boolean;
+}
+
+export interface MarketListing {
+  id: Id;
+  sellerId: Id;
+  itemId: Id;
+  price: number;
+  basePrice: number;
+  pricePercent: number;
+  amount: number;
+  enhancement?: number;
+  cardIds?: Id[];
+  socketSlots?: number;
+  createdDay: number;
+}
+
+export interface RankingState {
+  arenaTop: Id[];
+  raidRaceTop: Id[];
+  wealthTop: Id[];
+  gearTop?: Id[];
+  guildPvpTop?: Id[];
+  guildReputationTop?: Id[];
+}
+
+export interface WorldLocationState {
+  mode: "city" | "zone" | "spot";
+  zoneId?: Id;
+  spotId?: Id;
+}
+
+export interface ServerState {
+  version: string;
+  seed: number;
+  characterCreated: boolean;
+  serverDay: number;
+  currentMinute: number;
+  location: WorldLocationState;
+  player: Player;
+  npcs: NpcPlayer[];
+  guilds: Guild[];
+  market: MarketListing[];
+  rankings: RankingState;
+  worldNews: NewsEntry[];
+  unlockedContent: Id[];
+  guildApplications: GuildApplication[];
+  notifications: ServerNotification[];
+  serverWeek?: number;
+  contentPatch?: number;
+  metaTag?: string;
+  serverChronicle?: NewsEntry[];
+  pendingLootRoll?: PendingLootRoll;
+  currentDungeonRun?: DungeonRunState;
+}
+
+export interface Combatant {
+  id: Id;
+  name: string;
+  level: number;
+  classId?: Id;
+  maxHp: number;
+  hp: number;
+  maxMana: number;
+  mana: number;
+  attack: number;
+  magic: number;
+  defense: number;
+  speed: number;
+  shield: number;
+  cooldowns: Record<Id, number>;
+  defending: boolean;
+}
+
+export interface PartyCombatMember {
+  id: Id;
+  name: string;
+  classId: Id;
+  role: "tank" | "healer" | "physicalDps" | "magicDps";
+  maxHp: number;
+  hp: number;
+  maxMana: number;
+  mana: number;
+  damageLastRound: number;
+  damageTakenLastRound: number;
+  healingLastRound: number;
+}
+
+export interface CombatState {
+  id: Id;
+  source: CombatSource;
+  sourceId: Id;
+  enemyMobId?: Id;
+  enemyNpcId?: Id;
+  player: Combatant;
+  enemy: Combatant;
+  partyNpcIds: Id[];
+  partyRoles?: PartyRoleMap;
+  partyMembers?: PartyCombatMember[];
+  enemyMobIds?: Id[];
+  dungeonEncounterIndex?: number;
+  dungeonFloorEnemyCount?: number;
+  isFinalDungeonEncounter?: boolean;
+  allowLoot?: boolean;
+  turn: number;
+  log: string[];
+  status: "active" | "victory" | "defeat";
+  reward?: RewardSummary;
+  defeatLines?: string[];
+  dungeonFloorIndex?: number;
+}
+
+export type ScreenId =
+  | "start"
+  | "character"
+  | "world"
+  | "dungeon"
+  | "guild"
+  | "server"
+  | "market"
+  | "arena"
+  | "enhance"
+  | "raid"
+  | "settings";
