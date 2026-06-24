@@ -45,6 +45,23 @@ const potionValue = (itemId: string, kind: 'hp' | 'mana') => {
   return table[itemId] ?? (kind === 'hp' ? 35 : 30);
 };
 
+
+export const getCombatConsumables = (inventory: InventoryStack[], playerLevel: number) => {
+  const ids = new Set([
+    'minor_potion', 'mana_potion',
+    'health_potion_5', 'mana_potion_5',
+    'health_potion_10', 'mana_potion_10',
+    'health_potion_15', 'mana_potion_15',
+    'health_potion_20', 'mana_potion_20',
+  ]);
+  return inventory
+    .map((entry) => ({ entry, item: getItemById(entry.itemId) }))
+    .filter((pair) => pair.item && pair.entry.amount > 0 && ids.has(pair.entry.itemId) && (pair.item?.levelReq ?? 1) <= playerLevel)
+    .sort((a, b) => (b.item!.levelReq - a.item!.levelReq) || a.item!.name.localeCompare(b.item!.name));
+};
+
+const potionKindFromId = (itemId: string): 'hp' | 'mana' => itemId.includes('mana') ? 'mana' : 'hp';
+
 export const classCombatRole = (classId?: string): PartyCombatMember['role'] => {
   if (classId === 'warrior') return 'tank';
   if (classId === 'priest') return 'healer';
@@ -171,7 +188,7 @@ export const startSpotCombat = (server: ServerState, spotId: string, rng: Rng): 
   const mobId = rng.pick(spot.mobIds);
   const enemy = createMobCombatant(mobId);
   if (!enemy) return null;
-  enemy.maxHp = Math.round(enemy.maxHp * 7.5);
+  enemy.maxHp = Math.max(1, Math.round(enemy.maxHp * 1.875));
   enemy.hp = enemy.maxHp;
 
   return {
@@ -481,10 +498,24 @@ export const resolveCombatAction = (server: ServerState, combat: CombatState, ac
   const isDownedInGroup = player.hp <= 0 && (combat.source === 'dungeon' || combat.source === 'raid') && (combat.partyMembers ?? []).some((member) => member.id !== server.player.id && member.hp > 0);
   if (isDownedInGroup) {
     log.push('Ты упал. Пати продолжает бой.');
-  } else if (actionId === 'defend') {
-    player.defending = true;
-    player.shield += 8 + Math.floor(player.defense * 0.8);
-    log.push('Защита.');
+  } else if (actionId.startsWith('consume:')) {
+    const itemId = actionId.slice('consume:'.length);
+    const stack = server.player.inventory.find((entry) => entry.itemId === itemId && entry.amount > 0);
+    const item = getItemById(itemId);
+    if (!stack || !item || (item.levelReq ?? 1) > server.player.level) {
+      log.push('Расходник недоступен.');
+    } else {
+      const kind = potionKindFromId(itemId);
+      const value = potionValue(itemId, kind);
+      if (kind === 'mana') {
+        player.mana = Math.min(player.maxMana, player.mana + value);
+        log.push(`${item.name}: +${value} Mana.`);
+      } else {
+        player.hp = Math.min(player.maxHp, player.hp + value);
+        log.push(`${item.name}: +${value} HP.`);
+      }
+      server = { ...server, player: { ...server.player, inventory: removeInventoryItem(server.player.inventory, itemId, 1, stack.enhancement ?? 0, stack.cardIds ?? []) } };
+    }
   } else if (actionId === 'potion') {
     const potion = bestPotionStack(server.player.inventory, server.player.level, 'hp');
     if (potion) {
@@ -502,10 +533,12 @@ export const resolveCombatAction = (server: ServerState, combat: CombatState, ac
       log.push(`${potion.item?.name ?? 'Зелье маны'}: +${mana} Mana.`);
     } else log.push('Зелья маны нет.');
   } else if (actionId === 'basic') {
+    const manaGain = Math.max(4, Math.ceil(player.maxMana * 0.06));
+    player.mana = Math.min(player.maxMana, player.mana + manaGain);
     const result = dealDamage(player, enemy, player.attack, rng);
     enemy = result.defender;
     playerDamage += result.damage;
-    log.push(result.missed ? 'Атака: промах.' : `Атака: ${result.damage} урона${result.crit ? ' · крит' : ''}.`);
+    log.push(result.missed ? `Атака: промах. Mana +${manaGain}.` : `Атака: ${result.damage} урона${result.crit ? ' · крит' : ''}. Mana +${manaGain}.`);
   } else {
     const skill = getSkillById(actionId);
     if (!skill || !skill.classIds.includes(server.player.classId)) log.push('Навык недоступен.');

@@ -35,6 +35,37 @@ export const estimateItemPrice = (item: ItemDefinition): number => {
 export const getSellPrice = (item: ItemDefinition): number =>
   Math.max(1, Math.round(estimateItemPrice(item) * 0.55));
 
+
+const targetSellerCount = (item: ItemDefinition, rng?: Rng) => {
+  if (item.rarity === "legendary") return rng ? rng.int(2, 3) : 3;
+  if (item.rarity === "epic") return 10;
+  if (item.rarity === "rare") return 20;
+  if (item.rarity === "uncommon") return 50;
+  return 100;
+};
+
+const createListing = (
+  item: ItemDefinition,
+  sellerIds: string[],
+  rng: Rng,
+  serverDay: number,
+) => {
+  const basePrice = estimateItemPrice(item);
+  const percent = rng.int(0, 200);
+  const amount = item.type === "consumable" || item.type === "material" ? rng.int(1, 12) : 1;
+  return {
+    id: uid("listing", rng),
+    sellerId: rng.pick(sellerIds),
+    itemId: item.id,
+    basePrice,
+    pricePercent: percent,
+    price: Math.max(1, Math.round((basePrice * (100 + percent)) / 100)),
+    amount,
+    enhancement: 0,
+    createdDay: serverDay,
+  };
+};
+
 export const generateMarketListings = (
   server: Pick<ServerState, "seed" | "serverDay" | "npcs">,
   rng: Rng,
@@ -46,35 +77,18 @@ export const generateMarketListings = (
       item.tradeable && item.rarity !== "unique" && item.type !== "quest",
   );
 
-  return pool.flatMap((item) => {
-    const basePrice = estimateItemPrice(item);
-    const rollCount =
-      item.type === "consumable" || item.type === "material" ? 2 : 1;
-    return Array.from({ length: rollCount }, () => {
-      const percent = rng.int(-20, 200);
-      const amount =
-        item.type === "consumable" || item.type === "material"
-          ? rng.int(3, 18)
-          : 1;
-      return {
-        id: uid("listing", rng),
-        sellerId: rng.pick(sellerIds),
-        itemId: item.id,
-        basePrice,
-        pricePercent: percent,
-        price: Math.max(1, Math.round((basePrice * (100 + percent)) / 100)),
-        amount,
-        enhancement: 0,
-        createdDay: server.serverDay,
-      };
-    });
-  });
+  return pool.flatMap((item) =>
+    Array.from({ length: targetSellerCount(item, rng) }, () =>
+      createListing(item, sellerIds, rng, server.serverDay),
+    ),
+  );
 };
 
 export const normalizeMarketListings = (
   server: ServerState,
   rng: Rng,
 ): ServerState => {
+  const sellerIds = server.npcs.length > 0 ? server.npcs.map((npc) => npc.id) : ["npc_market"];
   const normalized = server.market
     .map((listing) => {
       const itemId = normalizeLegacyItemId(listing.itemId);
@@ -86,60 +100,37 @@ export const normalizeMarketListings = (
         item.type === "quest"
       )
         return null;
-      const basePrice =
-        Number.isFinite(listing.basePrice) && listing.basePrice > 0
-          ? listing.basePrice
-          : estimateItemPrice(item);
-      const price =
-        Number.isFinite(listing.price) && listing.price > 0
-          ? listing.price
-          : basePrice;
-      const pricePercent = Number.isFinite(listing.pricePercent)
-        ? listing.pricePercent
-        : Math.round((price / basePrice - 1) * 100);
+      const basePrice = estimateItemPrice(item);
+      const pricePercent = Math.max(0, Number.isFinite(listing.pricePercent) ? listing.pricePercent : Math.round(((listing.price || basePrice) / basePrice - 1) * 100));
       return {
         ...listing,
         itemId,
         basePrice,
         pricePercent,
-        price,
+        price: Math.max(1, Math.round((basePrice * (100 + pricePercent)) / 100)),
         amount: Math.max(1, listing.amount ?? 1),
         enhancement: listing.enhancement ?? 0,
       };
     })
     .filter(Boolean) as ServerState["market"];
 
-  const existing = new Set(normalized.map((entry) => entry.itemId));
-  const missing = ITEMS.filter(
+  const byItem = new Map<string, ServerState["market"]>();
+  normalized.forEach((listing) => {
+    const list = byItem.get(listing.itemId) ?? [];
+    list.push(listing);
+    byItem.set(listing.itemId, list);
+  });
+
+  const fill = ITEMS.filter(
     (item) =>
       item.tradeable &&
       item.rarity !== "unique" &&
-      item.type !== "quest" &&
-      !existing.has(item.id),
-  );
-  const fill = missing.flatMap((item) => {
-    const basePrice = estimateItemPrice(item);
-    const percent = rng.int(-20, 200);
-    return [
-      {
-        id: uid("listing", rng),
-        sellerId: rng.pick(
-          server.npcs.length > 0
-            ? server.npcs.map((npc) => npc.id)
-            : ["npc_market"],
-        ),
-        itemId: item.id,
-        basePrice,
-        pricePercent: percent,
-        price: Math.max(1, Math.round((basePrice * (100 + percent)) / 100)),
-        amount:
-          item.type === "consumable" || item.type === "material"
-            ? rng.int(3, 16)
-            : 1,
-        enhancement: 0,
-        createdDay: server.serverDay,
-      },
-    ];
+      item.type !== "quest",
+  ).flatMap((item) => {
+    const current = byItem.get(item.id)?.length ?? 0;
+    const target = targetSellerCount(item, rng);
+    const missing = Math.max(0, target - current);
+    return Array.from({ length: missing }, () => createListing(item, sellerIds, rng, server.serverDay));
   });
 
   return { ...server, market: [...normalized, ...fill] };

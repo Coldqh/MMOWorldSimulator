@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { getSkillById } from '../../content/classes';
 import { useGameStore } from '../../state/gameStore';
-import { getPartyRoleName, getUsableSkillIds } from '../../systems/combatSystem';
+import { getCombatConsumables, getPartyRoleName, getUsableSkillIds } from '../../systems/combatSystem';
 
 const pct = (value: number, max: number) => Math.max(0, Math.min(100, Math.round((value / Math.max(1, max)) * 100)));
 
@@ -15,11 +16,13 @@ export const CombatPanel = () => {
   const combat = useGameStore((state) => state.combat);
   const server = useGameStore((state) => state.server);
   const combatAction = useGameStore((state) => state.combatAction);
+  const [consumablesOpen, setConsumablesOpen] = useState(false);
 
   if (!combat) return null;
 
   const skillIds = getUsableSkillIds(server);
   const party = combat.partyMembers ?? [];
+  const consumables = getCombatConsumables(server.player.inventory, server.player.level);
 
   return (
     <div className="combat-overlay">
@@ -80,10 +83,20 @@ export const CombatPanel = () => {
               </button>
             );
           })}
-          <button onClick={() => combatAction('defend')}>Защита</button>
-          <button onClick={() => combatAction('potion')}>HP зелье</button>
-          <button onClick={() => combatAction('mana_potion')}>Mana зелье</button>
+          <button onClick={() => setConsumablesOpen((value) => !value)} disabled={consumables.length === 0}>
+            Расходники{consumables.length > 0 ? ` · ${consumables.length}` : ''}
+          </button>
         </div>
+
+        {consumablesOpen && consumables.length > 0 && (
+          <div className="consumable-menu">
+            {consumables.map(({ entry, item }) => (
+              <button key={`${entry.itemId}_${entry.amount}`} onClick={() => { combatAction(`consume:${entry.itemId}`); setConsumablesOpen(false); }}>
+                {item?.name ?? entry.itemId} · ×{entry.amount}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="combat-log">
           {combat.log.map((line, index) => <div key={`${line}_${index}`}>{line}</div>)}
