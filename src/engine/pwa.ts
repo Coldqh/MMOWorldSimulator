@@ -18,7 +18,7 @@ const dispatchUpdate = (detail: AppUpdateDetail) => {
 export const registerPwa = async () => {
   if (!('serviceWorker' in navigator)) return null;
   try {
-    const registration = await navigator.serviceWorker.register(`${baseUrl}sw.js`);
+    const registration = await navigator.serviceWorker.register(`${baseUrl}sw.js?app=${APP_VERSION}`);
     registrationRef = registration;
 
     registration.addEventListener('updatefound', () => {
@@ -26,19 +26,19 @@ export const registerPwa = async () => {
       if (!worker) return;
       worker.addEventListener('statechange', () => {
         if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-          dispatchUpdate({ version: 'new', currentVersion: APP_VERSION, reason: 'service-worker' });
+          dispatchUpdate({ version: APP_VERSION, currentVersion: APP_VERSION, reason: 'service-worker' });
         }
       });
     });
 
     if (registration.waiting && navigator.serviceWorker.controller) {
-      dispatchUpdate({ version: 'new', currentVersion: APP_VERSION, reason: 'service-worker' });
+      dispatchUpdate({ version: APP_VERSION, currentVersion: APP_VERSION, reason: 'service-worker' });
     }
 
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (reloading) return;
       reloading = true;
-      window.location.reload();
+      window.location.replace(`${baseUrl}?updated=${Date.now()}`);
     });
 
     return registration;
@@ -49,7 +49,10 @@ export const registerPwa = async () => {
 
 export const checkRemoteVersion = async () => {
   try {
-    const response = await fetch(`${baseUrl}version.json?t=${Date.now()}`, { cache: 'no-store' });
+    const response = await fetch(`${baseUrl}version.json?t=${Date.now()}`, {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache' },
+    });
     if (!response.ok) return null;
     const data = await response.json() as { version?: string };
     if (data.version && data.version !== APP_VERSION) {
@@ -63,18 +66,18 @@ export const checkRemoteVersion = async () => {
 };
 
 export const applyLatestVersion = async () => {
-  const registrations = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistrations() : [];
-  const waiting = registrationRef?.waiting ?? registrations.find((entry) => entry.waiting)?.waiting;
-  if (waiting) {
-    waiting.postMessage({ type: 'SKIP_WAITING' });
-    return;
-  }
+  try {
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.unregister()));
+      registrationRef = null;
+    }
 
-  const controller = navigator.serviceWorker?.controller;
-  controller?.postMessage({ type: 'CLEAR_OLD_CACHES' });
-  if ('caches' in window) {
-    const keys = await caches.keys();
-    await Promise.all(keys.filter((key) => key.startsWith('mmows-cache-')).map((key) => caches.delete(key)));
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((key) => caches.delete(key)));
+    }
+  } finally {
+    window.location.replace(`${baseUrl}?updated=${Date.now()}`);
   }
-  window.location.reload();
 };
