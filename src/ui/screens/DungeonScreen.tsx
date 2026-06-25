@@ -1,4 +1,5 @@
 import { DUNGEONS, getDungeonById, getMobById, getZoneById } from '../../content/world';
+import type { DungeonDefinition } from '../../types/game';
 import { useGameStore } from '../../state/gameStore';
 import { getGearScore, getPlayerStats } from '../../systems/itemSystem';
 import { CombatPanel } from '../components/CombatPanel';
@@ -11,6 +12,14 @@ const floorLabel: Record<string, string> = {
 };
 
 const roleText = (role?: string) => role === 'tank' ? 'танк' : role === 'healer' ? 'хилл' : 'дд';
+
+const sortInstancesForPlayer = (entries: DungeonDefinition[], playerLevel: number) =>
+  [...entries].sort((a, b) => {
+    const aAvailable = playerLevel >= a.levelRange[0];
+    const bAvailable = playerLevel >= b.levelRange[0];
+    if (aAvailable !== bAvailable) return aAvailable ? -1 : 1;
+    return b.levelRange[0] - a.levelRange[0] || b.levelRange[1] - a.levelRange[1] || a.name.localeCompare(b.name);
+  });
 
 export const DungeonScreen = () => {
   const server = useGameStore((state) => state.server);
@@ -34,6 +43,7 @@ export const DungeonScreen = () => {
   const missingMana = Math.max(0, stats.mana - Math.min(server.player.mana, stats.mana));
   const restMinutes = Math.max(8, Math.ceil(missingHp / 5) + Math.ceil(missingMana / 10));
   const canRest = Boolean(run && !combat);
+  const sortedDungeons = sortInstancesForPlayer(DUNGEONS, server.player.level);
 
   if (run && runDungeon && floor) {
     const role = run.partyRoles?.tankId === server.player.id ? 'tank' : run.partyRoles?.healerId === server.player.id ? 'healer' : 'dps';
@@ -75,10 +85,9 @@ export const DungeonScreen = () => {
             <button className="primary-button" onClick={startDungeonFloor} disabled={Boolean(combat) || !currentMob}>
               {currentMob ? `Бой: ${currentMob.name}` : 'Этаж пройден'}
             </button>
-            <button onClick={restDungeonParty} disabled={!canRest}>Отдых</button>
+            <button onClick={restDungeonParty} disabled={!canRest}>Отдых · ~{restMinutes} мин</button>
             <button className="danger-button" onClick={leaveDungeonRun} disabled={Boolean(combat)}>Покинуть</button>
           </div>
-          
         </section>
 
         <section className="panel">
@@ -122,26 +131,26 @@ export const DungeonScreen = () => {
       <section className="panel hero-panel">
         <div className="section-title">⚔️ Данжи</div>
         <h1>Поиск пати</h1>
-        <p className="muted">Доступ с 5 уровня. Нужна локация данжа.</p>
+        <p className="muted">Доступные данжи сверху: от высокого уровня к низкому. Недоступные ниже.</p>
         <p className="muted">Место: {currentZoneId ? (getZoneById(currentZoneId)?.name ?? currentZoneId) : 'город'}</p>
       </section>
 
       <div className="card-grid">
-        {DUNGEONS.map((dungeon) => {
+        {sortedDungeons.map((dungeon) => {
           const zone = getZoneById(dungeon.zoneId);
           const wrongLocation = currentZoneId !== dungeon.zoneId;
-          const lockedByLevel = server.player.level < 5 || server.player.level < dungeon.levelRange[0];
+          const lockedByLevel = server.player.level < dungeon.levelRange[0];
           return (
             <article key={dungeon.id} className={`content-card info-card ${lockedByLevel || wrongLocation ? 'locked-card' : ''}`}>
               <strong>{dungeon.name}</strong>
               <span>{zone?.name ?? dungeon.zoneId}</span>
               <span>Lv. {dungeon.levelRange[0]}–{dungeon.levelRange[1]} · пати {dungeon.partySize}</span>
-              <span>{dungeon.floors.length} этажей · босс-лут</span>
+              <span>{dungeon.floors.filter((floor) => floor.type === 'boss' || floor.type === 'miniBoss').length} босса · босс-лут</span>
               {wrongLocation ? (
                 <button onClick={() => travelToZone(dungeon.zoneId)} disabled={Boolean(combat)}>В локацию</button>
               ) : (
                 <button onClick={() => startDungeon(dungeon.id)} disabled={Boolean(combat) || lockedByLevel}>
-                  {lockedByLevel ? `Нужен ${Math.max(5, dungeon.levelRange[0])} уровень` : 'Поиск пати'}
+                  {lockedByLevel ? `Нужен Lv. ${dungeon.levelRange[0]}` : 'Поиск пати'}
                 </button>
               )}
             </article>

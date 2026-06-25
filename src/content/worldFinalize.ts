@@ -96,6 +96,46 @@ const applyMobPatches = (mobs: MobDefinition[], patches: MobPatch[] = []) => {
   });
 };
 
+const normalizeBossFloors = (dungeon: DungeonDefinition): DungeonDefinition => {
+  const floors = dungeon.floors.map((floor) => ({ ...floor, mobIds: [...floor.mobIds] }));
+  if (floors.length === 0) return { ...dungeon, floors };
+
+  const preferred = Array.from(new Set([
+    Math.min(1, floors.length - 1),
+    Math.min(3, floors.length - 1),
+    floors.length - 1,
+  ]));
+
+  let bossIndexes = floors
+    .map((floor, index) => ({ floor, index }))
+    .filter(({ floor }) => floor.type === 'boss' || floor.type === 'miniBoss')
+    .map(({ index }) => index);
+
+  preferred.forEach((index) => {
+    if (bossIndexes.length < 3 && !bossIndexes.includes(index)) bossIndexes.push(index);
+  });
+
+  bossIndexes = Array.from(new Set(bossIndexes)).sort((a, b) => a - b).slice(-3);
+  const bossSet = new Set(bossIndexes);
+
+  return {
+    ...dungeon,
+    floors: floors.map((floor, index) => ({
+      ...floor,
+      type: bossSet.has(index) ? 'boss' : floor.type === 'boss' || floor.type === 'miniBoss' ? 'mobs' : floor.type,
+    })),
+  };
+};
+
+const bossFloorMobIds = (instances: DungeonDefinition[]) => new Set(
+  instances.flatMap((dungeon) =>
+    dungeon.floors
+      .filter((floor) => floor.type === 'boss' || floor.type === 'miniBoss')
+      .map((floor) => floor.mobIds[floor.mobIds.length - 1])
+      .filter((id): id is string => Boolean(id)),
+  ),
+);
+
 const tuneMobStats = (mob: MobDefinition, spotMobIds: Set<string>): MobDefinition => {
   const spotOpenWorldMob = spotMobIds.has(mob.id) && !mob.tags.includes('dungeon') && !mob.tags.includes('raid') && !mob.tags.includes('boss');
   const hp = spotOpenWorldMob ? mob.stats.hp * 2 : mob.stats.hp;
@@ -128,16 +168,27 @@ export const finalizeWorldMobs = (mobs: MobDefinition[], spots: SpotDefinition[]
 
 export const finalizeWorldContent = (input: WorldContentInput): WorldContentOutput => {
   const spots = finalizeWorldSpots(input.spots, input.spotPatches);
-  const mobs = finalizeWorldMobs(input.mobs, spots, input.mobPatches);
+  let mobs = finalizeWorldMobs(input.mobs, spots, input.mobPatches);
   const dungeons = applyDungeonPatches(uniqueById(input.dungeons.map(cloneDungeon)), input.dungeonPatches)
+    .map(normalizeBossFloors)
     .map((dungeon) => ({
       ...dungeon,
-      // v0.5.6: force every dungeon to 5-player party size.
+      // v0.5.6+: force every dungeon to 5-player party size.
       partySize: 5,
       description: dungeon.description.replace(/пати\s*\d+/i, 'пати 5'),
     }))
     .sort((a, b) => a.id.localeCompare(b.id));
-  const raids = uniqueById(input.raids.map(cloneDungeon)).sort((a, b) => a.id.localeCompare(b.id));
+  const raids = uniqueById(input.raids.map(cloneDungeon))
+    .map(normalizeBossFloors)
+    .sort((a, b) => a.id.localeCompare(b.id));
+  const forcedBossMobIds = bossFloorMobIds([...dungeons, ...raids]);
+  mobs = mobs
+    .map((mob) => forcedBossMobIds.has(mob.id) ? { ...mob, tags: Array.from(new Set([...mob.tags, 'boss'])) } : mob)
+    .map((mob) => ({
+      ...mob,
+      xp: calculateXpRewardForMob(mob, mob.level),
+      gold: calculateGoldRewardForMob(mob),
+    }));
   const zones = uniqueById(input.zones.map(cloneZone)).sort((a, b) => a.id.localeCompare(b.id));
   const lootTables = finalizeLootTables(input.lootTables, mobs, input.items);
 

@@ -1,6 +1,6 @@
 import { getClassById, getSkillById } from '../content/classes';
 import { ITEMS, getItemById } from '../content/items';
-import { getLootTableById, getMobById, getSpotById } from '../content/world';
+import { getLootTableById, getMobById, getSpotById, getDungeonById } from '../content/world';
 import { addNews } from '../engine/news';
 import type { Rng } from '../engine/rng';
 import { uid } from '../engine/rng';
@@ -217,24 +217,26 @@ export const startBossCombat = (
   title?: string,
   dungeonEncounterIndex?: number,
   dungeonFloorEnemyCount?: number,
+  forceAllowLoot = false,
 ): CombatState | null => {
   const enemy = createMobCombatant(bossMobId);
   if (!enemy) return null;
 
   const mob = getMobById(bossMobId);
   const isBoss = Boolean(mob?.tags.includes('boss'));
+  const isBossEncounter = isBoss || forceAllowLoot;
   const isFinalDungeonEncounter = typeof dungeonEncounterIndex === 'number' && typeof dungeonFloorEnemyCount === 'number'
     ? dungeonEncounterIndex >= dungeonFloorEnemyCount - 1
     : true;
 
   if (source === 'dungeon' || source === 'raid') {
     const hpScale = source === 'raid' ? 20 : 10;
-    const atkScale = isBoss ? (source === 'raid' ? 1.18 : 1.08) : (source === 'raid' ? 1.55 : 1.32);
+    const atkScale = isBossEncounter ? (source === 'raid' ? 1.18 : 1.08) : (source === 'raid' ? 1.55 : 1.32);
     enemy.maxHp = Math.round(enemy.maxHp * hpScale + partyNpcIds.length * (source === 'raid' ? 95 : 55));
     enemy.hp = enemy.maxHp;
     enemy.attack = Math.round(enemy.attack * atkScale);
     enemy.magic = Math.round(enemy.magic * atkScale);
-    enemy.defense = Math.round(enemy.defense * (isBoss ? 1.22 : 1.14));
+    enemy.defense = Math.round(enemy.defense * (isBossEncounter ? 1.22 : 1.14));
   }
 
   return {
@@ -251,7 +253,7 @@ export const startBossCombat = (
     dungeonEncounterIndex,
     dungeonFloorEnemyCount,
     isFinalDungeonEncounter,
-    allowLoot: (source !== 'dungeon' && source !== 'raid') || isBoss,
+    allowLoot: (source !== 'dungeon' && source !== 'raid') || isBossEncounter,
     turn: 1,
     log: partyNpcIds.length > 0 ? [`Пати: ${partyNpcIds.length + 1}. Цель: ${title ?? enemy.name}.`] : [`Цель: ${title ?? enemy.name}.`],
     status: 'active',
@@ -329,24 +331,39 @@ const instanceSetIds: Record<string, string[]> = {
   wyrmspire_first_raid: ['raid_wyrmspire', 'raid_wyrmspire_legendary'],
 };
 
-const pickBossPartyDrop = (combat: CombatState, _mobIds: string[], rng: Rng): ItemDefinition | undefined => {
+const pickBossPartyDrop = (combat: CombatState, mobIds: string[], rng: Rng): ItemDefinition | undefined => {
   const setIds = instanceSetIds[combat.sourceId] ?? [];
-  const partyClasses = new Set<string>();
-  if (combat.player.classId) partyClasses.add(combat.player.classId);
+  const playerClassId = combat.player.classId;
+  const playerLevel = combat.player.level;
+  const sourceLevel = mobIds.map((id) => getMobById(id)?.level ?? playerLevel).sort((a, b) => b - a)[0] ?? playerLevel;
+
   const setItems = ITEMS.filter((item) => {
     if (!item.slot || !item.setId || !setIds.includes(item.setId)) return false;
-    if (item.classTags.length === 0) return true;
-    return item.classTags.some((id) => partyClasses.has(id)) || ['warrior', 'ranger', 'mage', 'priest'].some((id) => item.classTags.includes(id));
+    if (item.levelReq > Math.max(playerLevel + 2, sourceLevel + 2)) return false;
+    return true;
   });
-  if (setItems.length === 0) return undefined;
 
-  const raid = combat.source === 'raid';
-  const legendary = setItems.filter((item) => item.rarity === 'legendary');
-  const epic = setItems.filter((item) => item.rarity === 'epic');
-  if (raid && legendary.length > 0 && rng.chance(0.18)) return rng.pick(legendary);
-  if (epic.length > 0) return rng.pick(epic);
-  if (legendary.length > 0) return rng.pick(legendary);
-  return rng.pick(setItems);
+  const playerClassItems = setItems.filter((item) => playerClassId && item.classTags.includes(playerClassId));
+  if (playerClassItems.length > 0) return rng.pick(playerClassItems);
+
+  const neutralItems = setItems.filter((item) => item.classTags.length === 0);
+  if (neutralItems.length > 0) return rng.pick(neutralItems);
+
+  const dungeon = getDungeonById(combat.sourceId);
+  const table = dungeon ? getLootTableById(dungeon.lootTableId) : undefined;
+  const tableClassItems = (table?.entries ?? [])
+    .map((entry) => getItemById(entry.itemId))
+    .filter((item): item is ItemDefinition => Boolean(item))
+    .filter((item) => Boolean(item.slot && playerClassId && item.classTags.includes(playerClassId)));
+  if (tableClassItems.length > 0) return rng.pick(tableClassItems);
+
+  const generalFallback = ITEMS
+    .filter((item) => Boolean(item.slot && playerClassId && item.classTags.includes(playerClassId)))
+    .filter((item) => item.levelReq <= Math.max(playerLevel + 2, sourceLevel + 2))
+    .sort((a, b) => Math.abs(b.levelReq - sourceLevel) - Math.abs(a.levelReq - sourceLevel));
+  if (generalFallback.length > 0) return rng.pick(generalFallback.slice(-12));
+
+  return undefined;
 };
 
 const finishVictory = (server: ServerState, combat: CombatState, rng: Rng): { server: ServerState; combat: CombatState } => {

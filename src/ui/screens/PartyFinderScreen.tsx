@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DUNGEONS, RAIDS, getDungeonById } from '../../content/world';
+import type { DungeonDefinition } from '../../types/game';
 import { useGameStore } from '../../state/gameStore';
 import type { PartyFinderListing, ServerState } from '../../types/game';
 import { getCreatePartyListingBlockReason, getPlayerListingBlockReason, getClassPartyRole, totalPartyRequired } from '../../systems/partyFinderSystem';
@@ -23,6 +24,14 @@ const roleLabel: Record<string, string> = {
   magicDps: 'дд',
 };
 
+const sortInstancesForPlayer = (entries: DungeonDefinition[], playerLevel: number) =>
+  [...entries].sort((a, b) => {
+    const aAvailable = playerLevel >= a.levelRange[0];
+    const bAvailable = playerLevel >= b.levelRange[0];
+    if (aAvailable !== bAvailable) return aAvailable ? -1 : 1;
+    return b.levelRange[0] - a.levelRange[0] || b.levelRange[1] - a.levelRange[1] || a.name.localeCompare(b.name);
+  });
+
 const timeLabel = (day: number, minute: number) => {
   const hh = Math.floor(minute / 60).toString().padStart(2, '0');
   const mm = (minute % 60).toString().padStart(2, '0');
@@ -37,6 +46,8 @@ const leaderName = (server: ServerState, listing: PartyFinderListing) => {
 const guildName = (server: ServerState, guildId?: string) =>
   guildId ? server.guilds.find((guild) => guild.id === guildId)?.name ?? guildId : 'нет';
 
+const listingLevel = (listing: PartyFinderListing) => getDungeonById(listing.dungeonId)?.levelRange[0] ?? listing.requirements.minLevel;
+
 const FilterButton = ({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) => (
   <button className={active ? 'active' : ''} onClick={onClick}>{label}</button>
 );
@@ -49,8 +60,8 @@ export const PartyFinderScreen = () => {
   const setScreen = useGameStore((state) => state.setScreen);
   const [filter, setFilter] = useState('all');
   const instances = useMemo(() => [...DUNGEONS, ...RAIDS], []);
-  const firstAvailableId = instances[0]?.id ?? '';
-  const [selectedId, setSelectedId] = useState(firstAvailableId);
+  const sortedInstances = useMemo(() => sortInstancesForPlayer(instances, server.player.level), [instances, server.player.level]);
+  const [selectedId, setSelectedId] = useState('');
   const [visibility, setVisibility] = useState<'public' | 'guild_internal'>('public');
   const playerRole = getClassPartyRole(server.player.classId);
   const playerGear = getGearScore(server.player.equipment);
@@ -60,23 +71,36 @@ export const PartyFinderScreen = () => {
     refreshPartyFinder();
   }, [refreshPartyFinder]);
 
-  const listings = (server.partyFinderListings ?? []).filter((listing) => {
-    const dungeon = getDungeonById(listing.dungeonId);
-    if (!dungeon) return false;
-    if (listing.visibility !== 'public' && listing.guildId !== server.player.guildId) return filter === 'all' ? false : listing.guildId === server.player.guildId;
-    if (filter === 'dungeon') return listing.contentType === 'dungeon';
-    if (filter === 'raid') return listing.contentType === 'raid';
-    if (filter === 'public') return listing.visibility === 'public';
-    if (filter === 'guild') return listing.visibility === 'guild_internal' || listing.visibility === 'static';
-    if (filter === 'available') return getPlayerListingBlockReason(server, listing) === '';
-    if (filter === 'role') {
-      if (listing.memberIds.includes(server.player.id)) return true;
-      if (playerRole === 'tank') return listing.roles.tankIds.length < listing.requirements.tanks;
-      if (playerRole === 'healer') return listing.roles.healerIds.length < listing.requirements.healers;
-      return listing.roles.dpsIds.length < listing.requirements.dps;
-    }
-    return true;
-  });
+  useEffect(() => {
+    if (selectedId) return;
+    const highestAvailable = sortedInstances.find((dungeon) => server.player.level >= dungeon.levelRange[0]) ?? sortedInstances[0];
+    if (highestAvailable) setSelectedId(highestAvailable.id);
+  }, [selectedId, sortedInstances, server.player.level]);
+
+  const listings = (server.partyFinderListings ?? [])
+    .filter((listing) => {
+      const dungeon = getDungeonById(listing.dungeonId);
+      if (!dungeon) return false;
+      if (listing.visibility !== 'public' && listing.guildId !== server.player.guildId) return filter === 'all' ? false : listing.guildId === server.player.guildId;
+      if (filter === 'dungeon') return listing.contentType === 'dungeon';
+      if (filter === 'raid') return listing.contentType === 'raid';
+      if (filter === 'public') return listing.visibility === 'public';
+      if (filter === 'guild') return listing.visibility === 'guild_internal' || listing.visibility === 'static';
+      if (filter === 'available') return getPlayerListingBlockReason(server, listing) === '';
+      if (filter === 'role') {
+        if (listing.memberIds.includes(server.player.id)) return true;
+        if (playerRole === 'tank') return listing.roles.tankIds.length < listing.requirements.tanks;
+        if (playerRole === 'healer') return listing.roles.healerIds.length < listing.requirements.healers;
+        return listing.roles.dpsIds.length < listing.requirements.dps;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      const aAvailable = server.player.level >= listingLevel(a);
+      const bAvailable = server.player.level >= listingLevel(b);
+      if (aAvailable !== bAvailable) return aAvailable ? -1 : 1;
+      return listingLevel(b) - listingLevel(a) || a.id.localeCompare(b.id);
+    });
 
   return (
     <div className="screen-stack">
@@ -84,7 +108,7 @@ export const PartyFinderScreen = () => {
         <div className="section-title">👥 Поиск пати</div>
         <h1>Party Finder</h1>
         <p className="muted">{timeLabel(server.serverDay, server.currentMinute)} · активных заявок: {server.partyFinderListings?.length ?? 0}</p>
-        <p className="muted">Создание и вступление открывают лобби. Данж стартует только вручную из полной группы.</p>
+        <p className="muted">Доступные группы и инстансы сверху: от высокого уровня к низкому. Недоступные ниже.</p>
         <div className="stat-grid stat-grid-compact">
           <span>Твоя роль: {roleLabel[playerRole]}</span>
           <span>Lv. {server.player.level}</span>
@@ -97,7 +121,7 @@ export const PartyFinderScreen = () => {
         <div className="section-title">Создать заявку</div>
         <div className="action-grid">
           <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
-            {instances.map((dungeon) => {
+            {sortedInstances.map((dungeon) => {
               const locked = server.player.level < dungeon.levelRange[0];
               return (
                 <option key={dungeon.id} value={dungeon.id}>

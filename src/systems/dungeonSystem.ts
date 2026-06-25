@@ -138,6 +138,7 @@ export const startDungeonFloorCombat = (server: ServerState, rng: Rng): CombatSt
     title,
     encounterIndex,
     total,
+    floor.type === 'boss' || floor.type === 'miniBoss',
   );
   if (!combat) return null;
 
