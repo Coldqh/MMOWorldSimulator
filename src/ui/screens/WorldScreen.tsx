@@ -81,6 +81,11 @@ const sortDungeonsForPlayer = (entries: typeof DUNGEONS, level: number) =>
     return b.levelRange[0] - a.levelRange[0] || b.levelRange[1] - a.levelRange[1] || a.name.localeCompare(b.name);
   });
 
+const availableZonesForPlayer = (level: number) =>
+  [...ZONES]
+    .filter((zone) => level >= zone.levelRange[0])
+    .sort((a, b) => b.levelRange[0] - a.levelRange[0] || b.levelRange[1] - a.levelRange[1] || a.name.localeCompare(b.name));
+
 export const WorldScreen = () => {
   const server = useGameStore((state) => state.server);
   const combat = useGameStore((state) => state.combat);
@@ -104,6 +109,7 @@ export const WorldScreen = () => {
     ? 'starting_city'
     : server.location.zoneId ?? currentSpot?.zoneId ?? '';
   const questGivers = getQuestGiversByZoneId(questGiverZoneId);
+  const travelZones = availableZonesForPlayer(server.player.level);
 
   const placeTitle = server.location.mode === 'city'
     ? CITY_NAME
@@ -258,23 +264,41 @@ export const WorldScreen = () => {
           {server.location.mode !== 'city' && (
             <button onClick={travelToCity} disabled={Boolean(combat) || Boolean(server.currentDungeonRun)}>В город</button>
           )}
-          <button onClick={() => setTravelOpen((value) => !value)} disabled={Boolean(combat)}>Сменить локацию</button>
+          <button onClick={() => setTravelOpen(true)} disabled={Boolean(combat)}>Сменить локацию</button>
         </div>
       </section>
 
       {travelOpen && (
-        <section className="panel">
-          <div className="section-title">Локации</div>
-          <div className="card-grid">
-            {ZONES.map((zone) => (
-              <button key={zone.id} className="content-card" onClick={() => { travelToZone(zone.id); setTravelOpen(false); }} disabled={Boolean(combat)}>
-                <strong>{zone.name}</strong>
-                <span>Lv. {zone.levelRange[0]}–{zone.levelRange[1]}</span>
-                <span>{zone.description}</span>
-              </button>
-            ))}
-          </div>
-        </section>
+        <div className="modal-backdrop travel-modal-backdrop" onClick={() => setTravelOpen(false)}>
+          <section className="result-modal travel-modal full-window-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header-line">
+              <div>
+                <div className="section-title">Перемещение</div>
+                <h2>Доступные локации</h2>
+              </div>
+              <button className="small-close" onClick={() => setTravelOpen(false)}>×</button>
+            </div>
+            <p className="muted modal-subtitle">Показаны только локации, доступные по уровню. Сначала высокий уровень.</p>
+            <div className="card-grid">
+              {travelZones.map((zone) => (
+                <button
+                  key={zone.id}
+                  className="content-card"
+                  onClick={() => {
+                    travelToZone(zone.id);
+                    setTravelOpen(false);
+                  }}
+                  disabled={Boolean(combat) || server.location.zoneId === zone.id}
+                >
+                  <strong>{zone.name}</strong>
+                  <span>Lv. {zone.levelRange[0]}–{zone.levelRange[1]}</span>
+                  <span>{zone.description}</span>
+                </button>
+              ))}
+            </div>
+            <button className="wide-button" onClick={() => setTravelOpen(false)}>Закрыть</button>
+          </section>
+        </div>
       )}
     </div>
   );
