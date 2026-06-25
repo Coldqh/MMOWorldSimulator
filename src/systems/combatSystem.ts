@@ -1,5 +1,5 @@
 import { getClassById, getSkillById } from '../content/classes';
-import { getItemById } from '../content/items';
+import { ITEMS, getItemById } from '../content/items';
 import { getLootTableById, getMobById, getSpotById } from '../content/world';
 import { addNews } from '../engine/news';
 import type { Rng } from '../engine/rng';
@@ -319,22 +319,34 @@ const finishArenaVictory = (server: ServerState, combat: CombatState, rng: Rng):
 };
 
 
-const pickBossPartyDrop = (combat: CombatState, mobIds: string[], rng: Rng): ItemDefinition | undefined => {
-  const lastMob = mobIds.map((id) => getMobById(id)).filter(Boolean).slice(-1)[0];
-  const table = lastMob ? getLootTableById(lastMob.lootTableId) : undefined;
-  const tableItems = (table?.entries ?? [])
-    .map((entry) => getItemById(entry.itemId))
-    .filter((item): item is ItemDefinition => Boolean(item && item.slot && item.type !== 'consumable' && item.type !== 'material' && item.type !== 'quest'));
-  const roll = rng.next();
-  const wanted = roll < 0.1 ? 'legendary' : roll < 0.4 ? 'epic' : 'rare';
-  const byWanted = tableItems.filter((item) => item.rarity === wanted);
-  if (byWanted.length > 0) return rng.pick(byWanted);
-  const fallbackOrder = wanted === 'legendary' ? ['epic', 'rare'] : wanted === 'epic' ? ['rare', 'legendary'] : ['epic', 'legendary'];
-  for (const rarity of fallbackOrder) {
-    const pool = tableItems.filter((item) => item.rarity === rarity);
-    if (pool.length > 0) return rng.pick(pool);
-  }
-  return tableItems.length > 0 ? rng.pick(tableItems) : undefined;
+const instanceSetIds: Record<string, string[]> = {
+  old_lantern_cellar: ['dungeon_old_lantern'],
+  thorn_crown_crypt: ['dungeon_thorn_crypt'],
+  blackroot_watch: ['dungeon_blackroot'],
+  mire_depths: ['dungeon_mire_depths'],
+  frost_vault: ['dungeon_frost_vault'],
+  glass_catacomb: ['dungeon_glass_catacomb_epic'],
+  wyrmspire_first_raid: ['raid_wyrmspire', 'raid_wyrmspire_legendary'],
+};
+
+const pickBossPartyDrop = (combat: CombatState, _mobIds: string[], rng: Rng): ItemDefinition | undefined => {
+  const setIds = instanceSetIds[combat.sourceId] ?? [];
+  const partyClasses = new Set<string>();
+  if (combat.player.classId) partyClasses.add(combat.player.classId);
+  const setItems = ITEMS.filter((item) => {
+    if (!item.slot || !item.setId || !setIds.includes(item.setId)) return false;
+    if (item.classTags.length === 0) return true;
+    return item.classTags.some((id) => partyClasses.has(id)) || ['warrior', 'ranger', 'mage', 'priest'].some((id) => item.classTags.includes(id));
+  });
+  if (setItems.length === 0) return undefined;
+
+  const raid = combat.source === 'raid';
+  const legendary = setItems.filter((item) => item.rarity === 'legendary');
+  const epic = setItems.filter((item) => item.rarity === 'epic');
+  if (raid && legendary.length > 0 && rng.chance(0.18)) return rng.pick(legendary);
+  if (epic.length > 0) return rng.pick(epic);
+  if (legendary.length > 0) return rng.pick(legendary);
+  return rng.pick(setItems);
 };
 
 const finishVictory = (server: ServerState, combat: CombatState, rng: Rng): { server: ServerState; combat: CombatState } => {

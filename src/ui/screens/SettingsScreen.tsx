@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CLASSES } from '../../content/classes';
 import { ITEMS } from '../../content/items';
 import { GUILD_TEMPLATES } from '../../content/npc';
@@ -15,6 +15,10 @@ export const SettingsScreen = () => {
   const resetGame = useGameStore((state) => state.resetGame);
   const exportSave = useGameStore((state) => state.exportSave);
   const importSave = useGameStore((state) => state.importSave);
+  const exportCharacter = useGameStore((state) => state.exportCharacter);
+  const importCharacter = useGameStore((state) => state.importCharacter);
+  const saveNow = useGameStore((state) => state.saveNow);
+  const characterInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -29,6 +33,13 @@ export const SettingsScreen = () => {
     const next = await checkRemoteVersion();
     setCheckingUpdate(false);
     setUpdateText(next ? `Доступна версия ${next}.` : 'Установлена последняя версия.');
+  };
+
+  const handleCharacterFile = (file?: File) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => importCharacter(String(reader.result ?? ''));
+    reader.readAsText(file);
   };
 
   const counts = [
@@ -56,12 +67,22 @@ export const SettingsScreen = () => {
         <p className="muted">app v{APP_VERSION} · save v{server.version} · день {server.serverDay}</p>
         <p className="muted">Offline: {offlineReady ? 'готов' : 'готовится'}{updateText ? ` · ${updateText}` : ''}</p>
         <div className="action-grid">
-          <button onClick={exportSave}>Экспорт</button>
-          <button onClick={importSave}>Импорт</button>
+          <button onClick={saveNow}>Сохранить</button>
+          <button onClick={exportSave}>Экспорт мира</button>
+          <button onClick={importSave}>Импорт мира</button>
+          <button onClick={exportCharacter}>Экспорт героя</button>
+          <button onClick={() => characterInputRef.current?.click()}>Импорт героя</button>
           <button onClick={() => void manualCheckUpdate()}>{checkingUpdate ? 'Проверка...' : 'Проверить обновление'}</button>
           <button onClick={() => void applyLatestVersion()}>Обновить версию</button>
           <button className="danger-button" onClick={resetGame}>Новый персонаж</button>
         </div>
+        <input
+          ref={characterInputRef}
+          type="file"
+          accept="application/json,.json"
+          style={{ display: 'none' }}
+          onChange={(event) => handleCharacterFile(event.target.files?.[0] ?? undefined)}
+        />
       </section>
 
       <section className="panel">

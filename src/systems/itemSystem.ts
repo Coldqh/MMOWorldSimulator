@@ -338,6 +338,23 @@ export const normalizeNpcEquipmentAndGear = (npc: NpcPlayer, rng: Rng): NpcPlaye
   const current = sanitizeEquipment(npc.equipment ?? {});
   const fallback = generateEquipmentForClassLevel(npc.classId, npc.level, rng);
   const equipment: Equipment = { ...fallback, ...current };
+
+  // v0.5.0 migration: old saves had many empty card slots on NPC gear.
+  // Fill a reasonable part of available slots during migration/normalization.
+  (Object.entries(equipment) as Array<[EquipmentSlot, ItemInstance | undefined]>).forEach(([slot, instance]) => {
+    if (!instance) return;
+    const item = getItemById(instance.itemId);
+    if (!item) return;
+    const slots = instance.socketSlots ?? socketSlotsForItem(item, instance.instanceId.length + npc.level);
+    if ((instance.cardIds ?? []).length === 0 && slots > 0) {
+      const power = npc.level >= 20 ? 0.62 : npc.level >= 15 ? 0.42 : npc.level >= 10 ? 0.28 : 0.18;
+      const cards = chooseNpcCardsForItem(npc.classId, npc.level, item, slots, rng, power);
+      equipment[slot] = { ...instance, socketSlots: slots, cardIds: cards };
+    } else {
+      equipment[slot] = { ...instance, socketSlots: slots };
+    }
+  });
+
   return { ...npc, equipment, inventory: normalizeInventory(npc.inventory ?? []), gearScore: getGearScore(equipment) };
 };
 

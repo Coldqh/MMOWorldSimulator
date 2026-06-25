@@ -395,10 +395,19 @@ const assignGuildsByTier = (server: ServerState, guilds: Guild[], npcs: NpcPlaye
     npc.guildId = guild.id;
   };
 
-  shuffled.forEach((npc) => {
-    if (npc.level >= 20 && highGuilds.length > 0 && (groups.get(highGuilds[0].id)?.length ?? 0) < 9999) pushToSmallest(highGuilds, npc);
-    else if (npc.level >= 10 && midGuilds.length > 0) pushToSmallest(midGuilds, npc);
-    else pushToSmallest(lowGuilds.length > 0 ? lowGuilds : guilds, npc);
+  shuffled.forEach((npc, index) => {
+    const rng = createRng(seed + 880000 + index * 37 + npc.level * 17);
+    if (npc.level >= 20) {
+      const roll = rng.next();
+      if (roll < 0.58 && highGuilds.length) pushToSmallest(highGuilds, npc);
+      else if (roll < 0.78 && midGuilds.length) pushToSmallest(midGuilds, npc);
+      else pushToSmallest(lowGuilds.length ? lowGuilds : (midGuilds.length ? midGuilds : highGuilds), npc);
+    } else if (npc.level >= 10) {
+      if (rng.chance(0.72) && midGuilds.length) pushToSmallest(midGuilds, npc);
+      else pushToSmallest(lowGuilds.length ? lowGuilds : midGuilds, npc);
+    } else {
+      pushToSmallest(lowGuilds.length ? lowGuilds : guilds, npc);
+    }
   });
 
   const npcsById = new Map(shuffled.map((npc) => [npc.id, npc]));
@@ -422,6 +431,7 @@ const assignGuildsByTier = (server: ServerState, guilds: Guild[], npcs: NpcPlaye
   });
   return { guilds: nextGuilds, npcs: shuffled };
 };
+
 
 export const ensureServerRoster = (server: ServerState): ServerState => {
   const seed = server.seed ?? Date.now();

@@ -6,6 +6,7 @@ import {
   clearSave,
   loadGame,
   saveGame,
+  flushSaveGame,
 } from "../engine/saveLoad";
 import { DUNGEONS, LOOT_TABLES, MOBS, RAIDS, SPOTS, ZONES, getDungeonById, getSpotById, getZoneById } from "../content/world";
 import { getClassById } from "../content/classes";
@@ -37,6 +38,7 @@ import {
   buyListing,
   sellInventoryItem,
   normalizeMarketListings,
+  generateMarketListings,
 } from "../systems/marketSystem";
 import {
   addInventoryItem,
@@ -68,6 +70,9 @@ interface GameStore {
   skipDay: () => void;
   exportSave: () => void;
   importSave: () => void;
+  exportCharacter: () => void;
+  importCharacter: (raw: string) => void;
+  saveNow: () => void;
   travelToCity: () => void;
   travelToZone: (zoneId: string) => void;
   enterSpot: (spotId: string) => void;
@@ -195,8 +200,8 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
     contentPatch: server.contentPatch ?? 1,
     metaTag: server.metaTag ?? "fresh_start",
     serverChronicle: server.serverChronicle ?? [],
-    pendingLootRoll: server.pendingLootRoll,
-    currentDungeonRun: validRun ? { ...validRun, currentEncounterIndex: validRun.currentEncounterIndex ?? 0 } : undefined,
+    pendingLootRoll: needsMigration ? undefined : server.pendingLootRoll,
+    currentDungeonRun: needsMigration ? undefined : (validRun ? { ...validRun, currentEncounterIndex: validRun.currentEncounterIndex ?? 0 } : undefined),
     collectionProgress: server.collectionProgress ?? { obtainedItemIds: [], defeatedMobIds: [] },
   };
   const baseWithProgress = addCollectionProgress(baseServer);
@@ -210,8 +215,10 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
   }
 
   const rosterReady = ensureServerRoster(baseWithProgress);
-  const withMarket = normalizeMarketListings(rosterReady, marketRng);
-  return updateRankings(withMarket);
+  const marketReady = needsMigration
+    ? { ...rosterReady, market: generateMarketListings({ seed: rosterReady.seed, serverDay: rosterReady.serverDay, npcs: rosterReady.npcs }, marketRng) }
+    : normalizeMarketListings(rosterReady, marketRng);
+  return updateRankings(marketReady);
 };
 
 const savedServer = loadGame();
@@ -755,6 +762,60 @@ export const useGameStore = create<GameStore>((set, get) => ({
     } catch {
       set({ modal: { id: `modal_import_error_${Date.now()}`, type: 'settings', title: 'Ошибка импорта', text: 'JSON не прочитан.', lines: ['Проверь строку сейва.'] } });
     }
+  },
+
+  exportCharacter: () => {
+    const { server } = get();
+    const characterExport = {
+      type: 'MMOWS_CHARACTER_EXPORT',
+      exportVersion: SAVE_VERSION,
+      exportedAt: new Date().toISOString(),
+      player: server.player,
+      collectionProgress: server.collectionProgress,
+    };
+    const raw = JSON.stringify(characterExport, null, 2);
+    const blob = new Blob([raw], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${server.player.name || 'character'}_mmows_character.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    set({ modal: { id: `modal_character_export_${Date.now()}`, type: 'settings', title: 'Персонаж сохранён', text: server.player.name, lines: ['Файл экспорта персонажа скачан.'] } });
+  },
+
+  importCharacter: (raw) => {
+    try {
+      const parsed = JSON.parse(raw);
+      const importedPlayer = parsed?.player;
+      if (!importedPlayer || parsed?.type !== 'MMOWS_CHARACTER_EXPORT') throw new Error('bad character export');
+      const { server } = get();
+      const player = {
+        ...server.player,
+        ...importedPlayer,
+        id: 'player',
+        inventory: normalizeInventory(importedPlayer.inventory ?? []),
+        equipment: normalizeEquipmentItemIds(importedPlayer.equipment ?? {}),
+      };
+      const next = normalizeServer({
+        ...server,
+        player,
+        collectionProgress: parsed.collectionProgress ?? server.collectionProgress,
+      });
+      commit(set, next, null, { id: `modal_character_import_${Date.now()}`, type: 'settings', title: 'Персонаж импортирован', text: player.name, lines: [`Lv. ${player.level}`, `Gold: ${player.gold}`, `Gear: ${getGearScore(player.equipment)}`] });
+      set({ activeScreen: 'character' });
+    } catch {
+      set({ modal: { id: `modal_character_import_error_${Date.now()}`, type: 'settings', title: 'Ошибка импорта персонажа', text: 'Файл не прочитан.', lines: ['Нужен JSON-файл экспорта персонажа.'] } });
+    }
+  },
+
+  saveNow: () => {
+    const { server } = get();
+    saveGame(server);
+    flushSaveGame();
+    set({ modal: { id: `modal_save_now_${Date.now()}`, type: 'settings', title: 'Сохранено', text: 'Сейв записан.', lines: [`save v${SAVE_VERSION}`] } });
   },
 
   enhanceTarget: (target) => {

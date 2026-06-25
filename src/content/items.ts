@@ -414,3 +414,71 @@ ITEMS.forEach((item) => {
     item.price = Math.max(1, Math.round(item.price / 3));
   }
 });
+
+// v0.5.0 instance set cleanup and full raid/dungeon set pass.
+const classIdsV050 = ['warrior', 'ranger', 'mage', 'priest'] as const;
+const slotIdsV050 = ['weapon', 'head', 'chest', 'legs', 'boots', 'ring', 'amulet'] as const;
+const classNameV050: Record<string, string> = { warrior: 'Воина', ranger: 'Стрелка', mage: 'Мага', priest: 'Жреца' };
+const classMainV050: Record<string, 'attack' | 'magic'> = { warrior: 'attack', ranger: 'attack', mage: 'magic', priest: 'magic' };
+
+// Remove old shared Wyrm armor/accessories. The raid set is now a full 28-piece class set.
+for (let i = ITEMS.length - 1; i >= 0; i -= 1) {
+  const item = ITEMS[i];
+  if (/^wyrmspire(_gold)?_(head|chest|legs|boots|ring|amulet)$/.test(item.id)) ITEMS.splice(i, 1);
+  if (/^set_epic_/.test(item.id)) ITEMS.splice(i, 1);
+}
+
+const ensureInstanceSetItem = (prefix: string, familyName: string, level: number, rarity: Rarity, setId: string, classId: string, slot: string) => {
+  const id = `${prefix}_${classId}_${slot}`;
+  const main = classMainV050[classId] ?? 'attack';
+  const power = Math.round((level + 4) * (rarityStatMult[rarity] ?? 1) * (slotStatMult[slot] ?? 1));
+  const stats: Record<string, number> = slot === 'weapon'
+    ? { [main]: power + level }
+    : slot === 'ring' || slot === 'amulet'
+      ? { hp: power * 3, mana: (classId === 'mage' || classId === 'priest') ? power * 2 : power, [main]: Math.max(1, Math.round(power * 0.5)) }
+      : slot === 'boots'
+        ? { hp: power * 3, defense: Math.max(1, Math.round(power * 0.55)), speed: Math.max(1, Math.round(rarityScore[rarity] / 2)) }
+        : { hp: power * 4, defense: Math.max(1, Math.round(power * 0.72)) };
+  const existing = ITEMS.find((item) => item.id === id);
+  const data = {
+    name: `${slotName[slot]} ${familyName} ${classNameV050[classId]}`,
+    type: slot === 'weapon' ? 'weapon' as const : (slot === 'ring' || slot === 'amulet' ? 'accessory' as const : 'armor' as const),
+    rarity,
+    levelReq: level,
+    classTags: [classId],
+    slot: slot as any,
+    stats,
+    effects: [],
+    socketSlots: rarity === 'legendary' ? 2 : 2,
+    tradeable: true,
+    price: Math.round(900 + level * level * rarityScore[rarity] * (rarity === 'legendary' ? 2.4 : 1.35)),
+    announceIfDropped: true,
+    setId,
+  };
+  if (existing) Object.assign(existing, data);
+  else ITEMS.push({ id, ...data });
+};
+
+const ensureFullClassSet = (prefix: string, familyName: string, level: number, rarity: Rarity, setId: string) => {
+  classIdsV050.forEach((classId) => slotIdsV050.forEach((slot) => ensureInstanceSetItem(prefix, familyName, level, rarity, setId, classId, slot)));
+};
+
+// Every dungeon has an epic set. Raid has epic + legendary sets.
+ensureFullClassSet('old_lantern', 'Старого Фонаря', 6, 'epic', 'dungeon_old_lantern');
+ensureFullClassSet('thorn_crypt', 'Терновой Короны', 8, 'epic', 'dungeon_thorn_crypt');
+ensureFullClassSet('blackroot', 'Чёрного Корня', 11, 'epic', 'dungeon_blackroot');
+ensureFullClassSet('mire_depths', 'Глубокой Топи', 14, 'epic', 'dungeon_mire_depths');
+ensureFullClassSet('frost_vault', 'Ледяного Хранилища', 18, 'epic', 'dungeon_frost_vault');
+ensureFullClassSet('glass_catacomb', 'Стеклянных Катакомб', 20, 'epic', 'dungeon_glass_catacomb_epic');
+ensureFullClassSet('wyrmspire', 'Вирмшпиля', 20, 'epic', 'raid_wyrmspire');
+ensureFullClassSet('wyrmspire_gold', 'Первого Вирма', 20, 'legendary', 'raid_wyrmspire_legendary');
+
+// Dungeon sets that were blue are now purple.
+ITEMS.forEach((item) => {
+  if (item.setId?.startsWith('dungeon_')) {
+    item.rarity = 'epic';
+    item.socketSlots = Math.max(1, item.socketSlots ?? 1);
+    item.price = Math.max(item.price, Math.round(700 + item.levelReq * item.levelReq * rarityScore.epic * 1.4));
+  }
+});
+rebalanceItemStats();

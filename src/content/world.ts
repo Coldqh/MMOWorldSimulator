@@ -410,3 +410,88 @@ ITEMS.forEach((item) => {
     item.price = Math.max(50, Math.round(cardGearValue(item.id) * cardGoldPerValue));
   }
 });
+
+// v0.5.0 dungeon/raid set loot, extra 16-19 dungeon, card prices, and stronger mobs.
+if (!LOOT_TABLES.some((entry) => entry.id === 'lt_frost_vault')) LOOT_TABLES.push({ id: 'lt_frost_vault', entries: [] });
+addLoot('lt_frost_vault', 'frost_vault', 1);
+
+if (!MOBS.some((mob) => mob.id === 'frost_vault_guard')) {
+  MOBS.push(
+    { id: 'frost_vault_guard', name: 'Страж Ледяного Хранилища', level: 16, stats: { hp: 760, mana: 80, attack: 68, magic: 18, defense: 36, speed: 7 }, xp: 820, gold: [220, 340], lootTableId: 'lt_frost_vault', tags: ['humanoid', 'dungeon'] },
+    { id: 'frost_vault_mender', name: 'Ледяной чинитель', level: 17, stats: { hp: 690, mana: 220, attack: 34, magic: 76, defense: 30, speed: 8 }, xp: 900, gold: [250, 380], lootTableId: 'lt_frost_vault', tags: ['magic', 'dungeon'] },
+    { id: 'frost_vault_beast', name: 'Снежный зверь', level: 18, stats: { hp: 900, mana: 40, attack: 84, magic: 10, defense: 40, speed: 8 }, xp: 980, gold: [280, 420], lootTableId: 'lt_frost_vault', tags: ['beast', 'dungeon'] },
+    { id: 'frost_vault_captain', name: 'Капитан Хранилища', level: 18, stats: { hp: 1500, mana: 160, attack: 98, magic: 28, defense: 52, speed: 7 }, xp: 1700, gold: [520, 760], lootTableId: 'lt_frost_vault', tags: ['boss', 'dungeon', 'aoe'] },
+    { id: 'frost_vault_seer', name: 'Провидец Хранилища', level: 19, stats: { hp: 1320, mana: 360, attack: 48, magic: 118, defense: 44, speed: 8 }, xp: 1900, gold: [600, 900], lootTableId: 'lt_frost_vault', tags: ['boss', 'dungeon', 'aoe'] },
+    { id: 'frost_vault_heart', name: 'Сердце Хранилища', level: 19, stats: { hp: 1900, mana: 280, attack: 126, magic: 72, defense: 62, speed: 7 }, xp: 2400, gold: [760, 1200], lootTableId: 'lt_frost_vault', tags: ['boss', 'dungeon', 'aoe'] },
+  );
+}
+
+if (!DUNGEONS.some((entry) => entry.id === 'frost_vault')) {
+  DUNGEONS.push({ id: 'frost_vault', zoneId: 'frostspire_ridge', name: 'Ледяное Хранилище', levelRange: [16, 19], partySize: 5, timeCostMinutes: 370, contentType: 'dungeon', bossMobId: 'frost_vault_heart', lootTableId: 'lt_frost_vault', description: 'Lv. 16–19 · пати 5', floors: [
+    { id: 'fv_1', name: 'Верхний зал', type: 'mobs', mobIds: ['frost_vault_guard', 'frost_vault_mender', 'frost_vault_beast'], timeCostMinutes: 55 },
+    { id: 'fv_2', name: 'Караул капитана', type: 'boss', mobIds: ['frost_vault_guard', 'frost_vault_captain'], timeCostMinutes: 78 },
+    { id: 'fv_3', name: 'Синий коридор', type: 'mobs', mobIds: ['frost_vault_mender', 'frost_vault_guard', 'frost_vault_beast'], timeCostMinutes: 62 },
+    { id: 'fv_4', name: 'Зал провидца', type: 'boss', mobIds: ['frost_vault_mender', 'frost_vault_seer'], timeCostMinutes: 86 },
+    { id: 'fv_5', name: 'Нижние цепи', type: 'mobs', mobIds: ['frost_vault_beast', 'frost_vault_guard', 'frost_vault_mender'], timeCostMinutes: 65 },
+    { id: 'fv_6', name: 'Сердце', type: 'boss', mobIds: ['frost_vault_beast', 'frost_vault_heart'], timeCostMinutes: 105 },
+  ]});
+}
+
+const setTableToInstanceSet = (tableId: string, prefixes: string[]) => {
+  const table = LOOT_TABLES.find((entry) => entry.id === tableId);
+  if (!table) return;
+  const nonGear = table.entries.filter((entry) => {
+    const item = getItemById(entry.itemId);
+    return item && !item.slot;
+  });
+  const gear = prefixes.flatMap((prefix) => [
+    'warrior_weapon', 'warrior_head', 'warrior_chest', 'warrior_legs', 'warrior_boots', 'warrior_ring', 'warrior_amulet',
+    'ranger_weapon', 'ranger_head', 'ranger_chest', 'ranger_legs', 'ranger_boots', 'ranger_ring', 'ranger_amulet',
+    'mage_weapon', 'mage_head', 'mage_chest', 'mage_legs', 'mage_boots', 'mage_ring', 'mage_amulet',
+    'priest_weapon', 'priest_head', 'priest_chest', 'priest_legs', 'priest_boots', 'priest_ring', 'priest_amulet',
+  ].map((suffix) => `${prefix}_${suffix}`)).filter((id) => Boolean(getItemById(id))).map((itemId) => ({ itemId, chance: 1 }));
+  table.entries = [...nonGear, ...gear];
+};
+setTableToInstanceSet('lt_old_lantern_dungeon', ['old_lantern']);
+setTableToInstanceSet('lt_blackroot_raid', ['blackroot']);
+setTableToInstanceSet('lt_mire_depths_dungeon', ['mire_depths']);
+setTableToInstanceSet('lt_frost_vault', ['frost_vault']);
+setTableToInstanceSet('lt_glass_catacomb', ['glass_catacomb']);
+setTableToInstanceSet('lt_wyrmspire_raid', ['wyrmspire', 'wyrmspire_gold']);
+
+// Add cards for new dungeon mobs, then recalc all cards by true card Gear Score.
+MOBS.forEach((mob) => {
+  const cardId = `card_${mob.id}`;
+  const rarity = cardRarityForMob(mob);
+  const stats = cardStatsForMob(mob);
+  if (!ITEMS.some((item) => item.id === cardId)) {
+    ITEMS.push({ id: cardId, name: `Карта: ${mob.name}`, type: 'card', rarity, levelReq: mob.level, classTags: [], stats, effects: [], socketSlots: 0, tradeable: true, price: 1000, announceIfDropped: true });
+  }
+  const card = ITEMS.find((item) => item.id === cardId);
+  if (card) {
+    card.name = `Карта: ${mob.name}`;
+    card.levelReq = mob.level;
+    card.rarity = rarity;
+    card.stats = mob.id === 'first_wyrm' ? { hp: 160, defense: 20, attack: 20, magic: 14 } : stats;
+  }
+  const table = LOOT_TABLES.find((entry) => entry.id === mob.lootTableId);
+  if (table && !table.entries.some((entry) => entry.itemId === cardId)) table.entries.push({ itemId: cardId, chance: cardDropChanceForMob(mob) });
+});
+
+const cardGsV050 = (item: any) => {
+  const statScore = Object.values(item.stats ?? {}).reduce((sum: number, value: any) => sum + Math.abs(Number(value) || 0), 0);
+  return Math.round(statScore + (rarityScore[item.rarity as Rarity] ?? 1) * 8 + Math.max(1, item.levelReq ?? 1) * 4);
+};
+ITEMS.forEach((item) => {
+  if (item.type === 'card') {
+    const gs = item.id === 'card_first_wyrm' ? 390 : cardGsV050(item);
+    item.price = item.id === 'card_first_wyrm' ? 50000 : Math.max(128, Math.round(gs * 128));
+  }
+});
+
+// Global combat rebalance requested for v0.5.0.
+MOBS.forEach((mob) => {
+  mob.stats.hp = Math.round(mob.stats.hp * 2);
+  mob.stats.attack = Math.round(mob.stats.attack * 3);
+  mob.stats.magic = Math.round(mob.stats.magic * 3);
+});
