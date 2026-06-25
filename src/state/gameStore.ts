@@ -40,6 +40,7 @@ import {
   leavePartyListing as leavePartyFinderListing,
   refreshPartyFinderListings,
   startPartyFromListing,
+  waitPartyListing as waitPartyFinderListing,
 } from "../systems/partyFinderSystem";
 import { enhanceItem, type EnhanceTarget } from "../systems/enhancementSystem";
 import {
@@ -93,6 +94,7 @@ interface GameStore {
   leavePartyListing: (listingId: string) => void;
   cancelPartyListing: (listingId: string) => void;
   startPartyListing: (listingId: string) => void;
+  waitPartyListing: (listingId: string) => void;
   startDungeonFloor: () => void;
   restDungeonParty: () => void;
   leaveDungeonRun: () => void;
@@ -217,6 +219,8 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
     serverChronicle: server.serverChronicle ?? [],
     pendingLootRoll: needsMigration ? undefined : server.pendingLootRoll,
     currentDungeonRun: needsMigration ? undefined : (validRun ? { ...validRun, currentEncounterIndex: validRun.currentEncounterIndex ?? 0 } : undefined),
+    currentPartyListingId: needsMigration ? undefined : server.currentPartyListingId,
+    currentPartyListingId: needsMigration ? undefined : server.currentPartyListingId,
     collectionProgress: server.collectionProgress ?? { obtainedItemIds: [], defeatedMobIds: [] },
   };
   const baseWithProgress = addCollectionProgress(baseServer);
@@ -417,64 +421,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
 
-    if (
-      server.player.level < (dungeon.contentType === 'raid' ? 10 : 5) ||
-      server.player.level < dungeon.levelRange[0]
-    ) {
+    if (server.player.level < dungeon.levelRange[0]) {
       const next = addNews(
         server,
         rng,
         "dungeon",
-        `${dungeon.name}: нужен ${Math.max(dungeon.contentType === 'raid' ? 10 : 5, dungeon.levelRange[0])} уровень.`,
+        `${dungeon.name}: нужен Lv. ${dungeon.levelRange[0]}.`,
         false,
       );
       commit(set, next, null);
       return;
     }
 
-    const run = createDungeonRun(server, dungeonId, rng);
-    if (!run) {
-      const next = addNews(
-        server,
-        rng,
-        "dungeon",
-        `${dungeon.name}: пати не собралась.`,
-        false,
-      );
-      commit(set, next, null);
-      return;
-    }
-
-    const partyNames = run.partyNpcIds
-      .map((id) => {
-        const npc = server.npcs.find((entry) => entry.id === id);
-        const role =
-          run.partyRoles?.tankId === id
-            ? "танк"
-            : run.partyRoles?.healerId === id
-              ? "хилл"
-              : "дд";
-        return `${npc?.name ?? id} (${role})`;
-      })
-      .slice(0, 4);
-    const next = addNews(
-      { ...server, currentDungeonRun: run },
-      rng,
-      "dungeon",
-      `${server.player.name}: пати в ${dungeon.name}.`,
-      false,
-    );
-    commit(set, next, null, {
-      id: `modal_party_${run.id}`,
-      type: dungeon.contentType === 'raid' ? "dungeon" : "dungeon",
-      title: dungeon.contentType === 'raid' ? "Рейд собран" : "Пати собрана",
-      text: dungeon.name,
-      lines: [
-        `Игроков: ${run.partyNpcIds.length + 1}/${dungeon.partySize}.`,
-        `Пати: ${partyNames.join(", ")}.`,
-      ],
-    });
-    set({ activeScreen: dungeon.contentType === 'raid' ? 'raid' : 'dungeon' });
+    const result = createPlayerPartyListing(server, dungeonId, rng, "public");
+    commit(set, result.server, undefined, result.modal);
+    set({ activeScreen: "partyFinder" });
   },
 
   startDungeonFloor: () => {
@@ -526,7 +487,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   leaveDungeonRun: () => {
     const { server, combat } = get();
     if (combat) return;
-    commit(set, { ...server, currentDungeonRun: undefined }, null, {
+    commit(set, { ...server, currentDungeonRun: undefined, currentPartyListingId: undefined }, null, {
       id: `modal_leave_dungeon_${server.seed}_${server.currentMinute}`,
       type: "dungeon",
       title: "Данж покинут",
@@ -1040,6 +1001,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const rng = createRng(server.seed + server.serverDay * 13100 + server.currentMinute);
     const result = createPlayerPartyListing(server, dungeonId, rng, visibility);
     commit(set, result.server, undefined, result.modal);
+    if (result.server.currentPartyListingId) set({ activeScreen: "partyFinder" });
   },
 
   joinPartyListing: (listingId) => {
@@ -1047,6 +1009,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const rng = createRng(server.seed + server.serverDay * 13200 + server.currentMinute);
     const result = joinPartyFinderListing(server, listingId, rng);
     commit(set, result.server, undefined, result.modal);
+    if (result.server.currentPartyListingId) set({ activeScreen: "partyFinder" });
   },
 
   leavePartyListing: (listingId) => {
@@ -1059,12 +1022,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
     commit(set, cancelPartyFinderListing(server, listingId));
   },
 
+  waitPartyListing: (listingId) => {
+    const { server } = get();
+    const rng = createRng(server.seed + server.serverDay * 13400 + server.currentMinute + (server.partyFinderListings.find((listing) => listing.id === listingId)?.waitAttempts ?? 0) * 17);
+    const result = waitPartyFinderListing(server, listingId, rng);
+    commit(set, result.server, undefined, result.modal);
+  },
+
   startPartyListing: (listingId) => {
     const { server } = get();
     const rng = createRng(server.seed + server.serverDay * 13300 + server.currentMinute);
     const result = startPartyFromListing(server, listingId, rng);
     commit(set, result.server, null, result.modal);
-    if (result.server.currentDungeonRun) set({ activeScreen: "dungeon" });
+    if (result.server.currentDungeonRun) set({ activeScreen: result.server.currentDungeonRun.contentType === "raid" ? "raid" : "dungeon" });
   },
 
   joinGuild: (guildId) => get().applyToGuild(guildId),

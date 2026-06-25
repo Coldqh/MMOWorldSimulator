@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { DUNGEONS, RAIDS, getDungeonById } from '../../content/world';
 import { useGameStore } from '../../state/gameStore';
 import type { PartyFinderListing, ServerState } from '../../types/game';
-import { getPlayerListingBlockReason, getClassPartyRole } from '../../systems/partyFinderSystem';
+import { getCreatePartyListingBlockReason, getPlayerListingBlockReason, getClassPartyRole, totalPartyRequired } from '../../systems/partyFinderSystem';
 import { getGearScore } from '../../systems/itemSystem';
 
 const typeLabel: Record<string, string> = {
@@ -22,8 +22,6 @@ const roleLabel: Record<string, string> = {
   physicalDps: 'дд',
   magicDps: 'дд',
 };
-
-const totalRequired = (listing: PartyFinderListing) => listing.requirements.tanks + listing.requirements.healers + listing.requirements.dps;
 
 const timeLabel = (day: number, minute: number) => {
   const hh = Math.floor(minute / 60).toString().padStart(2, '0');
@@ -48,9 +46,7 @@ export const PartyFinderScreen = () => {
   const refreshPartyFinder = useGameStore((state) => state.refreshPartyFinder);
   const createPartyListing = useGameStore((state) => state.createPartyListing);
   const joinPartyListing = useGameStore((state) => state.joinPartyListing);
-  const leavePartyListing = useGameStore((state) => state.leavePartyListing);
-  const cancelPartyListing = useGameStore((state) => state.cancelPartyListing);
-  const startPartyListing = useGameStore((state) => state.startPartyListing);
+  const setScreen = useGameStore((state) => state.setScreen);
   const [filter, setFilter] = useState('all');
   const instances = useMemo(() => [...DUNGEONS, ...RAIDS], []);
   const firstAvailableId = instances[0]?.id ?? '';
@@ -58,6 +54,7 @@ export const PartyFinderScreen = () => {
   const [visibility, setVisibility] = useState<'public' | 'guild_internal'>('public');
   const playerRole = getClassPartyRole(server.player.classId);
   const playerGear = getGearScore(server.player.equipment);
+  const createReason = selectedId ? getCreatePartyListingBlockReason(server, selectedId, visibility) : 'Контент не найден';
 
   useEffect(() => {
     refreshPartyFinder();
@@ -87,6 +84,7 @@ export const PartyFinderScreen = () => {
         <div className="section-title">👥 Поиск пати</div>
         <h1>Party Finder</h1>
         <p className="muted">{timeLabel(server.serverDay, server.currentMinute)} · активных заявок: {server.partyFinderListings?.length ?? 0}</p>
+        <p className="muted">Создание и вступление открывают лобби. Данж стартует только вручную из полной группы.</p>
         <div className="stat-grid stat-grid-compact">
           <span>Твоя роль: {roleLabel[playerRole]}</span>
           <span>Lv. {server.player.level}</span>
@@ -99,17 +97,22 @@ export const PartyFinderScreen = () => {
         <div className="section-title">Создать заявку</div>
         <div className="action-grid">
           <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
-            {instances.map((dungeon) => (
-              <option key={dungeon.id} value={dungeon.id}>
-                {dungeon.name} · {typeLabel[dungeon.contentType ?? 'dungeon']} · Lv. {dungeon.levelRange[0]}-{dungeon.levelRange[1]}
-              </option>
-            ))}
+            {instances.map((dungeon) => {
+              const locked = server.player.level < dungeon.levelRange[0];
+              return (
+                <option key={dungeon.id} value={dungeon.id}>
+                  {dungeon.name} · {typeLabel[dungeon.contentType ?? 'dungeon']} · Lv. {dungeon.levelRange[0]}-{dungeon.levelRange[1]}{locked ? ' · locked' : ''}
+                </option>
+              );
+            })}
           </select>
           <select value={visibility} onChange={(event) => setVisibility(event.target.value as 'public' | 'guild_internal')} disabled={!server.player.guildId}>
             <option value="public">Публичная</option>
             <option value="guild_internal">Гильдейская</option>
           </select>
-          <button className="primary-button" onClick={() => selectedId && createPartyListing(selectedId, visibility)}>Создать группу</button>
+          <button className="primary-button" onClick={() => selectedId && createPartyListing(selectedId, visibility)} disabled={Boolean(createReason)}>
+            {createReason || 'Создать группу'}
+          </button>
           <button onClick={refreshPartyFinder}>Обновить</button>
         </div>
       </section>
@@ -135,10 +138,8 @@ export const PartyFinderScreen = () => {
             const dungeon = getDungeonById(listing.dungeonId);
             const reason = getPlayerListingBlockReason(server, listing);
             const isMember = listing.memberIds.includes(server.player.id);
-            const isLeader = listing.leaderId === server.player.id;
-            const canStart = isMember && listing.status === 'ready';
             const memberCount = listing.memberIds.length;
-            const maxMembers = totalRequired(listing);
+            const maxMembers = totalPartyRequired(listing.requirements);
             return (
               <div key={listing.id} className={`list-line item-row rarity-border-${listing.contentType === 'raid' ? 'legendary' : 'epic'}`}>
                 <span>
@@ -159,9 +160,7 @@ export const PartyFinderScreen = () => {
                   </small>
                 </span>
                 <span className="action-grid compact-actions">
-                  {isMember && !canStart && <button onClick={() => leavePartyListing(listing.id)}>Выйти</button>}
-                  {isLeader && <button onClick={() => cancelPartyListing(listing.id)}>Отменить</button>}
-                  {canStart && <button className="primary-button" onClick={() => startPartyListing(listing.id)}>Старт</button>}
+                  {isMember && <button className="primary-button" onClick={() => setScreen('partyFinder')}>Лобби</button>}
                   {!isMember && !reason && <button onClick={() => joinPartyListing(listing.id)}>Вступить</button>}
                   {!isMember && reason && <button disabled>{reason}</button>}
                 </span>

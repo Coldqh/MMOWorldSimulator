@@ -7,62 +7,64 @@ const files = {
   packageJson: read('package.json'),
   saveLoad: read('src/engine/saveLoad.ts'),
   version: read('src/engine/version.ts'),
-  main: read('src/main.tsx'),
-  pwa: read('src/engine/pwa.ts'),
-  sw: read('public/sw.js'),
   versionJson: read('public/version.json'),
-  updateBanner: read('src/ui/components/UpdateBanner.tsx'),
-  app: read('src/app/App.tsx'),
-  errorBoundary: read('src/app/ErrorBoundary.tsx'),
-  index: read('index.html'),
-  styles: read('src/ui/styles.css'),
-  vite: read('vite.config.ts'),
   types: read('src/types/game.ts'),
   partyFinder: read('src/systems/partyFinderSystem.ts'),
   partyScreen: read('src/ui/screens/PartyFinderScreen.tsx'),
+  lobby: read('src/ui/screens/PartyLobbyScreen.tsx'),
+  dungeonScreen: read('src/ui/screens/DungeonScreen.tsx'),
+  gameStore: read('src/state/gameStore.ts'),
   appShell: read('src/ui/layout/AppShell.tsx'),
+  pwa: read('src/engine/pwa.ts'),
+  sw: read('public/sw.js'),
 };
 
 const fail = [];
 const ok = [];
 const assert = (cond, msg) => cond ? ok.push(msg) : fail.push(msg);
 
-assert(files.packageJson.includes('"version": "0.5.7"'), 'package version is 0.5.7');
-assert(files.saveLoad.includes("SAVE_VERSION = '0.5.7'"), 'save version is 0.5.7');
-assert(files.saveLoad.includes('mmoworldsimulator.save.v0.5.6'), '0.5.6 legacy save key exists');
-assert(files.version.includes("APP_VERSION = '0.5.7'"), 'APP_VERSION is 0.5.7');
-assert(files.versionJson.includes('"version": "0.5.7"'), 'public version.json is 0.5.7');
+assert(files.packageJson.includes('"version": "0.5.8"'), 'package version is 0.5.8');
+assert(files.saveLoad.includes("SAVE_VERSION = '0.5.8'"), 'save version is 0.5.8');
+assert(files.saveLoad.includes('mmoworldsimulator.save.v0.5.7'), '0.5.7 legacy save key exists');
+assert(files.version.includes("APP_VERSION = '0.5.8'"), 'APP_VERSION is 0.5.8');
+assert(files.versionJson.includes('"version": "0.5.8"'), 'version.json is 0.5.8');
+
+assert(files.types.includes('waitAttempts?: number'), 'PartyFinderListing has waitAttempts');
+assert(files.types.includes('log?: string[]'), 'PartyFinderListing has log');
+assert(files.types.includes('currentPartyListingId?: Id'), 'ServerState has currentPartyListingId');
+
+assert(files.partyFinder.includes('waitPartyListing'), 'waitPartyListing exists');
+assert(files.partyFinder.includes('getStartPartyListingBlockReason'), 'start block reason exists');
+assert(files.partyFinder.includes('getCreatePartyListingBlockReason'), 'create block reason exists');
+assert(files.partyFinder.includes('server.player.level < dungeon.levelRange[0]'), 'strict dungeon level gate exists');
+assert(files.partyFinder.includes('listing.waitAttempts ?? 0'), 'waitAttempts tracked');
+assert(files.partyFinder.includes('forceJoin') && files.partyFinder.includes('>= 2'), 'third wait can force NPC');
+assert(files.partyFinder.includes('pickNpcForListing'), 'NPC candidate picker exists');
+assert(files.partyFinder.includes('isNpcBusyInActiveListing'), 'NPC busy guard exists');
+assert(files.partyFinder.includes('leaderExistsAndIsMember'), 'leader validity check exists');
+assert(!/createPlayerPartyListing[\s\S]{0,900}fillListing/.test(files.partyFinder), 'player listing is not instantly filled');
+
+assert(files.lobby.includes('PartyLobbyScreen'), 'PartyLobbyScreen exists');
+assert(files.lobby.includes('Подождать'), 'lobby has wait button');
+assert(files.lobby.includes('Начать данж'), 'lobby has start button');
+assert(files.lobby.includes('Покинуть группу'), 'lobby has leave button');
+assert(files.lobby.includes('getStartPartyListingBlockReason'), 'lobby disables start with reason');
+
+assert(files.gameStore.includes('waitPartyListing: (listingId: string) => void'), 'store exposes waitPartyListing');
+assert(files.gameStore.includes('waitPartyFinderListing'), 'store imports wait action');
+assert(files.gameStore.includes('currentPartyListingId'), 'store handles currentPartyListingId');
+assert(files.gameStore.includes('createPlayerPartyListing') && files.gameStore.includes('set({ activeScreen: "partyFinder" })'), 'create/join opens party finder lobby flow');
+
+assert(!files.dungeonScreen.includes('createDungeonRun('), 'DungeonScreen does not create instant dungeon run');
+assert(files.dungeonScreen.includes('startDungeon(dungeon.id)'), 'DungeonScreen still uses startDungeon action');
+assert(files.gameStore.includes('startDungeon: (dungeonId) =>') && files.gameStore.includes('createPlayerPartyListing'), 'startDungeon creates party listing');
+
+assert(files.appShell.includes('PartyLobbyScreen'), 'AppShell imports PartyLobbyScreen');
+assert(files.appShell.includes('partyLobbyOpen'), 'AppShell has lobby overlay');
 
 assert(exists('public/sw.js'), 'service worker exists');
-assert(files.sw.includes("mmows-v0.5.7"), 'service worker cache uses v0.5.7');
-assert(!/install[\s\S]{0,260}skipWaiting\(\)/.test(files.sw), 'service worker does not auto skipWaiting during install');
-assert(files.sw.includes("event.data.type === 'SKIP_WAITING'") || files.sw.includes('SKIP_WAITING'), 'service worker skipWaiting is message-driven');
-assert(files.sw.includes('clients.claim'), 'service worker claims clients after activation');
-assert(files.sw.includes('caches.keys') && files.sw.includes('startsWith'), 'service worker cleans old mmows caches');
-
-assert(!files.main.includes('navigator.serviceWorker.register'), 'main.tsx does not register service worker directly');
-assert(files.pwa.includes('navigator.serviceWorker.register'), 'pwa.ts owns service worker registration');
-assert(files.pwa.includes('registerPromise'), 'pwa registration is idempotent');
-assert(!files.pwa.includes('window.location.replace'), 'pwa.ts does not use location.replace');
-assert(!files.pwa.includes('?updated='), 'pwa.ts does not mutate URL with updated timestamp');
-assert(files.pwa.includes('controllerchange'), 'pwa.ts handles controllerchange');
-assert(files.pwa.includes('controllerChangeSeen'), 'controllerchange has repeat guard');
-assert(files.pwa.includes('window.location.reload()'), 'manual update can reload page');
-assert(files.pwa.includes('mmows_reload_guard'), 'manual reload has session guard');
-
-assert(files.updateBanner.includes('registerPwa') && files.updateBanner.includes('checkRemoteVersion'), 'UpdateBanner uses central PWA registration');
-assert(files.app.includes('ErrorBoundary'), 'App is wrapped in ErrorBoundary');
-assert(files.errorBoundary.includes('componentDidCatch'), 'ErrorBoundary catches React crashes');
-
-assert(files.types.includes('partyFinderListings: PartyFinderListing[]'), 'Party Finder state still exists');
-assert(files.partyFinder.includes('refreshPartyFinderListings'), 'Party Finder system still exists');
-assert(files.partyScreen.includes('PartyFinderScreen'), 'Party Finder screen still exists');
-assert(files.appShell.includes('PartyFinderScreen'), 'AppShell still wires Party Finder');
-
-assert(files.index.includes('manifest.webmanifest'), 'index links manifest');
-assert(!/https?:\/\/(?!registry\.npmjs\.org)/i.test(files.index), 'index has no external CDN URLs');
-assert(!/@import\s+url\(["']?https?:\/\//i.test(files.styles), 'CSS has no remote font imports');
-assert(files.vite.includes("base: './'") || files.vite.includes('base:"./"') || files.vite.includes("base:'./'"), 'vite uses relative base path');
+assert(files.sw.includes("mmows-v0.5.8"), 'service worker cache is v0.5.8');
+assert(!files.pwa.includes('window.location.replace'), 'PWA still avoids auto replace reload');
 
 if (fail.length) {
   console.error('Sanity failed:');

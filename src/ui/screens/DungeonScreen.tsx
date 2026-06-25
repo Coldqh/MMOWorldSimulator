@@ -141,7 +141,7 @@ export const DungeonScreen = () => {
                 <button onClick={() => travelToZone(dungeon.zoneId)} disabled={Boolean(combat)}>В локацию</button>
               ) : (
                 <button onClick={() => startDungeon(dungeon.id)} disabled={Boolean(combat) || lockedByLevel}>
-                  {lockedByLevel ? `Нужен ${Math.max(5, dungeon.levelRange[0])} уровень` : 'Искать NPC-пати'}
+                  {lockedByLevel ? `Нужен ${Math.max(5, dungeon.levelRange[0])} уровень` : 'Поиск пати'}
                 </button>
               )}
             </article>

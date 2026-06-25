@@ -12,6 +12,7 @@ import { ServerScreen } from '../screens/ServerScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { NewsScreen } from '../screens/NewsScreen';
 import { PartyFinderScreen } from '../screens/PartyFinderScreen';
+import { PartyLobbyScreen } from '../screens/PartyLobbyScreen';
 import { StartScreen } from '../screens/StartScreen';
 import { EnhanceScreen } from '../screens/EnhanceScreen';
 import { WorldScreen } from '../screens/WorldScreen';
@@ -81,6 +82,7 @@ export const AppShell = () => {
   const toggleSidebar = useGameStore((state) => state.toggleSidebar);
   const closeSidebar = useGameStore((state) => state.closeSidebar);
   const dungeonOpen = Boolean(server.currentDungeonRun);
+  const partyLobbyOpen = Boolean(server.currentPartyListingId);
 
   if (!server.characterCreated) {
     return (
@@ -118,10 +120,10 @@ export const AppShell = () => {
           {sideNav.map((entry) => {
             const locked = entry.cityOnly && server.location.mode !== 'city';
             return (
-              <button key={entry.id} className={activeScreen === entry.id ? 'active' : ''} onClick={() => setScreen(entry.id)} disabled={locked || dungeonOpen}>
+              <button key={entry.id} className={activeScreen === entry.id ? 'active' : ''} onClick={() => setScreen(entry.id)} disabled={locked || dungeonOpen || partyLobbyOpen}>
                 <span>{entry.label}</span>
                 {locked && <small>город</small>}
-                {dungeonOpen && entry.id !== 'guild' && <small>данж</small>}
+                {dungeonOpen && entry.id !== 'guild' && <small>данж</small>}{partyLobbyOpen && <small>пати</small>}{partyLobbyOpen && <small>пати</small>}
               </button>
             );
           })}
@@ -143,6 +145,21 @@ export const AppShell = () => {
             </div>
           </div>
           <div className="dungeon-overlay-body">{dungeonInnerScreen}</div>
+        </div>
+      )}
+
+      {partyLobbyOpen && !dungeonOpen && (
+        <div className="dungeon-fullscreen party-lobby-overlay">
+          <div className="dungeon-overlay-top">
+            <div>
+              <div className="section-title">👥 Поиск пати</div>
+              <strong>Лобби группы</strong>
+            </div>
+            <div className="mini-tabs">
+              <button className="active" onClick={() => setScreen('partyFinder')}>Лобби</button>
+            </div>
+          </div>
+          <div className="dungeon-overlay-body"><PartyLobbyScreen /></div>
         </div>
       )}
 

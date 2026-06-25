@@ -311,6 +311,8 @@ export interface PartyFinderListing {
   expiresDay: number;
   expiresMinute: number;
   note?: string;
+  waitAttempts?: number;
+  log?: string[];
 }
 
 export interface MobDefinition {
@@ -457,6 +459,7 @@ export interface ServerState {
   serverChronicle?: NewsEntry[];
   pendingLootRoll?: PendingLootRoll;
   currentDungeonRun?: DungeonRunState;
+  currentPartyListingId?: Id;
   collectionProgress?: CollectionProgress;
 }
 
