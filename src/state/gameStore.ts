@@ -33,6 +33,14 @@ import {
   startDungeonFloorCombat,
 } from "../systems/dungeonSystem";
 import { simulateServerForMinutes } from "../systems/npcSystem";
+import {
+  cancelPartyListing as cancelPartyFinderListing,
+  createPlayerPartyListing,
+  joinPartyListing as joinPartyFinderListing,
+  leavePartyListing as leavePartyFinderListing,
+  refreshPartyFinderListings,
+  startPartyFromListing,
+} from "../systems/partyFinderSystem";
 import { enhanceItem, type EnhanceTarget } from "../systems/enhancementSystem";
 import {
   buyListing,
@@ -79,6 +87,12 @@ interface GameStore {
   leaveSpot: () => void;
   startFarm: (spotId: string, mobId?: string) => void;
   startDungeon: (dungeonId: string) => void;
+  refreshPartyFinder: () => void;
+  createPartyListing: (dungeonId: string, visibility?: "public" | "guild_internal") => void;
+  joinPartyListing: (listingId: string) => void;
+  leavePartyListing: (listingId: string) => void;
+  cancelPartyListing: (listingId: string) => void;
+  startPartyListing: (listingId: string) => void;
   startDungeonFloor: () => void;
   restDungeonParty: () => void;
   leaveDungeonRun: () => void;
@@ -195,6 +209,7 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
     },
     unlockedContent: server.unlockedContent ?? ["greenfield", "moonwood"],
     guildApplications: server.guildApplications ?? [],
+    partyFinderListings: server.partyFinderListings ?? [],
     notifications: server.notifications ?? [],
     serverWeek: server.serverWeek ?? Math.max(1, Math.ceil((server.serverDay ?? 1) / 7)),
     contentPatch: server.contentPatch ?? 1,
@@ -218,7 +233,8 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
   const marketReady = needsMigration
     ? { ...rosterReady, market: generateMarketListings({ seed: rosterReady.seed, serverDay: rosterReady.serverDay, npcs: rosterReady.npcs }, marketRng) }
     : normalizeMarketListings(rosterReady, marketRng);
-  return updateRankings(marketReady);
+  const partyReady = refreshPartyFinderListings(marketReady, createRng((marketReady.seed ?? Date.now()) + 1900 + (marketReady.serverDay ?? 1)));
+  return updateRankings(partyReady);
 };
 
 const savedServer = loadGame();
@@ -1011,6 +1027,44 @@ export const useGameStore = create<GameStore>((set, get) => ({
       text: getItemById(cardId)?.name ?? cardId,
       lines: ['Бонус карты теперь учитывается в статах и Gear Score.'],
     });
+  },
+
+  refreshPartyFinder: () => {
+    const { server } = get();
+    const rng = createRng(server.seed + server.serverDay * 13000 + server.currentMinute);
+    commit(set, refreshPartyFinderListings(server, rng));
+  },
+
+  createPartyListing: (dungeonId, visibility = "public") => {
+    const { server } = get();
+    const rng = createRng(server.seed + server.serverDay * 13100 + server.currentMinute);
+    const result = createPlayerPartyListing(server, dungeonId, rng, visibility);
+    commit(set, result.server, undefined, result.modal);
+  },
+
+  joinPartyListing: (listingId) => {
+    const { server } = get();
+    const rng = createRng(server.seed + server.serverDay * 13200 + server.currentMinute);
+    const result = joinPartyFinderListing(server, listingId, rng);
+    commit(set, result.server, undefined, result.modal);
+  },
+
+  leavePartyListing: (listingId) => {
+    const { server } = get();
+    commit(set, leavePartyFinderListing(server, listingId));
+  },
+
+  cancelPartyListing: (listingId) => {
+    const { server } = get();
+    commit(set, cancelPartyFinderListing(server, listingId));
+  },
+
+  startPartyListing: (listingId) => {
+    const { server } = get();
+    const rng = createRng(server.seed + server.serverDay * 13300 + server.currentMinute);
+    const result = startPartyFromListing(server, listingId, rng);
+    commit(set, result.server, null, result.modal);
+    if (result.server.currentDungeonRun) set({ activeScreen: "dungeon" });
   },
 
   joinGuild: (guildId) => get().applyToGuild(guildId),

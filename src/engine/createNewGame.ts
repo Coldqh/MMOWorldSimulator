@@ -6,6 +6,7 @@ import { SAVE_VERSION } from './saveLoad';
 import { createRng } from './rng';
 import { estimateArenaRatingValue, estimateWealthValue, updateRankings } from '../systems/progressionSystem';
 import { normalizeMarketListings } from '../systems/marketSystem';
+import { refreshPartyFinderListings } from '../systems/partyFinderSystem';
 import { generateEquipmentForClassLevel, generateEliteEquipmentForClassLevel, generateScaledEquipmentForClassLevel, getGearScore, normalizeNpcEquipmentAndGear } from '../systems/itemSystem';
 
 export const NPC_TARGET_COUNT = 500;
@@ -511,6 +512,7 @@ export const createNewGame = (
     worldNews: [],
     unlockedContent: ['greenfield', 'moonwood', 'redcap_hills', 'iron_quarry', 'ashen_mire', 'skyfall_pass', 'frostspire_ridge', 'wyrmspire_peak'],
     guildApplications: [],
+    partyFinderListings: [],
     notifications: [],
     serverWeek: 1,
     contentPatch: 1,
@@ -528,7 +530,8 @@ export const createNewGame = (
   const finalRoster = ensureServerRoster(server);
   const marketRng = createRng(seed + 777001);
   const finalMarket = normalizeMarketListings({ ...finalRoster, market: [] }, marketRng);
-  return updateRankings(finalMarket);
+  const partyReady = refreshPartyFinderListings(finalMarket, createRng(seed + 880001));
+  return updateRankings(partyReady);
 };
 
 export const createEmptyServer = (seed = Date.now()) => createNewGame('Newbie', 'human', 'warrior', seed, false);

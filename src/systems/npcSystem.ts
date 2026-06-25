@@ -11,6 +11,7 @@ import type { Guild, GuildType, ItemInstance, NpcPlayer, ServerState } from '../
 import { estimateArenaRatingValue, estimateWealthValue, updateRankings } from './progressionSystem';
 import { equipNpcItemIfBetter, generateEquipmentForClassLevel, getGearScore } from './itemSystem';
 import { estimateItemPrice } from './marketSystem';
+import { refreshPartyFinderListings } from './partyFinderSystem';
 
 const levelingMinutesForNpcLevel = (level: number, rng: Rng) => Math.round((240 + level * level * 42) * (0.8 + rng.next() * 0.4));
 
@@ -458,6 +459,7 @@ const trimRuntimeState = (server: ServerState): ServerState => ({
   ...server,
   worldNews: server.worldNews.slice(-90),
   market: server.market.length > 1200 ? server.market.slice(-1200) : server.market,
+  partyFinderListings: (server.partyFinderListings ?? []).slice(-40),
 });
 
 export const simulateServerForMinutes = (server: ServerState, minutes: number, rng: Rng): ServerState => {
@@ -485,5 +487,6 @@ export const simulateServerForMinutes = (server: ServerState, minutes: number, r
   next = resolveGuildApplications(next, rng);
   next = applyServerWeekUpdate(next, rng);
 
+  next = refreshPartyFinderListings(next, rng);
   return trimRuntimeState(next);
 };

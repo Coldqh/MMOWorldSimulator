@@ -1,16 +1,15 @@
 {
   "name": "MMO World Simulator",
   "short_name": "MMOWS",
-  "description": "Solo simulator of a living old-school MMO server.",
+  "description": "Offline MMO world simulator.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#070a0f",
-  "theme_color": "#0f172a",
-  "orientation": "portrait-primary",
+  "background_color": "#111827",
+  "theme_color": "#111827",
   "icons": [
     {
-      "src": "./icons/icon.svg",
+      "src": "./mmows-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"

@@ -273,6 +273,46 @@ export interface PartyRoleMap {
   dpsIds: Id[];
 }
 
+export type PartyRole = "tank" | "healer" | "physicalDps" | "magicDps";
+export type PartyContentType = "dungeon" | "raid";
+export type PartyListingStatus = "forming" | "ready" | "started" | "expired" | "cancelled";
+export type PartyListingVisibility = "public" | "guild_internal" | "static";
+
+export interface PartyRequirement {
+  tanks: number;
+  healers: number;
+  dps: number;
+  minLevel: number;
+  maxLevel: number;
+  minGearScore?: number;
+  preferGuild?: boolean;
+}
+
+export interface PartyFinderListing {
+  id: Id;
+  dungeonId: Id;
+  contentType: PartyContentType;
+  visibility: PartyListingVisibility;
+  leaderId: Id;
+  leaderType: "player" | "npc";
+  guildId?: Id;
+  memberIds: Id[];
+  applicantIds: Id[];
+  rejectedIds?: Id[];
+  roles: {
+    tankIds: Id[];
+    healerIds: Id[];
+    dpsIds: Id[];
+  };
+  requirements: PartyRequirement;
+  status: PartyListingStatus;
+  createdDay: number;
+  createdMinute: number;
+  expiresDay: number;
+  expiresMinute: number;
+  note?: string;
+}
+
 export interface MobDefinition {
   id: Id;
   name: string;
@@ -409,6 +449,7 @@ export interface ServerState {
   worldNews: NewsEntry[];
   unlockedContent: Id[];
   guildApplications: GuildApplication[];
+  partyFinderListings: PartyFinderListing[];
   notifications: ServerNotification[];
   serverWeek?: number;
   contentPatch?: number;
@@ -486,6 +527,7 @@ export type ScreenId =
   | "arena"
   | "enhance"
   | "raid"
+  | "partyFinder"
   | "settings"
   | "library"
   | "news";

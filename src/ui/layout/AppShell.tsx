@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { formatTime } from '../../engine/time';
 import { useGameStore } from '../../state/gameStore';
 import type { ScreenId } from '../../types/game';
@@ -11,6 +11,7 @@ import { RaidScreen } from '../screens/RaidScreen';
 import { ServerScreen } from '../screens/ServerScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { NewsScreen } from '../screens/NewsScreen';
+import { PartyFinderScreen } from '../screens/PartyFinderScreen';
 import { StartScreen } from '../screens/StartScreen';
 import { EnhanceScreen } from '../screens/EnhanceScreen';
 import { WorldScreen } from '../screens/WorldScreen';
@@ -22,6 +23,7 @@ const screens: Record<ScreenId, ReactNode> = {
   start: <StartScreen />,
   character: <CharacterScreen />,
   world: <WorldScreen />,
+  partyFinder: <PartyFinderScreen />,
   dungeon: <DungeonScreen />,
   guild: <GuildScreen />,
   server: <ServerScreen />,
@@ -43,6 +45,7 @@ const bottomNav: Array<{ id: ScreenId; label: string }> = [
 const sideNav: Array<{ id: ScreenId; label: string; cityOnly?: boolean }> = [
   { id: 'character', label: '🧍 Герой' },
   { id: 'world', label: '🌍 Мир' },
+  { id: 'partyFinder', label: '👥 Поиск пати' },
   { id: 'dungeon', label: '⚔️ Данжи' },
   { id: 'raid', label: '🐉 Рейды' },
   { id: 'server', label: '📜 Сервер' },
@@ -54,6 +57,21 @@ const sideNav: Array<{ id: ScreenId; label: string; cityOnly?: boolean }> = [
   { id: 'enhance', label: '🔨 Заточка', cityOnly: true },
   { id: 'settings', label: '⚙️ Настройки' },
 ];
+
+const OnlineStatus = () => {
+  const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener('online', on);
+    window.addEventListener('offline', off);
+    return () => {
+      window.removeEventListener('online', on);
+      window.removeEventListener('offline', off);
+    };
+  }, []);
+  return <span>{online ? 'Онлайн' : 'Офлайн'}</span>;
+};
 
 export const AppShell = () => {
   const server = useGameStore((state) => state.server);
@@ -89,6 +107,7 @@ export const AppShell = () => {
           <strong>{server.player.name}</strong>
           <span>Lv. {server.player.level}</span>
           <span>{server.player.gold}g</span>
+          <OnlineStatus />
         </div>
       </header>
 

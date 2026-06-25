@@ -129,7 +129,14 @@ export const finalizeWorldMobs = (mobs: MobDefinition[], spots: SpotDefinition[]
 export const finalizeWorldContent = (input: WorldContentInput): WorldContentOutput => {
   const spots = finalizeWorldSpots(input.spots, input.spotPatches);
   const mobs = finalizeWorldMobs(input.mobs, spots, input.mobPatches);
-  const dungeons = applyDungeonPatches(uniqueById(input.dungeons.map(cloneDungeon)), input.dungeonPatches).sort((a, b) => a.id.localeCompare(b.id));
+  const dungeons = applyDungeonPatches(uniqueById(input.dungeons.map(cloneDungeon)), input.dungeonPatches)
+    .map((dungeon) => ({
+      ...dungeon,
+      // v0.5.6: force every dungeon to 5-player party size.
+      partySize: 5,
+      description: dungeon.description.replace(/пати\s*\d+/i, 'пати 5'),
+    }))
+    .sort((a, b) => a.id.localeCompare(b.id));
   const raids = uniqueById(input.raids.map(cloneDungeon)).sort((a, b) => a.id.localeCompare(b.id));
   const zones = uniqueById(input.zones.map(cloneZone)).sort((a, b) => a.id.localeCompare(b.id));
   const lootTables = finalizeLootTables(input.lootTables, mobs, input.items);
