@@ -1,5 +1,6 @@
 import { getClassById } from '../content/classes';
 import { ITEMS, getItemById, normalizeLegacyItemId, rarityScore } from '../content/items';
+import { calculateGearScore } from '../balance';
 import { getRaceById } from '../content/races';
 import type { Rng } from '../engine/rng';
 import type { Equipment, EquipmentSlot, InventoryStack, ItemDefinition, ItemInstance, NpcPlayer, Player, StatBlock } from '../types/game';
@@ -91,11 +92,10 @@ export const equipInventoryItem = (player: Player, itemId: string, seed = Date.n
 export const getItemStatScore = (item: ItemDefinition) => Object.values(item.stats).reduce((sum, value) => sum + Math.abs(value ?? 0), 0);
 
 export const getInstanceGearScore = (item: ItemDefinition, enhancement = 0, cardIds: string[] = []) => {
-  const cardPower = cardIds
+  const cardItems = cardIds
     .map((id) => getItemById(id))
-    .filter((card): card is ItemDefinition => Boolean(card))
-    .reduce((sum, card) => sum + getItemStatScore(card) + (rarityScore[card.rarity] ?? 1) * 2, 0);
-  return Math.round(getItemStatScore(item) + enhancement * 9 + rarityScore[item.rarity] * 8 + item.levelReq * 4 + socketSlotsForItem(item, item.id.length) * 5 + cardPower);
+    .filter((card): card is ItemDefinition => Boolean(card));
+  return calculateGearScore(item, enhancement, cardItems);
 };
 
 const addStats = (result: Partial<StatBlock>, stats: Partial<StatBlock>, multiplier = 1) => {

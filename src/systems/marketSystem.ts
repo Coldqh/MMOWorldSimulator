@@ -1,36 +1,11 @@
-import { ITEMS, getItemById, normalizeLegacyItemId, rarityScore } from "../content/items";
+import { ITEMS, getItemById, normalizeLegacyItemId } from "../content/items";
+import { calculateItemPrice } from "../balance";
 import type { Rng } from "../engine/rng";
 import { uid } from "../engine/rng";
 import type { ItemDefinition, ServerState } from "../types/game";
 import { addInventoryItem, removeInventoryItem } from "./itemSystem";
 
-const typeMultiplier: Record<string, number> = {
-  weapon: 1.35,
-  armor: 1.15,
-  accessory: 1.25,
-  card: 45,
-  consumable: 0.85,
-  material: 1,
-  mount: 3.5,
-  pet: 2.5,
-  cosmetic: 1.8,
-  quest: 0,
-};
-
-export const estimateItemPrice = (item: ItemDefinition): number => {
-  if (!item.tradeable || item.type === "quest") return 0;
-  const statPower = Object.values(item.stats).reduce(
-    (sum, value) => sum + Math.max(0, Number(value) || 0),
-    0,
-  );
-  const rarity = rarityScore[item.rarity] ?? 1;
-  const level = Math.max(1, item.levelReq);
-  const socketBonus = item.socketSlots * 18;
-  const base = 6 + level * level * 5 + statPower * 7 + socketBonus;
-  const typed = base * (typeMultiplier[item.type] ?? 1);
-  const rarityPrice = typed * (0.75 + rarity * 0.42);
-  return Math.max(1, Math.round(Math.max(item.price, rarityPrice)));
-};
+export const estimateItemPrice = (item: ItemDefinition): number => calculateItemPrice(item);
 
 export const getSellPrice = (item: ItemDefinition): number =>
   Math.max(1, Math.round(estimateItemPrice(item) * 0.55));

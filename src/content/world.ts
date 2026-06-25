@@ -1,5 +1,6 @@
 import type { DungeonDefinition, ItemDefinition, LootTable, MobDefinition, SpotDefinition, ZoneDefinition, Rarity } from '../types/game';
 import { ITEMS, getItemById, rarityScore } from './items';
+import { calculateCardPrice, calculateGoldRewardForMob, calculateItemPrice, calculateXpRewardForMob } from '../balance';
 
 export const CITY_ID = 'starting_city';
 export const CITY_NAME = 'Стартовый город';
@@ -222,7 +223,7 @@ LOOT_TABLES.push(
   { id: 'lt_glass_catacomb', entries: [] },
 );
 addLoot('lt_glass_catacomb', 'glass_catacomb', 0.12);
-addLoot('lt_glass_catacomb', 'glass_catacomb_epic', 0.04);
+addLoot('lt_glass_catacomb', 'glass_catacomb', 0.04);
 addLoot('lt_wyrmspire_raid', 'wyrmspire', 0.3);
 addLoot('lt_wyrmspire_raid', 'wyrmspire_gold', 0.1);
 
@@ -624,4 +625,23 @@ LOOT_TABLES.forEach((table) => {
     seen.add(itemId);
     return true;
   });
+});
+
+
+// v0.5.3 Balance Core final authority pass.
+// All mob XP/gold and all item/card prices are normalized through src/balance formulas after legacy content passes.
+MOBS.forEach((mob) => {
+  mob.xp = calculateXpRewardForMob(mob, mob.level);
+  mob.gold = calculateGoldRewardForMob(mob);
+});
+ITEMS.forEach((item) => {
+  const linkedMob = item.type === 'card' && item.id.startsWith('card_')
+    ? MOBS.find((mob) => item.id === `card_${mob.id}`)
+    : undefined;
+  item.price = item.type === 'card'
+    ? calculateCardPrice(item, linkedMob)
+    : calculateItemPrice(item);
+  if (!item.sourceType) {
+    item.sourceType = item.setId?.startsWith('raid_') ? 'raid' : item.setId?.startsWith('dungeon_') ? 'dungeon' : item.type === 'card' ? 'world' : 'general';
+  }
 });

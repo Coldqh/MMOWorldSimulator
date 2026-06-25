@@ -325,7 +325,7 @@ const instanceSetIds: Record<string, string[]> = {
   blackroot_watch: ['dungeon_blackroot'],
   mire_depths: ['dungeon_mire_depths'],
   frost_vault: ['dungeon_frost_vault'],
-  glass_catacomb: ['dungeon_glass_catacomb_epic'],
+  glass_catacomb: ['dungeon_glass_catacomb'],
   wyrmspire_first_raid: ['raid_wyrmspire', 'raid_wyrmspire_legendary'],
 };
 

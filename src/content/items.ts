@@ -195,7 +195,7 @@ const instanceDropSets = [
   { prefix: 'wyrmspire', name: 'Вирмшпиля', level: 20, rarity: 'epic' as Rarity, setId: 'raid_wyrmspire' },
   { prefix: 'wyrmspire_gold', name: 'Первого Вирма', level: 20, rarity: 'legendary' as Rarity, setId: 'raid_wyrmspire_legendary' },
   { prefix: 'glass_catacomb', name: 'Стеклянных Катакомб', level: 20, rarity: 'rare' as Rarity, setId: 'dungeon_glass_catacomb' },
-  { prefix: 'glass_catacomb_epic', name: 'Сердца Катакомб', level: 20, rarity: 'epic' as Rarity, setId: 'dungeon_glass_catacomb_epic' },
+  { prefix: 'glass_catacomb', name: 'Сердца Катакомб', level: 20, rarity: 'epic' as Rarity, setId: 'dungeon_glass_catacomb' },
 ];
 
 for (const spec of instanceDropSets) {
@@ -476,7 +476,7 @@ ensureFullClassSet('thorn_crypt', 'Терновой Короны', 8, 'epic', 'd
 ensureFullClassSet('blackroot', 'Чёрного Корня', 11, 'epic', 'dungeon_blackroot');
 ensureFullClassSet('mire_depths', 'Глубокой Топи', 14, 'epic', 'dungeon_mire_depths');
 ensureFullClassSet('frost_vault', 'Ледяного Хранилища', 18, 'epic', 'dungeon_frost_vault');
-ensureFullClassSet('glass_catacomb', 'Стеклянных Катакомб', 20, 'epic', 'dungeon_glass_catacomb_epic');
+ensureFullClassSet('glass_catacomb', 'Стеклянных Катакомб', 20, 'epic', 'dungeon_glass_catacomb');
 ensureFullClassSet('wyrmspire', 'Вирмшпиля', 20, 'epic', 'raid_wyrmspire');
 ensureFullClassSet('wyrmspire_gold', 'Первого Вирма', 20, 'legendary', 'raid_wyrmspire_legendary');
 
