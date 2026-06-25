@@ -53,6 +53,7 @@ export const PartyLobbyScreen = () => {
   const acceptPartyApplicant = useGameStore((state) => state.acceptPartyApplicant);
   const rejectPartyApplicant = useGameStore((state) => state.rejectPartyApplicant);
   const setScreen = useGameStore((state) => state.setScreen);
+  const openNpcProfile = useGameStore((state) => state.openNpcProfile);
   const listing = (server.partyFinderListings ?? []).find((entry) => entry.id === server.currentPartyListingId);
   const dungeon = listing ? getDungeonById(listing.dungeonId) : undefined;
 
@@ -107,7 +108,14 @@ export const PartyLobbyScreen = () => {
         <div className="list-lines">
           {listing.memberIds.map((id) => (
             <div key={id} className={`list-line ${id === server.player.id ? 'self-line' : ''}`}>
-              <span>{memberName(server, id)}{id === listing.leaderId ? ' · лидер' : ''}{id === server.player.id ? ' · ты' : ''}</span>
+              <span>
+                  {id === server.player.id ? (
+                    memberName(server, id)
+                  ) : (
+                    <button className="text-button" onClick={() => openNpcProfile(id)}>{memberName(server, id)}</button>
+                  )}
+                  {id === listing.leaderId ? ' · лидер' : ''}{id === server.player.id ? ' · ты' : ''}
+                </span>
               <strong>{roleLabel[memberRole(server, id)]} · Lv. {memberLevel(server, id)} · Gear {memberGear(server, id)}</strong>
             </div>
           ))}
@@ -121,7 +129,7 @@ export const PartyLobbyScreen = () => {
             {listing.applicantIds.length === 0 && <span className="muted">Заявок пока нет.</span>}
             {listing.applicantIds.map((id) => (
               <div key={id} className="list-line">
-                <span>{memberName(server, id)}</span>
+                <span><button className="text-button" onClick={() => openNpcProfile(id)}>{memberName(server, id)}</button></span>
                 <strong>{roleLabel[memberRole(server, id)]} · Lv. {memberLevel(server, id)} · Gear {memberGear(server, id)}</strong>
                 <span className="action-grid compact-actions">
                   <button className="primary-button" onClick={() => acceptPartyApplicant(listing.id, id)}>Принять</button>

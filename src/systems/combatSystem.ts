@@ -190,6 +190,9 @@ export const startSpotCombat = (server: ServerState, spotId: string, rng: Rng, f
   if (!enemy) return null;
   enemy.maxHp = Math.max(1, Math.round(enemy.maxHp * 1.875));
   enemy.hp = enemy.maxHp;
+  // spot damage v0.5.12: open-world spot mobs were overtuned after global stat scaling.
+  enemy.attack = Math.max(1, Math.round(enemy.attack / 5));
+  enemy.magic = Math.max(0, Math.round(enemy.magic / 5));
 
   return {
     id: uid('combat', rng),

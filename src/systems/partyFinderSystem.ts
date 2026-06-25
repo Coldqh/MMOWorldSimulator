@@ -452,7 +452,7 @@ export const joinPartyListing = (server: ServerState, listingId: string, rng: Rn
 
 export const waitPartyListing = (server: ServerState, listingId: string, rng: Rng) => {
   let nextServer = advanceServerClock(server, 8);
-  let resultModal = modal(rng, 'Ожидание группы', 'Никто не откликнулся.');
+  let resultModal = modal(rng, 'Ожидание группы', 'Новых заявок нет');
   let targetListing: PartyFinderListing | undefined;
 
   const listings = (nextServer.partyFinderListings ?? []).map((rawListing) => {
@@ -462,55 +462,33 @@ export const waitPartyListing = (server: ServerState, listingId: string, rng: Rn
     targetListing = listing;
     const dungeon = getDungeonById(listing.dungeonId);
 
-    if (!dungeon || !listing.memberIds.includes(nextServer.player.id)) {
-      resultModal = modal(rng, 'Ожидание группы', 'Группа недоступна.');
-      return listing;
-    }
-
-    if (isPartyListingReady(listing)) {
-      resultModal = modal(rng, 'Группа готова', dungeon.name, ['Можно начинать инстанс.']);
-      return { ...listing, waitAttempts: 0, log: [...(listing.log ?? []), 'Группа уже готова.'].slice(-12) };
+    if (!dungeon || !listing.memberIds.includes(nextServer.player.id) || isPartyListingReady(listing)) {
+      return {
+        ...listing,
+        log: [...(listing.log ?? []), 'Новых заявок нет'].slice(-12),
+      };
     }
 
     const candidate = pickNpcForListing({ ...nextServer, partyFinderListings: nextServer.partyFinderListings ?? [] }, listing, rng);
     const forceJoin = (listing.waitAttempts ?? 0) >= 2;
-    const shouldJoin = Boolean(candidate) && (forceJoin || rng.chance(0.58));
+    const shouldApply = Boolean(candidate) && (forceJoin || rng.chance(0.58));
 
-    if (candidate && shouldJoin) {
-      if (listing.leaderType === 'player' && listing.leaderId === nextServer.player.id) {
-        const nextListing = withRebuiltRoles(nextServer, {
-          ...listing,
-          applicantIds: unique([...(listing.applicantIds ?? []), candidate.id]),
-          waitAttempts: 0,
-          log: [...(listing.log ?? []), `${candidate.name} подал заявку.`].slice(-12),
-        });
-        resultModal = modal(rng, 'Новая заявка', `${candidate.name} подал заявку.`, [
-          'Прими или отклони её в лобби.',
-        ]);
-        return nextListing;
-      }
-
+    if (candidate && shouldApply && listing.leaderType === 'player' && listing.leaderId === nextServer.player.id) {
+      const line = `${candidate.name} отправил заявку`;
       const nextListing = withRebuiltRoles(nextServer, {
         ...listing,
-        memberIds: unique([...listing.memberIds, candidate.id]),
+        applicantIds: unique([...(listing.applicantIds ?? []), candidate.id]),
         waitAttempts: 0,
-        log: [...(listing.log ?? []), `${candidate.name} присоединился к группе.`].slice(-12),
+        log: [...(listing.log ?? []), line].slice(-12),
       });
-      resultModal = modal(rng, 'Ожидание группы', `${candidate.name} присоединился.`, [
-        `Состав: ${nextListing.memberIds.length}/${listingMemberLimit(nextListing)}.`,
-      ]);
+      resultModal = modal(rng, 'Ожидание группы', line);
       return nextListing;
     }
 
-    const waitAttempts = (listing.waitAttempts ?? 0) + 1;
-    const line = candidate ? `${candidate.name} пока не отвечает.` : 'Никто подходящий не откликнулся.';
-    resultModal = modal(rng, 'Ожидание группы', 'Никто не пришёл.', [
-      waitAttempts >= 2 ? 'Следующее ожидание усилит поиск.' : line,
-    ]);
     return {
       ...listing,
-      waitAttempts,
-      log: [...(listing.log ?? []), line].slice(-12),
+      waitAttempts: (listing.waitAttempts ?? 0) + 1,
+      log: [...(listing.log ?? []), 'Новых заявок нет'].slice(-12),
     };
   });
 

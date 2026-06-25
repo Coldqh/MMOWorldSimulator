@@ -8,41 +8,35 @@ const files = {
   version: read('src/engine/version.ts'),
   versionJson: read('public/version.json'),
   sw: read('public/sw.js'),
-  types: read('src/types/game.ts'),
-  worldBase: read('src/content/worldBase.ts'),
-  worldFinalize: read('src/content/worldFinalize.ts'),
-  dungeonSystem: read('src/systems/dungeonSystem.ts'),
   combat: read('src/systems/combatSystem.ts'),
+  lobby: read('src/ui/screens/PartyLobbyScreen.tsx'),
+  partyFinder: read('src/systems/partyFinderSystem.ts'),
 };
 
 const fail = [];
 const ok = [];
 const assert = (cond, msg) => cond ? ok.push(msg) : fail.push(msg);
 
-assert(files.packageJson.includes('"version": "0.5.11"'), 'package version is 0.5.11');
-assert(files.saveLoad.includes("SAVE_VERSION = '0.5.11'"), 'save version is 0.5.11');
-assert(files.saveLoad.includes('mmoworldsimulator.save.v0.5.10'), '0.5.10 legacy save key exists');
-assert(files.version.includes("APP_VERSION = '0.5.11'"), 'APP_VERSION is 0.5.11');
-assert(files.versionJson.includes('"version": "0.5.11"'), 'version.json is 0.5.11');
-assert(files.sw.includes("mmows-v0.5.11"), 'service worker cache is v0.5.11');
+assert(files.packageJson.includes('"version": "0.5.12"'), 'package version is 0.5.12');
+assert(files.saveLoad.includes("SAVE_VERSION = '0.5.12'"), 'save version is 0.5.12');
+assert(files.saveLoad.includes('mmoworldsimulator.save.v0.5.11'), '0.5.11 legacy save key exists');
+assert(files.version.includes("APP_VERSION = '0.5.12'"), 'APP_VERSION is 0.5.12');
+assert(files.versionJson.includes('"version": "0.5.12"'), 'version.json is 0.5.12');
+assert(files.sw.includes("mmows-v0.5.12"), 'service worker cache is v0.5.12');
 
-assert(!files.worldBase.includes("'mini-boss'") && !files.worldBase.includes('"mini-boss"'), 'worldBase has no mini-boss tag');
-assert(!files.worldFinalize.includes("'mini-boss'") && !files.worldFinalize.includes('"mini-boss"'), 'worldFinalize has no mini-boss tag');
-assert(files.worldFinalize.includes("tags.filter((tag) => tag !== 'mini-boss')"), 'world finalizer strips legacy mini-boss tags');
-assert(files.worldFinalize.includes("bossFloorMobIds"), 'world finalizer marks boss floor mobs');
-assert(files.worldFinalize.includes("slice(-3)"), 'world finalizer keeps exactly 3 boss floors');
+assert(files.combat.includes('spot damage v0.5.12') || files.combat.includes('enemy.attack = Math.max(1, Math.round(enemy.attack / 5))'), 'spot mob damage is divided by 5');
+assert(files.combat.includes('enemy.magic = Math.max(0, Math.round(enemy.magic / 5))'), 'spot mob magic damage is divided by 5');
 
-assert(files.types.includes('bossLootCount?: number'), 'DungeonRunState tracks bossLootCount');
-assert(files.types.includes('playerClassBossLootDropped?: boolean'), 'DungeonRunState tracks player class boss loot guarantee');
+assert(files.lobby.includes('openNpcProfile'), 'PartyLobbyScreen can open NPC profiles');
+assert(files.lobby.includes('onClick={() => openNpcProfile(id)}'), 'party member NPC names are clickable');
+assert(files.lobby.includes('className="text-button"'), 'clickable NPC profile uses text button');
 
-assert(files.dungeonSystem.includes('const isBossTarget =') && files.dungeonSystem.includes('encounterIndex >= total - 1'), 'dungeon loot only on final boss-floor target');
-assert(!files.dungeonSystem.includes("floor.type === 'miniBoss'"), 'dungeon system no longer treats miniBoss type as loot trigger');
-
-assert(files.combat.includes('forcePlayerClass') && files.combat.includes('pickBossPartyDrop(combat, mobIds, rng, forcePlayerClass)'), 'combat can force class boss drop');
-assert(files.combat.includes('bossDropIndex') && files.combat.includes('playerClassBossLootDropped'), 'combat tracks instance boss loot progress');
-assert(files.combat.includes('isClassDrop'), 'combat detects class drop');
-assert(files.combat.includes('currentDungeonRun: server.currentDungeonRun ?'), 'combat updates dungeon run boss loot state');
-assert(files.combat.includes('const shouldRollLoot = !isGroupInstance || Boolean(combat.allowLoot);'), 'ordinary dungeon mobs do not roll party gear');
+assert(files.partyFinder.includes('Новых заявок нет'), 'wait event has no-new-applications text');
+assert(files.partyFinder.includes('отправил заявку'), 'wait event has sent-application text');
+assert(!files.partyFinder.includes('пока не отвечает'), 'removed old wait text: no answer');
+assert(!files.partyFinder.includes('Никто подходящий не откликнулся'), 'removed old wait text: no candidates');
+assert(!files.partyFinder.includes('Следующее ожидание усилит поиск'), 'removed old wait text: boosted search');
+assert(!files.partyFinder.includes('Группа уже готова'), 'removed old wait text: group already ready');
 
 if (fail.length) {
   console.error('Sanity failed:');
