@@ -477,6 +477,19 @@ export const waitPartyListing = (server: ServerState, listingId: string, rng: Rn
     const shouldJoin = Boolean(candidate) && (forceJoin || rng.chance(0.58));
 
     if (candidate && shouldJoin) {
+      if (listing.leaderType === 'player' && listing.leaderId === nextServer.player.id) {
+        const nextListing = withRebuiltRoles(nextServer, {
+          ...listing,
+          applicantIds: unique([...(listing.applicantIds ?? []), candidate.id]),
+          waitAttempts: 0,
+          log: [...(listing.log ?? []), `${candidate.name} подал заявку.`].slice(-12),
+        });
+        resultModal = modal(rng, 'Новая заявка', `${candidate.name} подал заявку.`, [
+          'Прими или отклони её в лобби.',
+        ]);
+        return nextListing;
+      }
+
       const nextListing = withRebuiltRoles(nextServer, {
         ...listing,
         memberIds: unique([...listing.memberIds, candidate.id]),
@@ -533,6 +546,62 @@ export const cancelPartyListing = (server: ServerState, listingId: string) => ({
     listing.id === listingId && listing.leaderId === server.player.id ? { ...listing, status: 'cancelled' as PartyListingStatus, log: [...(listing.log ?? []), 'Группа отменена.'] } : listing,
   ),
 });
+
+export const acceptPartyApplicant = (server: ServerState, listingId: string, npcId: string, rng: Rng) => {
+  const listings = (server.partyFinderListings ?? []).map((listing) => {
+    if (listing.id !== listingId) return listing;
+    if (listing.leaderId !== server.player.id || listing.leaderType !== 'player') return listing;
+    if (!listing.applicantIds.includes(npcId)) return listing;
+
+    const npc = npcById(server, npcId);
+    const dungeon = getDungeonById(listing.dungeonId);
+    if (!npc || !dungeon) {
+      return { ...listing, applicantIds: listing.applicantIds.filter((id) => id !== npcId) };
+    }
+
+    const candidateListing = { ...listing, applicantIds: listing.applicantIds.filter((id) => id !== npcId) };
+    if (!canNpcJoinListing(npc, candidateListing, dungeon, { ...server, partyFinderListings: server.partyFinderListings ?? [] })) {
+      return {
+        ...candidateListing,
+        rejectedIds: unique([...(listing.rejectedIds ?? []), npcId]),
+        log: [...(listing.log ?? []), `${npc.name} больше не подходит.`].slice(-12),
+      };
+    }
+
+    return withRebuiltRoles(server, {
+      ...candidateListing,
+      memberIds: unique([...listing.memberIds, npcId]),
+      waitAttempts: 0,
+      log: [...(listing.log ?? []), `${npc.name} принят в группу.`].slice(-12),
+    });
+  });
+
+  return {
+    server: { ...server, partyFinderListings: listings },
+    modal: modal(rng, 'Заявка принята', npcById(server, npcId)?.name ?? npcId),
+  };
+};
+
+export const rejectPartyApplicant = (server: ServerState, listingId: string, npcId: string, rng: Rng) => {
+  const listings = (server.partyFinderListings ?? []).map((listing) => {
+    if (listing.id !== listingId) return listing;
+    if (listing.leaderId !== server.player.id || listing.leaderType !== 'player') return listing;
+    if (!listing.applicantIds.includes(npcId)) return listing;
+
+    const npcName = npcById(server, npcId)?.name ?? npcId;
+    return {
+      ...listing,
+      applicantIds: listing.applicantIds.filter((id) => id !== npcId),
+      rejectedIds: unique([...(listing.rejectedIds ?? []), npcId]),
+      log: [...(listing.log ?? []), `${npcName} отклонён.`].slice(-12),
+    };
+  });
+
+  return {
+    server: { ...server, partyFinderListings: listings },
+    modal: modal(rng, 'Заявка отклонена', npcById(server, npcId)?.name ?? npcId),
+  };
+};
 
 export const startPartyFromListing = (server: ServerState, listingId: string, rng: Rng) => {
   const listing = (server.partyFinderListings ?? []).find((entry) => entry.id === listingId);

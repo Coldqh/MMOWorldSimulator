@@ -50,6 +50,8 @@ export const PartyLobbyScreen = () => {
   const waitPartyListing = useGameStore((state) => state.waitPartyListing);
   const leavePartyListing = useGameStore((state) => state.leavePartyListing);
   const startPartyListing = useGameStore((state) => state.startPartyListing);
+  const acceptPartyApplicant = useGameStore((state) => state.acceptPartyApplicant);
+  const rejectPartyApplicant = useGameStore((state) => state.rejectPartyApplicant);
   const setScreen = useGameStore((state) => state.setScreen);
   const listing = (server.partyFinderListings ?? []).find((entry) => entry.id === server.currentPartyListingId);
   const dungeon = listing ? getDungeonById(listing.dungeonId) : undefined;
@@ -81,7 +83,7 @@ export const PartyLobbyScreen = () => {
       <section className="panel hero-panel">
         <div className="section-title">👥 Лобби группы</div>
         <h1>{dungeon.name}</h1>
-        <p className="muted">{typeLabel[listing.contentType]} · {visibilityLabel[listing.visibility]} · {lobbyStatus(listing)} · {listing.memberIds.length}/{total}</p>
+        <p className="muted">{typeLabel[listing.contentType]} · {visibilityLabel[listing.visibility]} · {lobbyStatus(listing)} · {listing.memberIds.length}/{total} · заявок: {listing.applicantIds.length}</p>
         <div className="stat-grid stat-grid-compact">
           <span>Лидер: {leaderLine}</span>
           <span>{isLeader ? 'Ты лидер группы' : 'Ты участник группы'}</span>
@@ -112,12 +114,24 @@ export const PartyLobbyScreen = () => {
         </div>
       </section>
 
-      <section className="panel">
-        <div className="section-title">Ожидание</div>
-        <div className="modal-lines card-lines">
-          {(listing.log ?? ['Группа создана.']).slice(-8).map((line, index) => <div key={`${line}_${index}`}>{line}</div>)}
-        </div>
-      </section>
+      {isLeader && (
+        <section className="panel">
+          <div className="section-title">Заявки</div>
+          <div className="list-lines compact-list">
+            {listing.applicantIds.length === 0 && <span className="muted">Заявок пока нет.</span>}
+            {listing.applicantIds.map((id) => (
+              <div key={id} className="list-line">
+                <span>{memberName(server, id)}</span>
+                <strong>{roleLabel[memberRole(server, id)]} · Lv. {memberLevel(server, id)} · Gear {memberGear(server, id)}</strong>
+                <span className="action-grid compact-actions">
+                  <button className="primary-button" onClick={() => acceptPartyApplicant(listing.id, id)}>Принять</button>
+                  <button onClick={() => rejectPartyApplicant(listing.id, id)}>Отказать</button>
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="panel action-panel">
         <div className="section-title">Действия</div>

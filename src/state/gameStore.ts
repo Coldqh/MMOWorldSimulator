@@ -35,6 +35,8 @@ import {
 import { simulateServerForMinutes } from "../systems/npcSystem";
 import {
   cancelPartyListing as cancelPartyFinderListing,
+  acceptPartyApplicant as acceptPartyFinderApplicant,
+  rejectPartyApplicant as rejectPartyFinderApplicant,
   createPlayerPartyListing,
   joinPartyListing as joinPartyFinderListing,
   leavePartyListing as leavePartyFinderListing,
@@ -95,6 +97,8 @@ interface GameStore {
   cancelPartyListing: (listingId: string) => void;
   startPartyListing: (listingId: string) => void;
   waitPartyListing: (listingId: string) => void;
+  acceptPartyApplicant: (listingId: string, npcId: string) => void;
+  rejectPartyApplicant: (listingId: string, npcId: string) => void;
   startDungeonFloor: () => void;
   restDungeonParty: () => void;
   leaveDungeonRun: () => void;
@@ -1035,6 +1039,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const result = startPartyFromListing(server, listingId, rng);
     commit(set, result.server, null, result.modal);
     if (result.server.currentDungeonRun) set({ activeScreen: result.server.currentDungeonRun.contentType === "raid" ? "raid" : "dungeon" });
+  },
+
+  acceptPartyApplicant: (listingId, npcId) => {
+    const { server } = get();
+    const rng = createRng(server.seed + server.serverDay * 13500 + server.currentMinute + npcId.length);
+    const result = acceptPartyFinderApplicant(server, listingId, npcId, rng);
+    commit(set, result.server, undefined, result.modal);
+  },
+
+  rejectPartyApplicant: (listingId, npcId) => {
+    const { server } = get();
+    const rng = createRng(server.seed + server.serverDay * 13600 + server.currentMinute + npcId.length);
+    const result = rejectPartyFinderApplicant(server, listingId, npcId, rng);
+    commit(set, result.server, undefined, result.modal);
   },
 
   joinGuild: (guildId) => get().applyToGuild(guildId),
