@@ -398,16 +398,6 @@ const finishVictory = (server: ServerState, combat: CombatState, rng: Rng): { se
   }
 
   let nextServer: ServerState = { ...server, player };
-  if (isGroupInstance && combat.allowLoot && server.currentDungeonRun) {
-    nextServer = {
-      ...nextServer,
-      currentDungeonRun: server.currentDungeonRun ? {
-        ...server.currentDungeonRun,
-        bossLootCount: (server.currentDungeonRun.bossLootCount ?? 0) + 1,
-        playerClassBossLootDropped: Boolean(server.currentDungeonRun.playerClassBossLootDropped || isClassDrop),
-      } : server.currentDungeonRun,
-    };
-  }
   let rewardItems: InventoryStack[] = [];
   const rewardLines = [`Опыт: +${xp}${leveledUp ? ` · Lv. ${player.level}` : ` · ${player.xp}/${xpForNextLevel(player.level)}`}`, `Золото: +${gold}`];
   const nextLog = [...combat.log, `Победа. XP +${xp}. Gold +${gold}.`];
@@ -421,6 +411,17 @@ const finishVictory = (server: ServerState, combat: CombatState, rng: Rng): { se
     ? pickBossPartyDrop(combat, mobIds, rng, forcePlayerClass)
     : undefined;
   const isClassDrop = Boolean(firstPartyDrop?.slot && combat.player.classId && firstPartyDrop.classTags.includes(combat.player.classId));
+
+  if (isGroupInstance && combat.allowLoot && server.currentDungeonRun) {
+    nextServer = {
+      ...nextServer,
+      currentDungeonRun: {
+        ...server.currentDungeonRun,
+        bossLootCount: (server.currentDungeonRun.bossLootCount ?? 0) + 1,
+        playerClassBossLootDropped: Boolean(server.currentDungeonRun.playerClassBossLootDropped || isClassDrop),
+      },
+    };
+  }
 
   drops.forEach((item) => {
     if (isGroupInstance && item.slot) return;

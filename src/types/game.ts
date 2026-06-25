@@ -451,8 +451,6 @@ export interface DungeonDefinition {
   partySize: number;
   timeCostMinutes: number;
   contentType?: "dungeon" | "raid";
-  bossLootCount?: number;
-  playerClassBossLootDropped?: boolean;
   bossMobId: Id;
   lootTableId: Id;
   description: string;
@@ -468,6 +466,8 @@ export interface DungeonRunState {
   currentEncounterIndex: number;
   status: "betweenFloors" | "inCombat" | "completed";
   contentType?: "dungeon" | "raid";
+  bossLootCount?: number;
+  playerClassBossLootDropped?: boolean;
   startedDay: number;
   startedMinute: number;
 }

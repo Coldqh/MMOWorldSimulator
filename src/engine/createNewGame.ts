@@ -510,7 +510,7 @@ export const createNewGame = (
       guildReputationTop: [],
     },
     worldNews: [],
-    unlockedContent: ['greenfield', 'moonwood', 'redcap_hills', 'iron_quarry', 'ashen_mire', 'skyfall_pass', 'frostspire_ridge', 'wyrmspire_peak'],
+    unlockedContent: ['greenfield', 'redcap_hills', 'ashen_mire', 'moonwood', 'frostspire_ridge', 'wyrmspire_peak'],
     guildApplications: [],
     partyFinderListings: [],
     notifications: [],
@@ -518,6 +518,7 @@ export const createNewGame = (
     contentPatch: 1,
     metaTag: 'fresh_start',
     serverChronicle: [],
+    questStates: {},
     collectionProgress: {
       obtainedItemIds: Array.from(new Set([
         ...Object.values(createStarterPlayer(playerName || 'Newbie', raceId, classId, seed).equipment).filter(Boolean).map((entry: any) => entry.itemId),

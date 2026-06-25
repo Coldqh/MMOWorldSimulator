@@ -192,7 +192,7 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
     ...server,
     version: SAVE_VERSION,
     characterCreated,
-    location: server.location ?? { mode: "city" },
+    location: server.location && server.location.mode !== 'city' && ['iron_quarry', 'skyfall_pass'].includes(server.location.zoneId ?? '') ? { mode: "city" } : (server.location ?? { mode: "city" }),
     player: {
       ...server.player,
       raceId: server.player.raceId ?? "human",
@@ -237,10 +237,8 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
     pendingLootRoll: needsMigration ? undefined : server.pendingLootRoll,
     currentDungeonRun: needsMigration ? undefined : (validRun ? { ...validRun, currentEncounterIndex: validRun.currentEncounterIndex ?? 0 } : undefined),
     currentPartyListingId: needsMigration ? undefined : server.currentPartyListingId,
-    currentPartyListingId: needsMigration ? undefined : server.currentPartyListingId,
     collectionProgress: server.collectionProgress ?? { obtainedItemIds: [], defeatedMobIds: [] },
     questStates: server.questStates ?? {},
-    location: server.location.mode !== 'city' && ['iron_quarry', 'skyfall_pass'].includes(server.location.zoneId ?? '') ? { mode: 'city' } : server.location,
   };
   const baseWithProgress = addCollectionProgress(baseServer);
 
@@ -356,7 +354,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (combat || !server.characterCreated) return;
     const next: ServerState = {
       ...server,
-      location: { mode: "city" },
       currentDungeonRun: undefined,
     };
     commit(set, next, null);
@@ -373,7 +370,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
     );
     const moved: ServerState = {
       ...server,
-      location: { mode: "zone", zoneId },
     };
     let next = simulateServerForMinutes(moved, 20, rng);
     if (zoneId === 'greenfield') next = updateQuestProgressOnSystemAction(next, 'visit_greenfield');
@@ -391,7 +387,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
     );
     const moved: ServerState = {
       ...server,
-      location: { mode: "spot", zoneId: spot.zoneId, spotId },
     };
     const next = simulateServerForMinutes(moved, 5, rng);
     commit(set, next, null);
@@ -404,7 +399,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (server.location.mode !== "spot" || !server.location.zoneId) return;
     const next: ServerState = {
       ...server,
-      location: { mode: "zone", zoneId: server.location.zoneId },
     };
     commit(set, next, null);
     set({ activeScreen: "world" });

@@ -268,3 +268,5 @@ export const QUESTS: QuestDefinition[] = [
     completeText: 'Вирмшпиль пройден.',
   },
 ];
+
+export const getQuestById = (id: string) => QUESTS.find((quest) => quest.id === id);
