@@ -4,6 +4,11 @@ const read = (path) => fs.readFileSync(path, 'utf8');
 const files = {
   types: read('src/types/game.ts'),
   items: read('src/content/items.ts'),
+  itemBase: read('src/content/itemBaseDefinitions.ts'),
+  itemSets: read('src/content/itemSetDefinitions.ts'),
+  itemFactories: read('src/content/itemFactories.ts'),
+  itemFinalize: read('src/content/itemFinalize.ts'),
+  itemLegacy: read('src/content/itemLegacy.ts'),
   world: read('src/content/world.ts'),
   createNewGame: read('src/engine/createNewGame.ts'),
   market: read('src/systems/marketSystem.ts'),
@@ -18,17 +23,17 @@ const files = {
 const fail = [];
 const ok = [];
 const assert = (cond, msg) => cond ? ok.push(msg) : fail.push(msg);
-
-const itemIds = [...files.items.matchAll(/id:\s*['`]([^'`]+)['`]/g)].map((m) => m[1]);
-const mobIds = [...files.world.matchAll(/id:\s*['`]([^'`]+)['`],\s*name:\s*['`][^'`]+['`],\s*level:\s*\d+/g)].map((m) => m[1]);
-const lootEntries = [...files.world.matchAll(/itemId:\s*['`]([^'`]+)['`]/g)].map((m) => m[1]);
 const duplicates = (list) => [...new Set(list.filter((id, index) => list.indexOf(id) !== index))];
 
-assert(duplicates(itemIds).length === 0, `unique literal item ids (${duplicates(itemIds).join(', ') || 'ok'})`);
+const baseItemIds = [...files.itemBase.matchAll(/id:\s*['`]([^'`]+)['`]/g)].map((m) => m[1]);
+const mobIds = [...files.world.matchAll(/id:\s*['`]([^'`]+)['`],\s*name:\s*['`][^'`]+['`],\s*level:\s*\d+/g)].map((m) => m[1]);
+const lootEntries = [...files.world.matchAll(/itemId:\s*['`]([^'`]+)['`]/g)].map((m) => m[1]);
+
+assert(duplicates(baseItemIds).length === 0, `unique base item ids (${duplicates(baseItemIds).join(', ') || 'ok'})`);
 assert(duplicates(mobIds).length === 0, `unique literal mob ids (${duplicates(mobIds).join(', ') || 'ok'})`);
 assert(files.types.includes('sourceType?: "general" | "dungeon" | "raid" | "world"'), 'ItemDefinition has source metadata');
 
-assert(fs.existsSync('src/balance/balanceConfig.ts') && fs.existsSync('src/balance/formulas.ts') && fs.existsSync('src/balance/balanceTypes.ts'), 'balance layer files exist');
+['balanceConfig.ts', 'formulas.ts', 'balanceTypes.ts'].forEach((name) => assert(fs.existsSync(`src/balance/${name}`), `${name} exists`));
 [
   'calculateItemPrice',
   'calculateCardPrice',
@@ -44,14 +49,26 @@ assert(fs.existsSync('src/balance/balanceConfig.ts') && fs.existsSync('src/balan
   'calculateSocketValue',
 ].forEach((fn) => assert(files.formulas.includes(`export const ${fn}`) || files.formulas.includes(`export function ${fn}`), `${fn} exported`));
 
+assert(files.items.includes('BASE_ITEMS') && files.items.includes('buildGeneratedItems') && files.items.includes('finalizeItems'), 'items.ts is thin collector');
+assert(!/v0\.[0-9]/.test(files.items), 'items.ts has no executable historical patch comments');
+assert(!files.items.includes('rebalanceItemStats'), 'items.ts has no rebalanceItemStats pass');
+assert(!files.items.includes('card price') && !files.items.includes('canonical pass'), 'items.ts has no manual price/canonical passes');
+assert(files.itemLegacy.includes('normalizeLegacyItemId') && files.itemLegacy.includes('dungeon_glass_catacomb_epic'), 'legacy migration lives in itemLegacy.ts');
+assert(files.itemFactories.includes('createGeneralSetItems') && files.itemFactories.includes('createDungeonSetItems') && files.itemFactories.includes('createRaidSetItems'), 'set generation lives in itemFactories.ts');
+assert(files.itemFinalize.includes('calculateItemPrice') && files.itemFinalize.includes('calculateCardPrice'), 'final item balance lives in itemFinalize.ts');
+
+assert(files.itemSets.includes("id: 'raid_wyrmspire_legendary'") && files.itemSets.includes("shape: 'first_wyrm_10'"), 'First Wyrm set definition is 10-piece shape');
+assert(files.itemFactories.includes('createFirstWyrmItems') && files.itemFactories.includes('FIRST_WYRM_SHARED_SLOTS'), 'First Wyrm factory uses 4 weapons + shared pieces');
+assert(files.itemSets.includes("id: 'dungeon_glass_catacomb'") && files.itemSets.includes("shape: 'glass_20'"), 'Glass Catacombs set definition is 20-piece shape');
+assert(!files.itemSets.includes('dungeon_glass_catacomb_epic'), 'no active dungeon_glass_catacomb_epic set definition');
+assert(!files.itemFactories.includes('glass_catacomb_epic'), 'no active glass_catacomb_epic item factory');
+
 assert(files.progression.includes('calculateXpForNextLevel') && !files.progression.includes('Math.max(100, level * 100)'), 'XP curve uses balance formulas');
 assert(files.progression.includes('calculateNpcArenaRating') && files.progression.includes('calculateNpcWealth'), 'NPC arena/wealth use balance formulas');
 assert(files.market.includes('calculateItemPrice') && files.market.includes('estimateItemPrice = (item'), 'market uses calculateItemPrice');
 assert(files.itemSystem.includes('calculateGearScore') && files.itemSystem.includes('cardItems'), 'gear score uses balance formula with card items');
-assert(files.world.includes('v0.5.3 Balance Core final authority pass') && files.world.includes('calculateCardPrice') && files.world.includes('calculateGoldRewardForMob'), 'world final balance pass exists');
+assert(files.world.includes('calculateCardPrice') && files.world.includes('calculateGoldRewardForMob'), 'world uses balance formulas for final content values');
 
-assert(files.items.includes('raid_wyrmspire_legendary') && files.items.includes('sharedWyrmSlots'), 'First Wyrm canonical 10-piece pass exists');
-assert(files.items.includes('glassCanonicalSlots') && files.items.includes('dungeon_glass_catacomb'), 'Glass Catacombs canonical 20-piece pass exists');
 assert(!files.combat.includes("glass_catacomb: ['dungeon_glass_catacomb_epic']"), 'combat uses canonical Glass Catacombs setId');
 assert(files.combat.includes("glass_catacomb: ['dungeon_glass_catacomb']"), 'Glass Catacombs party drop maps to canonical setId');
 assert(files.world.includes("canonicalReplaceTableSetGear('lt_glass_catacomb', ['dungeon_glass_catacomb'])"), 'Glass Catacombs loot table canonicalized');

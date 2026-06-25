@@ -4,10 +4,10 @@ export const MAX_LEVEL = 20;
 
 export const RARITY_POWER: Record<Rarity, number> = {
   common: 1,
-  uncommon: 1.35,
-  rare: 1.85,
-  epic: 2.65,
-  legendary: 4.1,
+  uncommon: 1.32,
+  rare: 1.78,
+  epic: 2.55,
+  legendary: 4.25,
   mythic: 5.8,
   unique: 6.8,
 };
@@ -26,9 +26,9 @@ export const ITEM_TYPE_POWER: Record<ItemType, number> = {
   weapon: 1.35,
   armor: 1.08,
   accessory: 1.18,
-  card: 3.2,
-  consumable: 0.28,
-  material: 0.46,
+  card: 3.05,
+  consumable: 0.18,
+  material: 0.34,
   mount: 5,
   pet: 3.6,
   cosmetic: 2.2,
@@ -61,11 +61,11 @@ export const MOB_TAG_POWER: Record<string, number> = {
 
 export const XP_CURVE = {
   base: 55,
-  early: 42,
-  mid: 72,
-  high: 118,
-  late: 190,
-  exponent: 1.52,
+  early: 36,
+  mid: 66,
+  high: 108,
+  late: 172,
+  exponent: 1.50,
 };
 
 export const GOLD_REWARD = {
@@ -76,13 +76,13 @@ export const GOLD_REWARD = {
 
 export const ITEM_PRICE = {
   base: 8,
-  levelSquare: 7.2,
-  statPower: 9.5,
-  socket: 70,
-  set: 1.18,
-  dungeon: 1.22,
-  raid: 1.45,
-  legendaryFloor: 8500,
+  levelSquare: 6.4,
+  statPower: 8.2,
+  socket: 62,
+  set: 1.14,
+  dungeon: 1.2,
+  raid: 1.42,
+  legendaryFloor: 7800,
 };
 
 export const CARD_PRICE = {
@@ -90,14 +90,14 @@ export const CARD_PRICE = {
   firstWyrmId: 'card_first_wyrm',
   firstWyrmGearScore: 390,
   firstWyrmPrice: 50000,
-  bossMultiplier: 1.15,
-  raidMultiplier: 1.35,
+  bossMultiplier: 1.2,
+  raidMultiplier: 1.38,
 };
 
 export const GEAR_SCORE = {
-  stat: 1.0,
-  level: 5.2,
-  rarity: 15,
+  stat: 0.95,
+  level: 5.0,
+  rarity: 14,
   socket: 10,
   enhancementBase: 11,
   cardStringFallback: 8,

@@ -1,10 +1,26 @@
-# MMO World Simulator v0.5.3
+# MMO World Simulator patch v0.5.4
 
-Balance Core Patch.
+Legacy Cleanup + Balance Update.
 
-- Adds `src/balance/*` as the single balance layer.
-- Moves XP, rewards, item price, card price, Gear Score, NPC wealth and arena rating to balance formulas.
-- Fixes Glass Catacombs canonical set id to `dungeon_glass_catacomb`.
-- Keeps First Wyrm as canonical 10-piece legendary set.
-- Rebuilds final item/card price pass from balance formulas.
-- Expands `npm run sanity` with balance and content invariants.
+## Main changes
+
+- `src/content/items.ts` is now a thin collector.
+- Item base definitions moved to `src/content/itemBaseDefinitions.ts`.
+- Set declarations moved to `src/content/itemSetDefinitions.ts`.
+- Generated set factories moved to `src/content/itemFactories.ts`.
+- Legacy item id migration moved to `src/content/itemLegacy.ts`.
+- Final item balance moved to `src/content/itemFinalize.ts`.
+- Balance coefficients tuned in `src/balance/balanceConfig.ts`.
+- Sanity checks expanded in `scripts/sanity-check.mjs`.
+- App/save/PWA version bumped to `0.5.4`.
+
+## Checks
+
+Run locally:
+
+```powershell
+npm install --registry=https://registry.npmjs.org/ --no-audit --no-fund
+npm run typecheck
+npm run build
+npm run sanity
+```
