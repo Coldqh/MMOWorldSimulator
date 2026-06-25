@@ -8,38 +8,45 @@ const files = {
   version: read('src/engine/version.ts'),
   versionJson: read('public/version.json'),
   sw: read('public/sw.js'),
-  appShell: read('src/ui/layout/AppShell.tsx'),
-  world: read('src/ui/screens/WorldScreen.tsx'),
+  marketSystem: read('src/systems/marketSystem.ts'),
+  marketScreen: read('src/ui/screens/MarketScreen.tsx'),
+  createNewGame: read('src/engine/createNewGame.ts'),
+  gameStore: read('src/state/gameStore.ts'),
 };
 
 const fail = [];
 const ok = [];
 const assert = (cond, msg) => cond ? ok.push(msg) : fail.push(msg);
 
-assert(files.packageJson.includes('"version": "0.6.9"'), 'package version is 0.6.9');
-assert(files.saveLoad.includes("SAVE_VERSION = '0.6.9'"), 'save version is 0.6.9');
-assert(files.saveLoad.includes('mmoworldsimulator.save.v0.6.8'), '0.6.8 legacy save key exists');
-assert(files.version.includes("APP_VERSION = '0.6.9'"), 'APP_VERSION is 0.6.9');
-assert(files.versionJson.includes('"version": "0.6.9"'), 'version.json is 0.6.9');
-assert(files.sw.includes("mmows-v0.6.9"), 'service worker cache is v0.6.9');
+assert(files.packageJson.includes('"version": "0.6.10"'), 'package version is 0.6.10');
+assert(files.saveLoad.includes("SAVE_VERSION = '0.6.10'"), 'save version is 0.6.10');
+assert(files.saveLoad.includes('mmoworldsimulator.save.v0.6.9'), '0.6.9 legacy save key exists');
+assert(files.version.includes("APP_VERSION = '0.6.10'"), 'APP_VERSION is 0.6.10');
+assert(files.versionJson.includes('"version": "0.6.10"'), 'version.json is 0.6.10');
+assert(files.sw.includes("mmows-v0.6.10"), 'service worker cache is v0.6.10');
 
-assert(files.appShell.includes('ContractsScreen'), 'ContractsScreen import/render exists');
-assert(files.appShell.includes('contracts: <ContractsScreen />'), 'contracts screen wired');
-const sideBlock = files.appShell.match(/const sideNav:[\s\S]*?\];/)?.[0] ?? '';
-const bottomBlock = files.appShell.match(/const bottomNav:[\s\S]*?\];/)?.[0] ?? '';
-assert(sideBlock.includes("'contracts'"), 'contracts appears in side nav');
-assert(sideBlock.includes('📋 Контракты'), 'contracts side nav label exists');
-assert(!bottomBlock.includes("'contracts'"), 'contracts not in bottom nav');
-assert(!bottomBlock.includes("'guild'"), 'guild not in bottom nav');
-assert(bottomBlock.includes("'character'") && bottomBlock.includes("'world'") && bottomBlock.includes("'quests'"), 'bottom nav remains hero/world/quests');
+assert(files.marketSystem.includes('MARKET_MIN_LISTINGS = 80'), 'market min listings invariant exists');
+assert(files.marketSystem.includes('MARKET_MIN_ITEM_GROUPS = 25'), 'market item groups invariant exists');
+assert(files.marketSystem.includes('MARKET_MIN_EQUIPMENT_LISTINGS = 40'), 'market equipment invariant exists');
+assert(files.marketSystem.includes('MARKET_MIN_CONSUMABLE_MATERIAL_LISTINGS = 10'), 'market consumable/material invariant exists');
+assert(files.marketSystem.includes('getMarketDiagnostics'), 'market diagnostics function exists');
+assert(files.marketSystem.includes('repairMarketIfBroken'), 'market repair function exists');
+assert(files.marketSystem.includes('invalidItemRefs') && files.marketSystem.includes('invalidSellerRefs'), 'market invalid refs diagnostics exist');
+assert(files.marketSystem.includes('playerLevelListings'), 'player level listing invariant exists');
 
-const cityBlock = files.world.match(/server\.location\.mode === 'city'[\s\S]*?<section className="panel">[\s\S]*?<div className="section-title">Город<\/div>[\s\S]*?<div className="action-grid">([\s\S]*?)<\/div>/)?.[1] ?? '';
-assert(cityBlock.includes("openScreen('market')"), 'city action grid keeps market');
-assert(cityBlock.includes("openScreen('arena')"), 'city action grid keeps arena');
-assert(cityBlock.includes("openScreen('enhance')"), 'city action grid keeps enhance');
-assert(!cityBlock.includes("openScreen('quests')"), 'city action grid does not duplicate quests');
-assert(!cityBlock.includes('setTravelOpen(true)'), 'city action grid does not duplicate change location');
-assert(files.world.includes("<button onClick={() => setTravelOpen(true)} disabled={Boolean(combat)}>Сменить локацию</button>"), 'movement block still has change location button');
+assert(files.createNewGame.includes('repairMarketIfBroken') && files.createNewGame.includes('"createNewGame"'), 'createNewGame repairs market');
+assert(files.gameStore.includes('repairMarketIfBroken'), 'gameStore imports/calls market repair');
+assert(files.gameStore.includes('repairMarket: () => void;'), 'GameStore interface has repairMarket action');
+assert(files.gameStore.includes('repairMarket: () => {'), 'GameStore implementation has repairMarket action');
+assert(files.gameStore.includes('"market_screen"'), 'repairMarket action marks MarketScreen repair reason');
+assert(files.gameStore.includes('"migration"') || files.gameStore.includes('"normalize"'), 'normalize path has repair reason');
+assert(files.gameStore.includes('market: repairedLight.market'), 'light normalize repairs market');
+
+assert(files.marketScreen.includes('useEffect'), 'MarketScreen uses useEffect');
+assert(files.marketScreen.includes('repairMarket'), 'MarketScreen calls repairMarket on open');
+assert(files.marketScreen.includes('getMarketDiagnostics'), 'MarketScreen reads diagnostics');
+assert(files.marketScreen.includes('Market debug'), 'MarketScreen dev debug block exists');
+assert(files.marketScreen.includes('import.meta.env.DEV'), 'MarketScreen debug is dev-only');
 
 if (fail.length) {
   console.error('Sanity failed:');

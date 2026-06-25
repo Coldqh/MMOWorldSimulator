@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CLASSES } from "../../content/classes";
 import { getItemById, rarityScore } from "../../content/items";
 import { useGameStore } from "../../state/gameStore";
-import { estimateItemPrice, getSellPrice } from "../../systems/marketSystem";
+import { estimateItemPrice, getMarketDiagnostics, getSellPrice } from "../../systems/marketSystem";
 import type { EquipmentSlot } from "../../types/game";
 import { ItemLine } from "../components/ItemLine";
 
@@ -43,6 +43,7 @@ export const MarketScreen = () => {
   const server = useGameStore((state) => state.server);
   const buy = useGameStore((state) => state.buyMarketListing);
   const sell = useGameStore((state) => state.sellItem);
+  const repairMarket = useGameStore((state) => state.repairMarket);
   const setScreen = useGameStore((state) => state.setScreen);
   const openNpcProfile = useGameStore((state) => state.openNpcProfile);
   const openItemProfile = useGameStore((state) => state.openItemProfile);
@@ -53,6 +54,11 @@ export const MarketScreen = () => {
   const [slotFilter, setSlotFilter] = useState<EquipmentSlot | "">("");
   const [searched, setSearched] = useState(false);
   const inCity = server.location.mode === "city";
+  const marketDiagnostics = useMemo(() => getMarketDiagnostics(server), [server]);
+
+  useEffect(() => {
+    if (inCity) repairMarket();
+  }, [inCity, repairMarket]);
 
   const canSearch = category === "equipment"
     ? Boolean(classFilter && slotFilter)
@@ -138,6 +144,22 @@ export const MarketScreen = () => {
           <button className={mode === "sell" ? "active" : ""} onClick={() => setMode("sell")}>Продажа</button>
         </div>
       </section>
+
+      {import.meta.env.DEV && (
+        <section className="panel">
+          <div className="section-title">Market debug</div>
+          <div className="list-lines">
+            <div className="list-line"><span>listings</span><strong>{marketDiagnostics.listings}</strong></div>
+            <div className="list-line"><span>valid listings</span><strong>{marketDiagnostics.validListings}</strong></div>
+            <div className="list-line"><span>item groups</span><strong>{marketDiagnostics.itemGroups}</strong></div>
+            <div className="list-line"><span>equipment</span><strong>{marketDiagnostics.equipment}</strong></div>
+            <div className="list-line"><span>materials</span><strong>{marketDiagnostics.consumableMaterial}</strong></div>
+            <div className="list-line"><span>cards</span><strong>{marketDiagnostics.cards}</strong></div>
+            <div className="list-line"><span>current filter</span><strong>{category || "none"} / {consumableType || classFilter || "none"} / {slotFilter || "none"}</strong></div>
+            <div className="list-line"><span>broken</span><strong>{marketDiagnostics.brokenReasons.join(", ") || "no"}</strong></div>
+          </div>
+        </section>
+      )}
 
       {mode === "buy" && (
         <>

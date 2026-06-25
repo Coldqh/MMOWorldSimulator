@@ -51,6 +51,7 @@ import {
   sellInventoryItem,
   normalizeMarketListings,
   generateMarketListings,
+  repairMarketIfBroken,
 } from "../systems/marketSystem";
 import {
   addInventoryItem,
@@ -136,6 +137,7 @@ interface GameStore {
   resolveLootRoll: (choice: LootChoice) => void;
   buyMarketListing: (listingId: string) => void;
   sellItem: (itemId: string, enhancement?: number, cardIds?: string[]) => void;
+  repairMarket: () => void;
   socketCard: (source: "equipment" | "inventory", itemIdOrSlot: string, cardId: string, enhancement?: number, cardIds?: string[]) => void;
   joinGuild: (guildId: string) => void;
   applyToGuild: (guildId: string) => void;
@@ -256,17 +258,19 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
   const baseWithProgress = addCollectionProgress(baseServer);
 
   if (mode === "light" && !needsMigration) {
+    const repairedLight = repairMarketIfBroken(baseWithProgress, marketRng, "light");
     return {
-      ...baseWithProgress,
-      worldNews: baseWithProgress.worldNews.slice(-80),
-      market: baseWithProgress.market.length > 1200 ? baseWithProgress.market.slice(-1200) : baseWithProgress.market,
+      ...repairedLight,
+      worldNews: repairedLight.worldNews.slice(-80),
+      market: repairedLight.market.length > 1200 ? repairedLight.market.slice(-1200) : repairedLight.market,
     };
   }
 
   const rosterReady = ensureServerRoster(baseWithProgress);
-  const marketReady = needsMigration
+  const marketReadyBase = needsMigration
     ? { ...rosterReady, market: generateMarketListings({ seed: rosterReady.seed, serverDay: rosterReady.serverDay, npcs: rosterReady.npcs }, marketRng) }
     : normalizeMarketListings(rosterReady, marketRng);
+  const marketReady = repairMarketIfBroken(marketReadyBase, marketRng, needsMigration ? "migration" : "normalize");
   const partyReady = refreshPartyFinderListings(marketReady, createRng((marketReady.seed ?? Date.now()) + 1900 + (marketReady.serverDay ?? 1)));
   return updateRankings(partyReady);
 };
@@ -1023,6 +1027,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
       itemId: item.id,
       lines,
     });
+  },
+
+  repairMarket: () => {
+    const { server } = get();
+    const rng = createRng(server.seed + server.serverDay * 4700 + server.currentMinute);
+    const next = repairMarketIfBroken(server, rng, "market_screen");
+    if (next.market !== server.market) commit(set, next, undefined);
   },
 
   buyMarketListing: (listingId) => {
