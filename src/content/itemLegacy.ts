@@ -1,7 +1,16 @@
 const nearestLevel = (level: number, pool: number[]) =>
   pool.reduce((best, current) => Math.abs(current - level) < Math.abs(best - level) ? current : best, pool[0]);
 
+const legacyCardIds: Record<string, string> = {
+  wolf_card: 'card_gray_wolf',
+  slime_card: 'card_green_slime',
+  redcap_card: 'card_redcap_raider',
+  moon_wisp_card: 'card_moon_wisp',
+};
+
 export const normalizeLegacyItemId = (id: string): string => {
+  if (legacyCardIds[id]) return legacyCardIds[id];
+
   const wyrmShared = id.match(/^wyrmspire_gold_(warrior|ranger|mage|priest)_(head|chest|legs|boots|ring|amulet)$/);
   if (wyrmShared) return `wyrmspire_gold_${wyrmShared[2]}`;
 

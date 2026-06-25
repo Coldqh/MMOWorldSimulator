@@ -15,6 +15,15 @@ const statLines = (itemId: string) => {
   return Object.entries(item.stats).map(([key, value]) => `${key.toUpperCase()} ${Number(value) >= 0 ? '+' : ''}${value}`);
 };
 
+const cardSummary = (cardIds: string[]) => cardIds
+  .map((id) => {
+    const card = getItemById(id);
+    if (!card || card.type !== 'card') return id;
+    const stats = Object.entries(card.stats).map(([key, value]) => `${key.toUpperCase()} ${Number(value) >= 0 ? '+' : ''}${value}`).join(' ');
+    return `${card.name}${stats ? ` (${stats})` : ''}`;
+  })
+  .join(' · ');
+
 const splitLine = (line: string) => {
   const clean = line.replace(/\.$/, '');
   const idx = clean.indexOf(':');
@@ -155,7 +164,6 @@ export const ResultModal = () => {
           </div>
         )}
 
-
         {guildAction && (() => {
           const [, guildId, guildName] = guildAction.split(':');
           return <button className="wide-button" onClick={() => openGuildProfile(guildId)}>Гильдия: {guildName}</button>;
@@ -171,18 +179,22 @@ export const ResultModal = () => {
             <div className="section-title">Экипировка</div>
             <div className="loot-card-list">
               {npcItemActions.map((line) => {
-                const [, itemId, enhancementRaw, rarityRaw, label] = line.split('|');
+                const [, itemId, enhancementRaw, rarityRaw, label, cardsRaw] = line.split('|');
+                const profileNpc = modal.type === 'npc' ? server.npcs.find((npc) => npc.name === modal.title) : undefined;
+                const inferredCards = profileNpc
+                  ? Object.values(profileNpc.equipment ?? {}).find((instance) => instance?.itemId === itemId && String(instance.enhancement ?? 0) === String(enhancementRaw ?? 0))?.cardIds ?? []
+                  : [];
+                const cardIds = cardsRaw && cardsRaw !== '-' ? cardsRaw.split(',').filter(Boolean) : inferredCards;
                 return (
-                  <button key={line} className={`loot-card-button rarity-border-${rarityRaw}`} onClick={() => openItemProfile(itemId, 'loot', Number(enhancementRaw ?? 0))}>
-                    <span>{label}</span>
+                  <button key={line} className={`loot-card-button rarity-border-${rarityRaw}`} onClick={() => openItemProfile(itemId, 'loot', Number(enhancementRaw ?? 0), cardIds)}>
+                    <span>{label}{cardIds.length > 0 ? ` · 🃏${cardIds.length}` : ''}</span>
+                    {cardIds.length > 0 && <small>{cardSummary(cardIds)}</small>}
                   </button>
                 );
               })}
             </div>
           </div>
         )}
-
-
 
         {socketState && (() => {
           const [, cardsRaw, totalRaw] = socketState.split(':');
@@ -197,6 +209,7 @@ export const ResultModal = () => {
                   return <span key={index} className={`socket-box ${card ? `filled rarity-bg-${card.rarity}` : ''}`}>{card ? '◆' : ''}</span>;
                 })}
               </div>
+              {cards.length > 0 && <p className="muted">{cardSummary(cards)}</p>}
             </div>
           );
         })()}

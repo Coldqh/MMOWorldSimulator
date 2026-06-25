@@ -13,7 +13,7 @@ const sourceFor = (item: ItemDefinition): Pick<ItemDefinition, 'sourceType' | 's
   if (item.sourceType) return { sourceType: item.sourceType, sourceId: item.sourceId, sourceName: item.sourceName };
   if (item.setId?.startsWith('raid_')) return { sourceType: 'raid', sourceId: item.sourceId, sourceName: item.sourceName ?? 'Рейд' };
   if (item.setId?.startsWith('dungeon_')) return { sourceType: 'dungeon', sourceId: item.sourceId, sourceName: item.sourceName ?? 'Данж' };
-  if (item.setId) return { sourceType: 'general', sourceId: item.sourceId, sourceName: item.sourceName ?? 'Общий сет' };
+  if (item.setId) return { sourceType: 'general', sourceId: item.sourceId ?? 'general_sets', sourceName: item.sourceName ?? 'Общий сет' };
   return { sourceType: item.type === 'card' ? 'world' : 'world', sourceId: item.sourceId, sourceName: item.sourceName ?? 'Мир' };
 };
 
@@ -49,7 +49,7 @@ export const finalizeItems = (items: ItemDefinition[]): ItemDefinition[] => {
     normalized.sourceName = source.sourceName;
     normalized.socketSlots = socketSlotsFor(normalized);
     normalized.price = normalized.type === 'card'
-      ? calculateCardPrice(normalized)
+      ? Math.max(1, normalized.price || calculateCardPrice(normalized))
       : calculateItemPrice(normalized);
     const previous = byId.get(id);
     byId.set(id, previous ? { ...previous, ...normalized } : normalized);

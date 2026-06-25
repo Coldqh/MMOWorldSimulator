@@ -43,15 +43,23 @@ const buildStats = (level: number, rarity: Rarity, slot: EquipmentSlot, classId?
   return { hp: budget * 4, defense: Math.max(1, Math.round(budget * 0.75)) };
 };
 
+const itemIdFor = (definition: GeneratedSetDefinition, slot: SetSlotId, classId?: SetClassId) => {
+  if (definition.sourceType === 'general' && classId) return `set_${definition.rarity}_${classId}_${definition.level}_${slot}`;
+  return classId ? `${definition.prefix}_${classId}_${slot}` : `${definition.prefix}_${slot}`;
+};
+
+const setIdFor = (definition: GeneratedSetDefinition, classId?: SetClassId) => {
+  if (definition.sourceType === 'general' && classId) return `${definition.rarity}_${classId}_${definition.level}`;
+  return definition.id;
+};
+
 export const createSetItem = (
   definition: GeneratedSetDefinition,
   slot: SetSlotId,
   classId?: SetClassId,
 ): ItemDefinition => {
   const type = slotType(slot);
-  const id = classId
-    ? `${definition.prefix}_${classId}_${slot}`
-    : `${definition.prefix}_${slot}`;
+  const id = itemIdFor(definition, slot, classId);
   const name = classId
     ? `${SLOT_LABEL[slot]} ${definition.familyName} ${CLASS_LABEL[classId]}`
     : `${SLOT_LABEL[slot]} ${definition.familyName}`;
@@ -69,7 +77,7 @@ export const createSetItem = (
     tradeable: true,
     price: 1,
     announceIfDropped: definition.rarity !== 'common',
-    setId: definition.id,
+    setId: setIdFor(definition, classId),
     sourceType: definition.sourceType,
     sourceId: definition.sourceId,
     sourceName: definition.sourceName ?? (definition.sourceType === 'general' ? 'Общий сет' : undefined),

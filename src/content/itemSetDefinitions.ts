@@ -45,22 +45,27 @@ export interface GeneratedSetDefinition {
   shape: 'full_class_28' | 'glass_20' | 'first_wyrm_10';
 }
 
+const generalSource = {
+  sourceId: 'general_sets',
+  sourceName: 'Общий сет',
+};
+
 export const GENERAL_SET_DEFINITIONS: GeneratedSetDefinition[] = [
-  { id: 'common_1', prefix: 'set_common', familyName: 'Первой Вылазки', level: 1, rarity: 'common', sourceType: 'general', shape: 'full_class_28' },
-  { id: 'common_5', prefix: 'set_common', familyName: 'Дальнего Тракта', level: 5, rarity: 'common', sourceType: 'general', shape: 'full_class_28' },
-  { id: 'common_10', prefix: 'set_common', familyName: 'Пепельного Пути', level: 10, rarity: 'common', sourceType: 'general', shape: 'full_class_28' },
-  { id: 'common_15', prefix: 'set_common', familyName: 'Северной Кромки', level: 15, rarity: 'common', sourceType: 'general', shape: 'full_class_28' },
-  { id: 'common_20', prefix: 'set_common', familyName: 'Последнего Подъёма', level: 20, rarity: 'common', sourceType: 'general', shape: 'full_class_28' },
+  { id: 'common_1', prefix: 'set_common', familyName: 'Первой Вылазки', level: 1, rarity: 'common', sourceType: 'general', ...generalSource, shape: 'full_class_28' },
+  { id: 'common_5', prefix: 'set_common', familyName: 'Дальнего Тракта', level: 5, rarity: 'common', sourceType: 'general', ...generalSource, shape: 'full_class_28' },
+  { id: 'common_10', prefix: 'set_common', familyName: 'Пепельного Пути', level: 10, rarity: 'common', sourceType: 'general', ...generalSource, shape: 'full_class_28' },
+  { id: 'common_15', prefix: 'set_common', familyName: 'Северной Кромки', level: 15, rarity: 'common', sourceType: 'general', ...generalSource, shape: 'full_class_28' },
+  { id: 'common_20', prefix: 'set_common', familyName: 'Последнего Подъёма', level: 20, rarity: 'common', sourceType: 'general', ...generalSource, shape: 'full_class_28' },
 
-  { id: 'uncommon_3', prefix: 'set_uncommon', familyName: 'Лесной Стражи', level: 3, rarity: 'uncommon', sourceType: 'general', shape: 'full_class_28' },
-  { id: 'uncommon_8', prefix: 'set_uncommon', familyName: 'Карьерного Дозора', level: 8, rarity: 'uncommon', sourceType: 'general', shape: 'full_class_28' },
-  { id: 'uncommon_13', prefix: 'set_uncommon', familyName: 'Небесного Перевала', level: 13, rarity: 'uncommon', sourceType: 'general', shape: 'full_class_28' },
-  { id: 'uncommon_18', prefix: 'set_uncommon', familyName: 'Ледяного Хребта', level: 18, rarity: 'uncommon', sourceType: 'general', shape: 'full_class_28' },
+  { id: 'uncommon_3', prefix: 'set_uncommon', familyName: 'Лесной Стражи', level: 3, rarity: 'uncommon', sourceType: 'general', ...generalSource, shape: 'full_class_28' },
+  { id: 'uncommon_8', prefix: 'set_uncommon', familyName: 'Карьерного Дозора', level: 8, rarity: 'uncommon', sourceType: 'general', ...generalSource, shape: 'full_class_28' },
+  { id: 'uncommon_13', prefix: 'set_uncommon', familyName: 'Небесного Перевала', level: 13, rarity: 'uncommon', sourceType: 'general', ...generalSource, shape: 'full_class_28' },
+  { id: 'uncommon_18', prefix: 'set_uncommon', familyName: 'Ледяного Хребта', level: 18, rarity: 'uncommon', sourceType: 'general', ...generalSource, shape: 'full_class_28' },
 
-  { id: 'rare_5', prefix: 'set_rare', familyName: 'Красного Колпака', level: 5, rarity: 'rare', sourceType: 'general', shape: 'full_class_28' },
-  { id: 'rare_10', prefix: 'set_rare', familyName: 'Пепельной Стражи', level: 10, rarity: 'rare', sourceType: 'general', shape: 'full_class_28' },
-  { id: 'rare_15', prefix: 'set_rare', familyName: 'Глубокой Топи', level: 15, rarity: 'rare', sourceType: 'general', shape: 'full_class_28' },
-  { id: 'rare_20', prefix: 'set_rare', familyName: 'Верхнего Шпиля', level: 20, rarity: 'rare', sourceType: 'general', shape: 'full_class_28' },
+  { id: 'rare_5', prefix: 'set_rare', familyName: 'Красного Колпака', level: 5, rarity: 'rare', sourceType: 'general', ...generalSource, shape: 'full_class_28' },
+  { id: 'rare_10', prefix: 'set_rare', familyName: 'Пепельной Стражи', level: 10, rarity: 'rare', sourceType: 'general', ...generalSource, shape: 'full_class_28' },
+  { id: 'rare_15', prefix: 'set_rare', familyName: 'Глубокой Топи', level: 15, rarity: 'rare', sourceType: 'general', ...generalSource, shape: 'full_class_28' },
+  { id: 'rare_20', prefix: 'set_rare', familyName: 'Верхнего Шпиля', level: 20, rarity: 'rare', sourceType: 'general', ...generalSource, shape: 'full_class_28' },
 ];
 
 export const DUNGEON_SET_DEFINITIONS: GeneratedSetDefinition[] = [
