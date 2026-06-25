@@ -51,6 +51,7 @@ const sideNav: Array<{ id: ScreenId; label: string; cityOnly?: boolean }> = [
   { id: 'character', label: '🧍 Герой' },
   { id: 'world', label: '🌍 Мир' },
   { id: 'quests', label: '📜 Квесты' },
+  { id: 'contracts', label: '📋 Контракты' },
   { id: 'partyFinder', label: '👥 Поиск пати' },
   { id: 'dungeon', label: '⚔️ Данжи' },
   { id: 'raid', label: '🐉 Рейды' },

@@ -1,8 +1,9 @@
 import type { ServerState } from '../types/game';
 
-export const SAVE_VERSION = '0.6.8';
-const SAVE_KEY = 'mmoworldsimulator.save.v0.6.8';
+export const SAVE_VERSION = '0.6.9';
+const SAVE_KEY = 'mmoworldsimulator.save.v0.6.9';
 const LEGACY_KEYS = [
+  'mmoworldsimulator.save.v0.6.8',
   'mmoworldsimulator.save.v0.6.7',
   'mmoworldsimulator.save.v0.6.6',
   'mmoworldsimulator.save.v0.6.5',

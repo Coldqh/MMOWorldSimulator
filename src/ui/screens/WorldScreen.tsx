@@ -184,8 +184,6 @@ export const WorldScreen = () => {
             <button onClick={() => openScreen('market')}>Рынок</button>
             <button onClick={() => openScreen('arena')}>Арена</button>
             <button onClick={() => openScreen('enhance')}>Заточка шмоток</button>
-            <button onClick={() => openScreen('quests')}>Квесты</button>
-            <button onClick={() => setTravelOpen(true)}>Сменить локацию</button>
           </div>
           <div className="list-lines mt-small">
             <div className="list-line"><span>Рынок</span><strong>{server.market.length} лотов</strong></div>
