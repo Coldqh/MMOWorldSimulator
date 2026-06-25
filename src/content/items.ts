@@ -1,5 +1,6 @@
 import type { ItemDefinition } from '../types/game';
 import { BASE_ITEMS } from './itemBaseDefinitions';
+import { QUEST_ITEMS } from './questItems';
 import { buildGeneratedItems } from './itemFactories';
 import { finalizeItems, rarityLabel, rarityScore } from './itemFinalize';
 import { normalizeLegacyItemId, normalizeLegacySetId } from './itemLegacy';
@@ -13,6 +14,7 @@ const ITEM_WORLD_MOBS = finalizeWorldMobs([...BASE_MOBS, ...EXTRA_MOBS], ITEM_WO
 
 export const ITEMS: ItemDefinition[] = finalizeItems([
   ...BASE_ITEMS,
+  ...QUEST_ITEMS,
   ...buildGeneratedItems(),
   ...createMobCardsForMobs(ITEM_WORLD_MOBS),
 ]);

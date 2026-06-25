@@ -9,7 +9,7 @@ export const BASE_LOOT_TABLES: LootTable[] = [
     { itemId: 'linen_armor', chance: 0.05 }, { itemId: 'cloth_cap', chance: 0.04 },
     { itemId: 'patched_leggings', chance: 0.04 }, { itemId: 'sharpening_stone', chance: 0.07 },
     { itemId: 'card_green_slime', chance: 0.000035 }
-  ]},
+  , { itemId: 'slime_residue', chance: 0.55 }]},
   { id: 'lt_boar_fields', entries: [
     { itemId: 'worn_boots', chance: 0.07 }, { itemId: 'field_helmet', chance: 0.04 },
     { itemId: 'boar_tusk_amulet', chance: 0.018 }, { itemId: 'minor_potion', chance: 0.1 }
@@ -18,17 +18,17 @@ export const BASE_LOOT_TABLES: LootTable[] = [
     { itemId: 'wolf_hide_vest', chance: 0.08 }, { itemId: 'hunter_boots', chance: 0.06 },
     { itemId: 'forest_ring', chance: 0.025 }, { itemId: 'card_gray_wolf', chance: 0.000035 },
     { itemId: 'crystal_mount_whistle', chance: 0.0005 }
-  ]},
+  , { itemId: 'wolf_pelt', chance: 0.5 }]},
   { id: 'lt_moonwood_ruins', entries: [
     { itemId: 'moonleaf_cowl', chance: 0.04 }, { itemId: 'moonleaf_robe', chance: 0.032 },
     { itemId: 'silverstring_bow', chance: 0.012 }, { itemId: 'card_moon_wisp', chance: 0.000035 },
     { itemId: 'mana_potion', chance: 0.12 }
-  ]},
+  , { itemId: 'moon_dust', chance: 0.5 }]},
   { id: 'lt_redcap_camp', entries: [
     { itemId: 'redcap_blade', chance: 0.025 }, { itemId: 'silverstring_bow', chance: 0.02 },
     { itemId: 'ember_staff', chance: 0.02 }, { itemId: 'redcap_coat', chance: 0.018 },
     { itemId: 'card_redcap_raider', chance: 0.00002 }, { itemId: 'sharpening_stone', chance: 0.16 }
-  ]},
+  , { itemId: 'old_lantern_key_fragment', chance: 0.35 }]},
   { id: 'lt_quarry', entries: [
     { itemId: 'iron_miner_helm', chance: 0.05 }, { itemId: 'quarry_guard_greaves', chance: 0.035 },
     { itemId: 'stonehide_ring', chance: 0.018 }, { itemId: 'sharpening_stone', chance: 0.22 }

@@ -65,6 +65,16 @@ import {
 } from "../systems/itemSystem";
 import { arenaRankIcon, arenaRankName, estimateArenaRatingValue, updateRankings } from "../systems/progressionSystem";
 import { addNews } from "../engine/news";
+import {
+  acceptQuest as acceptQuestState,
+  normalizeQuestStates,
+  talkToQuestGiver as talkToQuestGiverState,
+  turnInQuest as turnInQuestState,
+  updateQuestProgressOnDungeonComplete,
+  updateQuestProgressOnItemGain,
+  updateQuestProgressOnMobKill,
+  updateQuestProgressOnSystemAction,
+} from "../systems/questSystem";
 
 interface GameStore {
   server: ServerState;
@@ -123,6 +133,9 @@ interface GameStore {
   openNpcProfile: (npcId: string) => void;
   openGuildProfile: (guildId: string) => void;
   openGuildRoster: (guildId: string) => void;
+  acceptQuest: (questId: string) => void;
+  turnInQuest: (questId: string) => void;
+  talkToQuestGiver: (giverId: string) => void;
 }
 
 
@@ -226,6 +239,7 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
     currentPartyListingId: needsMigration ? undefined : server.currentPartyListingId,
     currentPartyListingId: needsMigration ? undefined : server.currentPartyListingId,
     collectionProgress: server.collectionProgress ?? { obtainedItemIds: [], defeatedMobIds: [] },
+    questStates: server.questStates ?? {},
   };
   const baseWithProgress = addCollectionProgress(baseServer);
 
@@ -256,7 +270,7 @@ const commit = (
   combat?: CombatState | null,
   modal?: GameModal | null,
 ) => {
-  let normalized = normalizeServer(server, "light");
+  let normalized = normalizeQuestStates(normalizeServer(server, "light"));
   let nextModal = modal;
 
   if (nextModal === undefined && normalized.notifications.length > 0) {
@@ -310,7 +324,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
   modal: null,
   sidebarOpen: false,
 
-  setScreen: (screen) => set({ activeScreen: screen, sidebarOpen: false }),
+  setScreen: (screen) => {
+    const { server } = get();
+    if (screen === 'partyFinder') {
+      const next = updateQuestProgressOnSystemAction(server, 'open_party_finder');
+      commit(set, next, undefined);
+    }
+    set({ activeScreen: screen, sidebarOpen: false });
+  },
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   closeSidebar: () => set({ sidebarOpen: false }),
   closeModal: () => set({ modal: null }),
@@ -353,7 +374,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       ...server,
       location: { mode: "zone", zoneId },
     };
-    const next = simulateServerForMinutes(moved, 20, rng);
+    let next = simulateServerForMinutes(moved, 20, rng);
+    if (zoneId === 'greenfield') next = updateQuestProgressOnSystemAction(next, 'visit_greenfield');
     commit(set, next, null);
     set({ activeScreen: "world" });
   },
@@ -622,10 +644,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
         (result.combat.source === "dungeon" || result.combat.source === "raid") &&
         typeof result.combat.dungeonFloorIndex === "number"
       ) {
+        const beforeRunId = nextServer.currentDungeonRun?.id;
         nextServer = completeDungeonFloor(
           nextServer,
           result.combat.dungeonFloorIndex,
         );
+        if (beforeRunId && !nextServer.currentDungeonRun) {
+          nextServer = updateQuestProgressOnDungeonComplete(nextServer, result.combat.sourceId);
+        }
       }
       if (
         result.combat.status === "defeat" &&
@@ -656,6 +682,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
             ? [result.combat.enemyMobId]
             : [];
         const obtained = result.combat.reward?.items?.map((entry) => entry.itemId) ?? [];
+        defeated.forEach((mobId) => { nextServer = updateQuestProgressOnMobKill(nextServer, mobId); });
+        result.combat.reward?.items?.forEach((entry) => { nextServer = updateQuestProgressOnItemGain(nextServer, entry.itemId, entry.amount); });
         nextServer = addCollectionProgress(nextServer, obtained, defeated);
       }
 
@@ -805,7 +833,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       server.seed + server.serverDay * 6000 + server.currentMinute,
     );
     const result = enhanceItem(server, target, rng);
-    const next = simulateServerForMinutes(result.server, 10, rng);
+    let next = simulateServerForMinutes(result.server, 10, rng);
+    next = updateQuestProgressOnSystemAction(next, 'enhance_item');
     commit(set, next, undefined, result.modal);
   },
 
@@ -1107,6 +1136,36 @@ export const useGameStore = create<GameStore>((set, get) => ({
       text: guild?.name ?? guildId,
       lines: ["Ты больше не состоишь в гильдии."],
     });
+  },
+
+  acceptQuest: (questId) => {
+    const { server } = get();
+    const next = acceptQuestState(server, questId);
+    commit(set, next, undefined, {
+      id: `modal_accept_quest_${questId}_${server.currentMinute}`,
+      type: 'system',
+      title: 'Квест принят',
+      text: questId,
+      lines: ['Задание добавлено в журнал.'],
+    });
+  },
+
+  turnInQuest: (questId) => {
+    const { server } = get();
+    const result = turnInQuestState(server, questId);
+    commit(set, result.server, undefined, result.notification ? {
+      id: result.notification.id,
+      type: result.notification.type,
+      title: result.notification.title,
+      text: result.notification.text,
+      lines: result.notification.lines,
+    } : undefined);
+  },
+
+  talkToQuestGiver: (giverId) => {
+    const { server } = get();
+    const next = talkToQuestGiverState(server, giverId);
+    commit(set, next, undefined);
   },
 
   openNpcProfile: (npcId) => {

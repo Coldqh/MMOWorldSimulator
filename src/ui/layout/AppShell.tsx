@@ -11,6 +11,7 @@ import { RaidScreen } from '../screens/RaidScreen';
 import { ServerScreen } from '../screens/ServerScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { NewsScreen } from '../screens/NewsScreen';
+import { QuestScreen } from '../screens/QuestScreen';
 import { PartyFinderScreen } from '../screens/PartyFinderScreen';
 import { PartyLobbyScreen } from '../screens/PartyLobbyScreen';
 import { StartScreen } from '../screens/StartScreen';
@@ -35,17 +36,20 @@ const screens: Record<ScreenId, ReactNode> = {
   settings: <SettingsScreen />,
   library: <LibraryScreen />,
   news: <NewsScreen />,
+  quests: <QuestScreen />,
 };
 
 const bottomNav: Array<{ id: ScreenId; label: string }> = [
   { id: 'character', label: '🧍 Герой' },
   { id: 'world', label: '🌍 Мир' },
+  { id: 'quests', label: '📜 Квесты' },
   { id: 'guild', label: '🏰 Гильдия' },
 ];
 
 const sideNav: Array<{ id: ScreenId; label: string; cityOnly?: boolean }> = [
   { id: 'character', label: '🧍 Герой' },
   { id: 'world', label: '🌍 Мир' },
+  { id: 'quests', label: '📜 Квесты' },
   { id: 'partyFinder', label: '👥 Поиск пати' },
   { id: 'dungeon', label: '⚔️ Данжи' },
   { id: 'raid', label: '🐉 Рейды' },
@@ -123,7 +127,7 @@ export const AppShell = () => {
               <button key={entry.id} className={activeScreen === entry.id ? 'active' : ''} onClick={() => setScreen(entry.id)} disabled={locked || dungeonOpen || partyLobbyOpen}>
                 <span>{entry.label}</span>
                 {locked && <small>город</small>}
-                {dungeonOpen && entry.id !== 'guild' && <small>данж</small>}{partyLobbyOpen && <small>пати</small>}{partyLobbyOpen && <small>пати</small>}
+                {dungeonOpen && entry.id !== 'guild' && <small>данж</small>}{partyLobbyOpen && <small>пати</small>}
               </button>
             );
           })}

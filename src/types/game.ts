@@ -315,6 +315,84 @@ export interface PartyFinderListing {
   log?: string[];
 }
 
+export type WorldNpcType = "quest_giver";
+
+export interface QuestGiverDefinition {
+  id: Id;
+  name: string;
+  type: WorldNpcType;
+  zoneId: Id;
+  locationText?: string;
+  levelRange?: [number, number];
+  questIds: Id[];
+  shortText?: string;
+}
+
+export type QuestType =
+  | "talk"
+  | "kill"
+  | "collect"
+  | "dungeon"
+  | "system";
+
+export type QuestStatus =
+  | "available"
+  | "active"
+  | "readyToTurnIn"
+  | "completed"
+  | "locked";
+
+export type QuestSystemAction =
+  | "open_party_finder"
+  | "enhance_item"
+  | "visit_market"
+  | "join_guild"
+  | "visit_greenfield";
+
+export interface QuestObjective {
+  type: QuestType;
+  targetId?: Id;
+  targetIds?: Id[];
+  required: number;
+  current?: number;
+  itemId?: Id;
+  dungeonId?: Id;
+  systemAction?: QuestSystemAction;
+}
+
+export interface QuestReward {
+  xp: number;
+  gold: number;
+  items?: Array<{ itemId: Id; amount: number }>;
+  reputation?: number;
+  unlockQuestIds?: Id[];
+}
+
+export interface QuestDefinition {
+  id: Id;
+  title: string;
+  giverId: Id;
+  levelReq: number;
+  zoneId: Id;
+  type: QuestType;
+  prerequisiteQuestIds?: Id[];
+  objectives: QuestObjective[];
+  reward: QuestReward;
+  introText: string;
+  progressText?: string;
+  completeText: string;
+  lockedText?: string;
+}
+
+export interface QuestState {
+  status: QuestStatus;
+  objectives: QuestObjective[];
+  acceptedDay?: number;
+  acceptedMinute?: number;
+  completedDay?: number;
+  completedMinute?: number;
+}
+
 export interface MobDefinition {
   id: Id;
   name: string;
@@ -463,6 +541,7 @@ export interface ServerState {
   currentDungeonRun?: DungeonRunState;
   currentPartyListingId?: Id;
   collectionProgress?: CollectionProgress;
+  questStates: Record<Id, QuestState>;
 }
 
 export interface Combatant {
@@ -533,6 +612,7 @@ export type ScreenId =
   | "enhance"
   | "raid"
   | "partyFinder"
+  | "quests"
   | "settings"
   | "library"
   | "news";
