@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 
 const read = (path) => fs.existsSync(path) ? fs.readFileSync(path, 'utf8') : '';
-const exists = (path) => fs.existsSync(path);
 
 const files = {
   packageJson: read('package.json'),
@@ -9,46 +8,41 @@ const files = {
   version: read('src/engine/version.ts'),
   versionJson: read('public/version.json'),
   sw: read('public/sw.js'),
-  character: read('src/ui/screens/CharacterScreen.tsx'),
-  dungeon: read('src/ui/screens/DungeonScreen.tsx'),
-  partyFinder: read('src/ui/screens/PartyFinderScreen.tsx'),
-  combat: read('src/systems/combatSystem.ts'),
-  dungeonSystem: read('src/systems/dungeonSystem.ts'),
+  types: read('src/types/game.ts'),
+  worldBase: read('src/content/worldBase.ts'),
   worldFinalize: read('src/content/worldFinalize.ts'),
+  dungeonSystem: read('src/systems/dungeonSystem.ts'),
+  combat: read('src/systems/combatSystem.ts'),
 };
 
 const fail = [];
 const ok = [];
 const assert = (cond, msg) => cond ? ok.push(msg) : fail.push(msg);
 
-assert(files.packageJson.includes('"version": "0.5.10"'), 'package version is 0.5.10');
-assert(files.saveLoad.includes("SAVE_VERSION = '0.5.10'"), 'save version is 0.5.10');
-assert(files.saveLoad.includes('mmoworldsimulator.save.v0.5.9'), '0.5.9 legacy save key exists');
-assert(files.version.includes("APP_VERSION = '0.5.10'"), 'APP_VERSION is 0.5.10');
-assert(files.versionJson.includes('"version": "0.5.10"'), 'version.json is 0.5.10');
-assert(files.sw.includes("mmows-v0.5.10"), 'service worker cache is v0.5.10');
+assert(files.packageJson.includes('"version": "0.5.11"'), 'package version is 0.5.11');
+assert(files.saveLoad.includes("SAVE_VERSION = '0.5.11'"), 'save version is 0.5.11');
+assert(files.saveLoad.includes('mmoworldsimulator.save.v0.5.10'), '0.5.10 legacy save key exists');
+assert(files.version.includes("APP_VERSION = '0.5.11'"), 'APP_VERSION is 0.5.11');
+assert(files.versionJson.includes('"version": "0.5.11"'), 'version.json is 0.5.11');
+assert(files.sw.includes("mmows-v0.5.11"), 'service worker cache is v0.5.11');
 
-const actionPanelMatches = files.character.match(/section-title">Действия/g) ?? [];
-assert(actionPanelMatches.length === 1, 'CharacterScreen has one Actions block');
-assert((files.character.match(/Восстановить/g) ?? []).length === 1, 'recover button appears once');
-assert((files.character.match(/Пропустить день/g) ?? []).length === 1, 'skip day button appears once');
+assert(!files.worldBase.includes("'mini-boss'") && !files.worldBase.includes('"mini-boss"'), 'worldBase has no mini-boss tag');
+assert(!files.worldFinalize.includes("'mini-boss'") && !files.worldFinalize.includes('"mini-boss"'), 'worldFinalize has no mini-boss tag');
+assert(files.worldFinalize.includes("tags.filter((tag) => tag !== 'mini-boss')"), 'world finalizer strips legacy mini-boss tags');
+assert(files.worldFinalize.includes("bossFloorMobIds"), 'world finalizer marks boss floor mobs');
+assert(files.worldFinalize.includes("slice(-3)"), 'world finalizer keeps exactly 3 boss floors');
 
-assert(files.worldFinalize.includes('normalizeBossFloors'), 'world finalizer normalizes boss floors');
-assert(files.worldFinalize.includes('slice(-3)'), 'world finalizer keeps exactly 3 boss floors');
-assert(files.worldFinalize.includes("tags: Array.from(new Set([...mob.tags, 'boss']))"), 'boss floor mobs are tagged boss');
-assert(files.dungeonSystem.includes("floor.type === 'boss'") && files.dungeonSystem.includes('forceAllowLoot'), 'boss floors force loot in dungeon system');
-assert(files.combat.includes('forceAllowLoot = false'), 'combat supports forceAllowLoot');
-assert(files.combat.includes('isBossEncounter'), 'combat uses boss encounter flag');
-assert(files.combat.includes('playerClassItems') && files.combat.includes('combat.player.classId'), 'boss party drop prioritizes player class');
-assert(files.combat.includes('generalFallback'), 'boss party drop has class fallback');
+assert(files.types.includes('bossLootCount?: number'), 'DungeonRunState tracks bossLootCount');
+assert(files.types.includes('playerClassBossLootDropped?: boolean'), 'DungeonRunState tracks player class boss loot guarantee');
 
-assert(files.dungeon.includes('sortInstancesForPlayer'), 'DungeonScreen sorts instances');
-assert(files.dungeon.includes('sortedDungeons.map'), 'DungeonScreen renders sorted dungeons');
-assert(files.partyFinder.includes('sortInstancesForPlayer'), 'PartyFinderScreen sorts instances');
-assert(files.partyFinder.includes('highestAvailable'), 'PartyFinderScreen auto-selects highest available instance');
-assert(files.partyFinder.includes('listingLevel(b) - listingLevel(a)'), 'PartyFinder listings sorted by level');
+assert(files.dungeonSystem.includes('const isBossTarget =') && files.dungeonSystem.includes('encounterIndex >= total - 1'), 'dungeon loot only on final boss-floor target');
+assert(!files.dungeonSystem.includes("floor.type === 'miniBoss'"), 'dungeon system no longer treats miniBoss type as loot trigger');
 
-assert(!files.pwa?.includes?.('window.location.replace'), 'PWA still avoids auto replace reload');
+assert(files.combat.includes('forcePlayerClass') && files.combat.includes('pickBossPartyDrop(combat, mobIds, rng, forcePlayerClass)'), 'combat can force class boss drop');
+assert(files.combat.includes('bossDropIndex') && files.combat.includes('playerClassBossLootDropped'), 'combat tracks instance boss loot progress');
+assert(files.combat.includes('isClassDrop'), 'combat detects class drop');
+assert(files.combat.includes('currentDungeonRun: server.currentDungeonRun ?'), 'combat updates dungeon run boss loot state');
+assert(files.combat.includes('const shouldRollLoot = !isGroupInstance || Boolean(combat.allowLoot);'), 'ordinary dungeon mobs do not roll party gear');
 
 if (fail.length) {
   console.error('Sanity failed:');

@@ -126,6 +126,7 @@ export const startDungeonFloorCombat = (server: ServerState, rng: Rng): CombatSt
   const mob = getMobById(mobId);
   const total = floor.mobIds.length;
   const title = mob ? `${mob.name} · ${encounterIndex + 1}/${total}` : `${floor.name} · ${encounterIndex + 1}/${total}`;
+  const isBossTarget = floor.type === 'boss' && encounterIndex >= total - 1;
   const combat = startBossCombat(
     server,
     mobId,
@@ -138,7 +139,7 @@ export const startDungeonFloorCombat = (server: ServerState, rng: Rng): CombatSt
     title,
     encounterIndex,
     total,
-    floor.type === 'boss' || floor.type === 'miniBoss',
+    isBossTarget,
   );
   if (!combat) return null;
 

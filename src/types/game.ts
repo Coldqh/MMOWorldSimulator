@@ -373,6 +373,8 @@ export interface DungeonDefinition {
   partySize: number;
   timeCostMinutes: number;
   contentType?: "dungeon" | "raid";
+  bossLootCount?: number;
+  playerClassBossLootDropped?: boolean;
   bossMobId: Id;
   lootTableId: Id;
   description: string;

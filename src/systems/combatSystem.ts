@@ -331,7 +331,7 @@ const instanceSetIds: Record<string, string[]> = {
   wyrmspire_first_raid: ['raid_wyrmspire', 'raid_wyrmspire_legendary'],
 };
 
-const pickBossPartyDrop = (combat: CombatState, mobIds: string[], rng: Rng): ItemDefinition | undefined => {
+const pickBossPartyDrop = (combat: CombatState, mobIds: string[], rng: Rng, forcePlayerClass = false): ItemDefinition | undefined => {
   const setIds = instanceSetIds[combat.sourceId] ?? [];
   const playerClassId = combat.player.classId;
   const playerLevel = combat.player.level;
@@ -344,10 +344,10 @@ const pickBossPartyDrop = (combat: CombatState, mobIds: string[], rng: Rng): Ite
   });
 
   const playerClassItems = setItems.filter((item) => playerClassId && item.classTags.includes(playerClassId));
-  if (playerClassItems.length > 0) return rng.pick(playerClassItems);
-
   const neutralItems = setItems.filter((item) => item.classTags.length === 0);
-  if (neutralItems.length > 0) return rng.pick(neutralItems);
+  const anySetItems = setItems.length > 0 ? setItems : [];
+
+  if (forcePlayerClass && playerClassItems.length > 0) return rng.pick(playerClassItems);
 
   const dungeon = getDungeonById(combat.sourceId);
   const table = dungeon ? getLootTableById(dungeon.lootTableId) : undefined;
@@ -355,15 +355,22 @@ const pickBossPartyDrop = (combat: CombatState, mobIds: string[], rng: Rng): Ite
     .map((entry) => getItemById(entry.itemId))
     .filter((item): item is ItemDefinition => Boolean(item))
     .filter((item) => Boolean(item.slot && playerClassId && item.classTags.includes(playerClassId)));
-  if (tableClassItems.length > 0) return rng.pick(tableClassItems);
+  if (forcePlayerClass && tableClassItems.length > 0) return rng.pick(tableClassItems);
 
   const generalFallback = ITEMS
     .filter((item) => Boolean(item.slot && playerClassId && item.classTags.includes(playerClassId)))
     .filter((item) => item.levelReq <= Math.max(playerLevel + 2, sourceLevel + 2))
     .sort((a, b) => Math.abs(b.levelReq - sourceLevel) - Math.abs(a.levelReq - sourceLevel));
-  if (generalFallback.length > 0) return rng.pick(generalFallback.slice(-12));
+  if (forcePlayerClass && generalFallback.length > 0) return rng.pick(generalFallback.slice(-12));
 
-  return undefined;
+  const normalPool = [
+    ...playerClassItems,
+    ...neutralItems,
+    ...anySetItems,
+  ];
+  if (normalPool.length > 0) return rng.pick(normalPool);
+
+  return generalFallback.length > 0 ? rng.pick(generalFallback.slice(-12)) : undefined;
 };
 
 const finishVictory = (server: ServerState, combat: CombatState, rng: Rng): { server: ServerState; combat: CombatState } => {
@@ -388,6 +395,16 @@ const finishVictory = (server: ServerState, combat: CombatState, rng: Rng): { se
   }
 
   let nextServer: ServerState = { ...server, player };
+  if (isGroupInstance && combat.allowLoot && server.currentDungeonRun) {
+    nextServer = {
+      ...nextServer,
+      currentDungeonRun: server.currentDungeonRun ? {
+        ...server.currentDungeonRun,
+        bossLootCount: (server.currentDungeonRun.bossLootCount ?? 0) + 1,
+        playerClassBossLootDropped: Boolean(server.currentDungeonRun.playerClassBossLootDropped || isClassDrop),
+      } : server.currentDungeonRun,
+    };
+  }
   let rewardItems: InventoryStack[] = [];
   const rewardLines = [`Опыт: +${xp}${leveledUp ? ` · Lv. ${player.level}` : ` · ${player.xp}/${xpForNextLevel(player.level)}`}`, `Золото: +${gold}`];
   const nextLog = [...combat.log, `Победа. XP +${xp}. Gold +${gold}.`];
@@ -395,9 +412,12 @@ const finishVictory = (server: ServerState, combat: CombatState, rng: Rng): { se
   const shouldRollLoot = !isGroupInstance || Boolean(combat.allowLoot);
   let drops = shouldRollLoot ? mobs.flatMap((mob) => rollLoot(mob!.lootTableId, rng, server.player.level)) : [];
 
+  const bossDropIndex = isGroupInstance && combat.allowLoot ? (server.currentDungeonRun?.bossLootCount ?? 0) + 1 : 0;
+  const forcePlayerClass = isGroupInstance && combat.allowLoot && !server.currentDungeonRun?.playerClassBossLootDropped && bossDropIndex >= 3;
   let firstPartyDrop = isGroupInstance && combat.allowLoot
-    ? pickBossPartyDrop(combat, mobIds, rng)
+    ? pickBossPartyDrop(combat, mobIds, rng, forcePlayerClass)
     : undefined;
+  const isClassDrop = Boolean(firstPartyDrop?.slot && combat.player.classId && firstPartyDrop.classTags.includes(combat.player.classId));
 
   drops.forEach((item) => {
     if (isGroupInstance && item.slot) return;

@@ -108,7 +108,7 @@ const normalizeBossFloors = (dungeon: DungeonDefinition): DungeonDefinition => {
 
   let bossIndexes = floors
     .map((floor, index) => ({ floor, index }))
-    .filter(({ floor }) => floor.type === 'boss' || floor.type === 'miniBoss')
+    .filter(({ floor }) => floor.type === 'boss')
     .map(({ index }) => index);
 
   preferred.forEach((index) => {
@@ -122,7 +122,7 @@ const normalizeBossFloors = (dungeon: DungeonDefinition): DungeonDefinition => {
     ...dungeon,
     floors: floors.map((floor, index) => ({
       ...floor,
-      type: bossSet.has(index) ? 'boss' : floor.type === 'boss' || floor.type === 'miniBoss' ? 'mobs' : floor.type,
+      type: bossSet.has(index) ? 'boss' : floor.type === 'boss' ? 'mobs' : floor.type,
     })),
   };
 };
@@ -130,7 +130,7 @@ const normalizeBossFloors = (dungeon: DungeonDefinition): DungeonDefinition => {
 const bossFloorMobIds = (instances: DungeonDefinition[]) => new Set(
   instances.flatMap((dungeon) =>
     dungeon.floors
-      .filter((floor) => floor.type === 'boss' || floor.type === 'miniBoss')
+      .filter((floor) => floor.type === 'boss')
       .map((floor) => floor.mobIds[floor.mobIds.length - 1])
       .filter((id): id is string => Boolean(id)),
   ),
@@ -182,6 +182,7 @@ export const finalizeWorldContent = (input: WorldContentInput): WorldContentOutp
     .map(normalizeBossFloors)
     .sort((a, b) => a.id.localeCompare(b.id));
   const forcedBossMobIds = bossFloorMobIds([...dungeons, ...raids]);
+  mobs = mobs.map((mob) => ({ ...mob, tags: mob.tags.filter((tag) => tag !== 'mini-boss') }));
   mobs = mobs
     .map((mob) => forcedBossMobIds.has(mob.id) ? { ...mob, tags: Array.from(new Set([...mob.tags, 'boss'])) } : mob)
     .map((mob) => ({
