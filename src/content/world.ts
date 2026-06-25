@@ -495,3 +495,100 @@ MOBS.forEach((mob) => {
   mob.stats.attack = Math.round(mob.stats.attack * 3);
   mob.stats.magic = Math.round(mob.stats.magic * 3);
 });
+
+// v0.5.1 final content validation/canonicalization pass.
+const canonicalSetItems = (setId: string) => ITEMS.filter((item) => item.slot && item.setId === setId).map((item) => item.id);
+const canonicalReplaceTableSetGear = (tableId: string, setIds: string[]) => {
+  const table = LOOT_TABLES.find((entry) => entry.id === tableId);
+  if (!table) return;
+  const setIdSet = new Set(setIds);
+  const nonSet = table.entries.filter((entry) => {
+    const item = getItemById(entry.itemId);
+    return item && (!item.slot || !item.setId || !setIdSet.has(item.setId));
+  });
+  const gear = setIds.flatMap((setId) => canonicalSetItems(setId)).map((itemId) => ({ itemId, chance: 1 }));
+  const seen = new Set<string>();
+  table.entries = [...nonSet, ...gear].filter((entry) => {
+    const key = `${entry.itemId}:${entry.chance}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return Boolean(getItemById(entry.itemId));
+  });
+};
+const ensureLootTable = (id: string) => {
+  let table = LOOT_TABLES.find((entry) => entry.id === id);
+  if (!table) {
+    table = { id, entries: [] };
+    LOOT_TABLES.push(table);
+  }
+  return table;
+};
+ensureLootTable('lt_thorn_crypt');
+DUNGEONS.forEach((dungeon) => {
+  if (dungeon.id === 'thorn_crown_crypt') dungeon.lootTableId = 'lt_thorn_crypt';
+});
+MOBS.forEach((mob) => {
+  if (['thorn_crown_hound', 'thorn_crown_acolyte'].includes(mob.id)) mob.lootTableId = 'lt_thorn_crypt';
+});
+canonicalReplaceTableSetGear('lt_old_lantern_dungeon', ['dungeon_old_lantern']);
+canonicalReplaceTableSetGear('lt_thorn_crypt', ['dungeon_thorn_crypt']);
+canonicalReplaceTableSetGear('lt_blackroot_raid', ['dungeon_blackroot']);
+canonicalReplaceTableSetGear('lt_mire_depths_dungeon', ['dungeon_mire_depths']);
+canonicalReplaceTableSetGear('lt_frost_vault', ['dungeon_frost_vault']);
+canonicalReplaceTableSetGear('lt_glass_catacomb', ['dungeon_glass_catacomb']);
+canonicalReplaceTableSetGear('lt_wyrmspire_raid', ['raid_wyrmspire', 'raid_wyrmspire_legendary']);
+
+const canonicalCardRarityForMob = (mob: MobDefinition): Rarity => {
+  if (mob.id === 'first_wyrm') return 'legendary';
+  if (mob.tags.includes('raid') && mob.tags.includes('boss')) return 'legendary';
+  if (mob.tags.includes('boss')) return 'epic';
+  if (mob.tags.includes('dungeon') || mob.tags.includes('elite') || mob.tags.includes('mini-boss')) return 'epic';
+  return 'rare';
+};
+const canonicalCardStatsForMob = (mob: MobDefinition): Partial<Record<keyof MobDefinition['stats'], number>> => {
+  if (mob.id === 'first_wyrm') return { hp: 160, defense: 20, attack: 20, magic: 14 };
+  const rarity = canonicalCardRarityForMob(mob);
+  const scale = Math.max(1, Math.round(mob.level / 4)) + Math.max(0, (rarityScore[rarity] ?? 1) - 4);
+  if ((mob.stats.magic ?? 0) > (mob.stats.attack ?? 0)) return { magic: Math.max(1, scale), mana: Math.max(6, scale * 8) };
+  if ((mob.stats.defense ?? 0) > (mob.stats.attack ?? 0) * 0.72 || mob.tags.includes('boss')) return { defense: Math.max(1, Math.round(scale * 0.75)), hp: Math.max(12, scale * 14) };
+  return { attack: Math.max(1, scale), speed: mob.stats.speed >= 10 ? 1 : 0 };
+};
+const canonicalCardDropChanceForMob = (mob: MobDefinition) => {
+  if (mob.tags.includes('raid') && mob.tags.includes('boss')) return 0.000006;
+  if (mob.tags.includes('boss')) return 0.00001;
+  if (mob.tags.includes('dungeon') || mob.tags.includes('elite') || mob.tags.includes('mini-boss')) return 0.00002;
+  return 0.000035;
+};
+const canonicalCardGs = (item: any) => {
+  if (item.id === 'card_first_wyrm') return 390;
+  const statScore = Object.values(item.stats ?? {}).reduce((sum: number, value: any) => sum + Math.abs(Number(value) || 0), 0);
+  return Math.max(1, Math.round(statScore + (rarityScore[item.rarity as Rarity] ?? 1) * 8 + Math.max(1, item.levelReq ?? 1) * 4));
+};
+MOBS.forEach((mob) => {
+  const cardId = `card_${mob.id}`;
+  const rarity = canonicalCardRarityForMob(mob);
+  const stats = canonicalCardStatsForMob(mob) as any;
+  let card = ITEMS.find((item) => item.id === cardId);
+  if (!card) {
+    card = { id: cardId, name: `Карта: ${mob.name}`, type: 'card', rarity, levelReq: mob.level, classTags: [], stats, effects: [], socketSlots: 0, tradeable: true, price: 1, announceIfDropped: true } as any;
+    ITEMS.push(card as any);
+  }
+  Object.assign(card, { name: `Карта: ${mob.name}`, rarity, levelReq: mob.level, stats, type: 'card', classTags: [], socketSlots: 0, tradeable: true, announceIfDropped: true, sourceType: mob.tags.includes('boss') ? 'dungeon' : 'world', sourceId: mob.id, sourceName: mob.name });
+  const table = ensureLootTable(mob.lootTableId);
+  const existing = table.entries.find((entry) => entry.itemId === cardId);
+  if (existing) existing.chance = canonicalCardDropChanceForMob(mob);
+  else table.entries.push({ itemId: cardId, chance: canonicalCardDropChanceForMob(mob) });
+});
+ITEMS.forEach((item) => {
+  if (item.type === 'card') item.price = item.id === 'card_first_wyrm' ? 50000 : Math.max(128, Math.round(canonicalCardGs(item) * 128));
+});
+LOOT_TABLES.forEach((table) => {
+  const seen = new Set<string>();
+  table.entries = table.entries.filter((entry) => {
+    const itemId = entry.itemId;
+    if (!getItemById(itemId)) return false;
+    if (seen.has(itemId)) return false;
+    seen.add(itemId);
+    return true;
+  });
+});

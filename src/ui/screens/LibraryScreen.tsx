@@ -1,20 +1,20 @@
 import { useMemo, useState } from 'react';
 import { ITEMS, rarityLabel } from '../../content/items';
-import { MOBS } from '../../content/world';
+import { DUNGEONS, MOBS, RAIDS } from '../../content/world';
 import { useGameStore } from '../../state/gameStore';
-import type { ItemDefinition, MobDefinition } from '../../types/game';
+import type { ItemDefinition, MobDefinition, Rarity } from '../../types/game';
 import { ItemLine } from '../components/ItemLine';
 
 type LibraryTab = 'mobs' | 'bosses' | 'sets' | 'cards';
 
-const rarityOrder: Record<string, number> = {
-  legendary: 6,
-  unique: 6,
+const rarityOrder: Record<Rarity, number> = {
+  common: 1,
+  uncommon: 2,
+  rare: 3,
+  epic: 4,
+  legendary: 5,
   mythic: 6,
-  epic: 5,
-  rare: 4,
-  uncommon: 3,
-  common: 2,
+  unique: 7,
 };
 
 const classLabel: Record<string, string> = {
@@ -23,22 +23,79 @@ const classLabel: Record<string, string> = {
   mage: 'Маг',
   priest: 'Жрец',
 };
-
 const classOrder = ['warrior', 'ranger', 'mage', 'priest'];
+const slotOrder = ['weapon', 'head', 'chest', 'legs', 'boots', 'ring', 'amulet'];
 const isGear = (item: ItemDefinition) => Boolean(item.slot);
 const isSetGear = (item: ItemDefinition) => isGear(item) && Boolean(item.setId);
 const isBoss = (mob: MobDefinition) => mob.tags.includes('boss');
 
-const regularSetFamilyName = (items: ItemDefinition[]) => {
-  const sample = items[0];
-  if (!sample) return 'Сет';
-  const name = sample.name.replace(/^(Оружие|Шлем|Кираса|Поножи|Сапоги|Кольцо|Амулет)\s+/, '');
-  return name.replace(/\s+(Воина|Стрелка|Мага|Жреца)$/i, '');
+const stripSlotAndClass = (name: string) => name
+  .replace(/^(Оружие|Шлем|Кираса|Поножи|Сапоги|Кольцо|Амулет)\s+/i, '')
+  .replace(/\s+(Воина|Стрелка|Мага|Жреца)$/i, '');
+
+const regularRoot = (setId: string) => setId.replace(/^(common|uncommon|rare)_(warrior|ranger|mage|priest)_(\d+)$/, '$1_$3');
+const isRegularClassSet = (setId: string) => /^(common|uncommon|rare)_(warrior|ranger|mage|priest)_\d+$/.test(setId);
+
+interface SetFamily {
+  id: string;
+  displayName: string;
+  rarity: Rarity;
+  level: number;
+  source: string;
+  sourceType: 'general' | 'dungeon' | 'raid' | 'world';
+  totalCount: number;
+  items: ItemDefinition[];
+  classGroups: Array<{ classId: string; items: ItemDefinition[] }>;
+  hasClassStage: boolean;
+}
+
+const instanceNameById = (sourceId?: string, sourceName?: string) => {
+  if (sourceName) return sourceName;
+  return [...DUNGEONS, ...RAIDS].find((entry) => entry.id === sourceId)?.name;
 };
 
-const setSortValue = (items: ItemDefinition[]) => {
-  const sample = items[0];
-  return (sample?.levelReq ?? 1) * 10 + (rarityOrder[sample?.rarity ?? 'common'] ?? 0);
+const buildSetFamilies = (): SetFamily[] => {
+  const raw = new Map<string, ItemDefinition[]>();
+  ITEMS.filter(isSetGear).forEach((item) => {
+    const key = isRegularClassSet(item.setId ?? '') ? regularRoot(item.setId ?? '') : item.setId ?? item.id;
+    raw.set(key, [...(raw.get(key) ?? []), item]);
+  });
+
+  return Array.from(raw.entries()).map(([id, items]) => {
+    const sorted = [...items].sort((a, b) => {
+      const classA = classOrder.indexOf(a.classTags[0] ?? 'zz');
+      const classB = classOrder.indexOf(b.classTags[0] ?? 'zz');
+      const slotA = slotOrder.indexOf(a.slot ?? '');
+      const slotB = slotOrder.indexOf(b.slot ?? '');
+      return classA - classB || slotA - slotB || a.name.localeCompare(b.name);
+    });
+    const sample = sorted[0];
+    const sourceType = sample?.sourceType ?? (sample?.setId?.startsWith('raid_') ? 'raid' : sample?.setId?.startsWith('dungeon_') ? 'dungeon' : 'general');
+    const sourceName = instanceNameById(sample?.sourceId, sample?.sourceName);
+    const source = sourceType === 'raid'
+      ? `Рейд: ${sourceName ?? sample?.sourceId ?? 'рейд'}`
+      : sourceType === 'dungeon'
+        ? `Данж: ${sourceName ?? sample?.sourceId ?? 'данж'}`
+        : 'Общий сет';
+    const classGroups = classOrder.map((classId) => ({
+      classId,
+      items: sorted.filter((item) => item.classTags.includes(classId)),
+    })).filter((entry) => entry.items.length > 0);
+    const hasSharedOnly = classGroups.length === 0;
+    const hasClassStage = sourceType !== 'raid' && sample?.rarity !== 'legendary' && classGroups.length > 1 && !hasSharedOnly;
+    return {
+      id,
+      displayName: stripSlotAndClass(sample?.name ?? id),
+      rarity: sample?.rarity ?? 'common',
+      level: sample?.levelReq ?? 1,
+      source,
+      sourceType,
+      totalCount: sorted.length,
+      items: sorted,
+      classGroups,
+      hasClassStage,
+    };
+  }).sort((a, b) => a.level - b.level || rarityOrder[a.rarity] - rarityOrder[b.rarity] || a.displayName.localeCompare(b.displayName));
 };
 
 export const LibraryScreen = () => {
@@ -50,30 +107,11 @@ export const LibraryScreen = () => {
 
   const obtained = new Set(server.collectionProgress?.obtainedItemIds ?? []);
   const defeated = new Set(server.collectionProgress?.defeatedMobIds ?? []);
-
   const mobs = useMemo(() => MOBS.filter((mob) => !isBoss(mob)).sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)), []);
   const bosses = useMemo(() => MOBS.filter(isBoss).sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)), []);
-  const cards = useMemo(() => ITEMS.filter((item) => item.type === 'card').sort((a, b) => a.levelReq - b.levelReq || (rarityOrder[b.rarity] ?? 0) - (rarityOrder[a.rarity] ?? 0) || a.name.localeCompare(b.name)), []);
-
-  const setGroups = useMemo(() => {
-    const groups = new Map<string, ItemDefinition[]>();
-    ITEMS.filter(isSetGear).forEach((item) => {
-      const key = item.setId ?? item.id;
-      groups.set(key, [...(groups.get(key) ?? []), item]);
-    });
-    return Array.from(groups.entries())
-      .map(([setId, items]) => ({ setId, items: items.sort((a, b) => (a.slot ?? '').localeCompare(b.slot ?? '')) }))
-      .sort((a, b) => setSortValue(a.items) - setSortValue(b.items) || regularSetFamilyName(a.items).localeCompare(regularSetFamilyName(b.items)));
-  }, []);
-
-  const selectedSet = selectedSetId ? setGroups.find((entry) => entry.setId === selectedSetId) : null;
-  const selectedIsRegular = selectedSet ? /^(common|uncommon|rare|epic)_(warrior|ranger|mage|priest)_\d+$/.test(selectedSet.setId) : false;
-  const selectedSetRoot = selectedSetId?.replace(/^(common|uncommon|rare|epic)_(warrior|ranger|mage|priest)_(\d+)$/, '$1_$3') ?? '';
-  const regularVariations = selectedIsRegular ? setGroups.filter((entry) => entry.setId.replace(/^(common|uncommon|rare|epic)_(warrior|ranger|mage|priest)_(\d+)$/, '$1_$3') === selectedSetRoot) : [];
-  const selectedClassIds = selectedSet ? Array.from(new Set(selectedSet.items.flatMap((item) => item.classTags))).filter((id) => classOrder.includes(id)) : [];
-  const selectedHasClassStage = selectedSet ? selectedSet.items[0]?.rarity !== 'legendary' && selectedClassIds.length > 1 : false;
-
-
+  const cards = useMemo(() => ITEMS.filter((item) => item.type === 'card').sort((a, b) => a.levelReq - b.levelReq || rarityOrder[b.rarity] - rarityOrder[a.rarity] || a.name.localeCompare(b.name)), []);
+  const setFamilies = useMemo(buildSetFamilies, []);
+  const selected = selectedSetId ? setFamilies.find((entry) => entry.id === selectedSetId) : undefined;
 
   const renderMob = (mob: MobDefinition) => (
     <div key={mob.id} className={`list-line library-row ${defeated.has(mob.id) ? 'known-row' : ''}`}>
@@ -91,44 +129,51 @@ export const LibraryScreen = () => {
     </div>
   );
 
-  const renderSetCards = () => {
-    if (selectedSet) {
-      if ((selectedIsRegular || selectedHasClassStage) && !selectedClass) {
+  const renderSets = () => {
+    if (selected) {
+      if (selected.hasClassStage && !selectedClass) {
         return (
           <section className="panel">
-            <div className="title-row"><div className="section-title">Вариации класса</div><button onClick={() => setSelectedSetId(null)}>Назад</button></div>
+            <div className="title-row"><div className="section-title">{selected.displayName}</div><button onClick={() => setSelectedSetId(null)}>Назад</button></div>
+            <p className="muted">{selected.source} · {selected.totalCount} предметов</p>
             <div className="card-grid">
-              {classOrder.map((classId) => {
-                const variation = selectedIsRegular
-                  ? regularVariations.find((entry) => entry.setId.includes(`_${classId}_`))
-                  : selectedSet ? { setId: selectedSet.setId, items: selectedSet.items.filter((item) => item.classTags.includes(classId)) } : null;
-                if (!variation || variation.items.length === 0) return null;
-                return <button key={classId} className={`content-card rarity-border-${variation.items[0]?.rarity ?? 'common'}`} onClick={() => setSelectedClass(classId)}><strong>{regularSetFamilyName(variation.items)} {classLabel[classId]}</strong><span>{variation.items.length} предметов</span></button>;
-              })}
+              {selected.classGroups.map((group) => (
+                <button key={group.classId} className={`content-card rarity-border-${selected.rarity}`} onClick={() => setSelectedClass(group.classId)}>
+                  <strong>{selected.displayName} {classLabel[group.classId]}</strong>
+                  <span>{group.items.length} предметов</span>
+                </button>
+              ))}
             </div>
           </section>
         );
       }
       const items = selectedClass
-        ? (selectedIsRegular
-            ? (regularVariations.find((entry) => entry.setId.includes(`_${selectedClass}_`))?.items ?? selectedSet.items)
-            : selectedSet.items.filter((item) => item.classTags.includes(selectedClass)))
-        : selectedSet.items;
+        ? selected.classGroups.find((entry) => entry.classId === selectedClass)?.items ?? selected.items
+        : selected.items;
       return (
         <section className="panel">
-          <div className="title-row"><div className="section-title">Предметы сета</div><button onClick={() => { selectedClass ? setSelectedClass(null) : setSelectedSetId(null); }}>Назад</button></div>
+          <div className="title-row"><div className="section-title">{selected.displayName}</div><button onClick={() => { selectedClass ? setSelectedClass(null) : setSelectedSetId(null); }}>Назад</button></div>
+          <p className="muted">{selected.source} · {selected.totalCount} предметов</p>
           <div className="list-lines">{items.map(renderItem)}</div>
         </section>
       );
     }
 
-    const topLevelSets = setGroups.filter((group) => {
-      if (/^(common|uncommon|rare|epic)_(warrior|ranger|mage|priest)_\d+$/.test(group.setId)) {
-        return group.setId.includes('_warrior_');
-      }
-      return true;
-    });
-    return <section className="panel"><div className="section-title">Сеты</div><div className="card-grid">{topLevelSets.map((group) => <button key={group.setId} className={`content-card rarity-border-${group.items[0]?.rarity ?? 'common'}`} onClick={() => { setSelectedSetId(group.setId); setSelectedClass(null); }}><strong>{regularSetFamilyName(group.items)}</strong><span>Lv. {group.items[0]?.levelReq} · {rarityLabel[group.items[0]?.rarity ?? 'common']}</span><span>{group.items.length} предметов</span></button>)}</div></section>;
+    return (
+      <section className="panel">
+        <div className="section-title">Сеты</div>
+        <div className="card-grid">
+          {setFamilies.map((family) => (
+            <button key={family.id} className={`content-card rarity-border-${family.rarity}`} onClick={() => { setSelectedSetId(family.id); setSelectedClass(null); }}>
+              <strong>{family.displayName}</strong>
+              <span>Lv. {family.level} · {rarityLabel[family.rarity]}</span>
+              <span>{family.source}</span>
+              <span>{family.totalCount} предметов</span>
+            </button>
+          ))}
+        </div>
+      </section>
+    );
   };
 
   return (
@@ -147,7 +192,7 @@ export const LibraryScreen = () => {
 
       {tab === 'mobs' && <section className="panel"><div className="section-title">Мобы</div><div className="list-lines">{mobs.map(renderMob)}</div></section>}
       {tab === 'bosses' && <section className="panel"><div className="section-title">Боссы</div><div className="list-lines">{bosses.map(renderMob)}</div></section>}
-      {tab === 'sets' && renderSetCards()}
+      {tab === 'sets' && renderSets()}
       {tab === 'cards' && <section className="panel"><div className="section-title">Карты</div><div className="list-lines">{cards.map((card) => { const mob = MOBS.find((entry) => card.id === `card_${entry.id}`); return <div key={card.id} className={`list-line library-row ${obtained.has(card.id) ? 'known-row' : ''}`}><button className="text-button" onClick={() => openItemProfile(card.id, 'loot', 0, [])}>{obtained.has(card.id) ? '✓' : '○'} <ItemLine itemId={card.id} showLevel /></button><strong>{mob?.tags.includes('boss') ? 'boss · ' : ''}{rarityLabel[card.rarity]}</strong></div>; })}</div></section>}
     </div>
   );

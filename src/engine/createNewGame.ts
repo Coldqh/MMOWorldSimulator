@@ -5,7 +5,7 @@ import type { Guild, GuildType, NpcPlayer, Player, RoleFocus, ServerState } from
 import { SAVE_VERSION } from './saveLoad';
 import { createRng } from './rng';
 import { estimateArenaRatingValue, estimateWealthValue, updateRankings } from '../systems/progressionSystem';
-import { generateMarketListings } from '../systems/marketSystem';
+import { normalizeMarketListings } from '../systems/marketSystem';
 import { generateEquipmentForClassLevel, generateEliteEquipmentForClassLevel, generateScaledEquipmentForClassLevel, getGearScore, normalizeNpcEquipmentAndGear } from '../systems/itemSystem';
 
 export const NPC_TARGET_COUNT = 500;
@@ -471,7 +471,6 @@ export const createNewGame = (
   seed = Date.now(),
   characterCreated = true
 ): ServerState => {
-  const rng = createRng(seed);
   const guilds = createGuilds();
   const npcs = generateBalancedNpcRoster(guilds, seed, 0, NPC_TARGET_COUNT);
 
@@ -500,7 +499,7 @@ export const createNewGame = (
     player: createStarterPlayer(playerName || 'Newbie', raceId, classId, seed),
     npcs,
     guilds: guildsWithMembers,
-    market: generateMarketListings({ seed, serverDay: 1, npcs }, rng),
+    market: [],
     rankings: {
       arenaTop: [],
       raidRaceTop: [],
@@ -526,7 +525,10 @@ export const createNewGame = (
     }
   };
 
-  return updateRankings(ensureServerRoster(server));
+  const finalRoster = ensureServerRoster(server);
+  const marketRng = createRng(seed + 777001);
+  const finalMarket = normalizeMarketListings({ ...finalRoster, market: [] }, marketRng);
+  return updateRankings(finalMarket);
 };
 
 export const createEmptyServer = (seed = Date.now()) => createNewGame('Newbie', 'human', 'warrior', seed, false);

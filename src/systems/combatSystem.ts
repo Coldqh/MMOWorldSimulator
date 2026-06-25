@@ -406,7 +406,7 @@ const finishVictory = (server: ServerState, combat: CombatState, rng: Rng): { se
     nextLog.push(`Выпало на пати: ${firstPartyDrop.name}.`);
   }
 
-  if (drops.length === 0) rewardLines.push(isGroupInstance ? 'Дроп: только с боссов.' : 'Дроп: пусто.');
+  if (drops.length === 0 && !firstPartyDrop) rewardLines.push('Дроп: пусто.');
 
   const reward: RewardSummary = { xp, gold, items: rewardItems, lines: rewardLines };
   const nextCombat = { ...combat, player: { ...combat.player, hp: player.hp, mana: player.mana, level: player.level }, log: nextLog, status: 'victory' as const, reward };

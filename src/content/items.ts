@@ -89,6 +89,13 @@ addPotion('mana_potion_20', 'Зелье маны 20', 20, 'mana', 340, 900);
 export const normalizeLegacyItemId = (id: string) => {
   const wyrm = id.match(/^wyrmspire(_gold)?_(warrior|ranger|mage|priest)_(head|chest|legs|boots|ring|amulet)$/);
   if (wyrm) return `wyrmspire${wyrm[1] ?? ''}_${wyrm[3]}`;
+  const glassDuplicate = id.match(/^glass_catacomb_epic_(warrior|ranger|mage|priest)_(weapon|head|chest|legs|boots|ring|amulet)$/);
+  if (glassDuplicate) {
+    const slotMap: Record<string, string> = { head: 'chest', boots: 'legs' };
+    return `glass_catacomb_${glassDuplicate[1]}_${slotMap[glassDuplicate[2]] ?? glassDuplicate[2]}`;
+  }
+  const glassTrimmed = id.match(/^glass_catacomb_(warrior|ranger|mage|priest)_(head|boots)$/);
+  if (glassTrimmed) return `glass_catacomb_${glassTrimmed[1]}_${glassTrimmed[2] === 'head' ? 'chest' : 'legs'}`;
   const oldSet = id.match(/^set_(common|uncommon|rare|epic)_(warrior|ranger|mage|priest)_(\d+)_(weapon|head|chest|legs|boots|ring|amulet)$/);
   if (oldSet) {
     const rarity = oldSet[1];
@@ -481,4 +488,160 @@ ITEMS.forEach((item) => {
     item.price = Math.max(item.price, Math.round(700 + item.levelReq * item.levelReq * rarityScore.epic * 1.4));
   }
 });
+rebalanceItemStats();
+
+
+// v0.5.1 canonical item pass. This is the only final authority for broken legacy set shapes.
+const canonicalClassIds = ['warrior', 'ranger', 'mage', 'priest'] as const;
+const canonicalSlots = ['weapon', 'head', 'chest', 'legs', 'boots', 'ring', 'amulet'] as const;
+const glassCanonicalSlots = ['weapon', 'chest', 'legs', 'ring', 'amulet'] as const;
+const sharedWyrmSlots = ['head', 'chest', 'legs', 'boots', 'ring', 'amulet'] as const;
+const canonicalClassLabel: Record<string, string> = { warrior: 'Воина', ranger: 'Стрелка', mage: 'Мага', priest: 'Жреца' };
+const sourceNames: Record<string, string> = {
+  dungeon_old_lantern: 'Погреб Старого Фонаря',
+  dungeon_thorn_crypt: 'Склеп Терновой Короны',
+  dungeon_blackroot: 'Дозор Чёрного Корня',
+  dungeon_mire_depths: 'Глубины Топи',
+  dungeon_frost_vault: 'Ледяное Хранилище',
+  dungeon_glass_catacomb: 'Стеклянные Катакомбы',
+  raid_wyrmspire: 'Вирмшпиль: первый подъём',
+  raid_wyrmspire_legendary: 'Вирмшпиль: первый подъём',
+};
+const sourceIds: Record<string, string> = {
+  dungeon_old_lantern: 'old_lantern_cellar',
+  dungeon_thorn_crypt: 'thorn_crown_crypt',
+  dungeon_blackroot: 'blackroot_watch',
+  dungeon_mire_depths: 'mire_depths',
+  dungeon_frost_vault: 'frost_vault',
+  dungeon_glass_catacomb: 'glass_catacomb',
+  raid_wyrmspire: 'wyrmspire_first_raid',
+  raid_wyrmspire_legendary: 'wyrmspire_first_raid',
+};
+
+const canonicalRemove = (predicate: (item: ItemDefinition) => boolean) => {
+  for (let i = ITEMS.length - 1; i >= 0; i -= 1) {
+    if (predicate(ITEMS[i])) ITEMS.splice(i, 1);
+  }
+};
+
+const canonicalItemData = (
+  id: string,
+  name: string,
+  level: number,
+  rarity: Rarity,
+  setId: string,
+  slot: string,
+  classTags: string[],
+  sourceType: 'general' | 'dungeon' | 'raid' | 'world',
+  sourceId?: string,
+  sourceName?: string,
+) => {
+  const mainClass = classTags[0] ?? (slot === 'weapon' ? 'warrior' : 'warrior');
+  const main = classMainV050[mainClass] ?? 'attack';
+  const power = Math.max(2, Math.round((level + 5) * (rarityStatMult[rarity] ?? 1) * (slotStatMult[slot] ?? 1)));
+  const stats: Record<string, number> = slot === 'weapon'
+    ? { [main]: power + level }
+    : slot === 'ring' || slot === 'amulet'
+      ? { hp: power * 3, mana: classTags.includes('mage') || classTags.includes('priest') || classTags.length === 0 ? power * 2 : power, [main]: Math.max(1, Math.round(power * 0.45)) }
+      : slot === 'boots'
+        ? { hp: power * 3, defense: Math.max(1, Math.round(power * 0.55)), speed: Math.max(1, Math.round(rarityScore[rarity] / 2)) }
+        : { hp: power * 4, defense: Math.max(1, Math.round(power * 0.75)) };
+  return {
+    id,
+    name,
+    type: slot === 'weapon' ? 'weapon' as const : (slot === 'ring' || slot === 'amulet' ? 'accessory' as const : 'armor' as const),
+    rarity,
+    levelReq: level,
+    classTags,
+    slot: slot as any,
+    stats,
+    effects: [],
+    socketSlots: rarity === 'legendary' ? 2 : rarity === 'epic' ? 2 : rarity === 'rare' ? 1 : 0,
+    tradeable: true,
+    price: Math.round(800 + level * level * rarityScore[rarity] * (rarity === 'legendary' ? 3.2 : rarity === 'epic' ? 1.85 : 1.15)),
+    announceIfDropped: true,
+    setId,
+    sourceType,
+    sourceId,
+    sourceName,
+  };
+};
+
+const upsertCanonicalItem = (data: ItemDefinition) => {
+  const index = ITEMS.findIndex((item) => item.id === data.id);
+  if (index >= 0) ITEMS[index] = { ...ITEMS[index], ...data };
+  else ITEMS.push(data);
+};
+
+// First Wyrm legendary set: 4 class weapons + 6 shared pieces = 10.
+canonicalRemove((item) => /^wyrmspire_gold_(warrior|ranger|mage|priest)_(head|chest|legs|boots|ring|amulet)$/.test(item.id));
+canonicalRemove((item) => /^wyrmspire_gold_(head|chest|legs|boots|ring|amulet)$/.test(item.id));
+canonicalClassIds.forEach((classId) => {
+  upsertCanonicalItem(canonicalItemData(
+    `wyrmspire_gold_${classId}_weapon`,
+    `Оружие Первого Вирма ${canonicalClassLabel[classId]}`,
+    20,
+    'legendary',
+    'raid_wyrmspire_legendary',
+    'weapon',
+    [classId],
+    'raid',
+    'wyrmspire_first_raid',
+    'Вирмшпиль: первый подъём',
+  ));
+});
+sharedWyrmSlots.forEach((slot) => {
+  upsertCanonicalItem(canonicalItemData(
+    `wyrmspire_gold_${slot}`,
+    `${slotName[slot]} Первого Вирма`,
+    20,
+    'legendary',
+    'raid_wyrmspire_legendary',
+    slot,
+    [],
+    'raid',
+    'wyrmspire_first_raid',
+    'Вирмшпиль: первый подъём',
+  ));
+});
+
+// Glass Catacombs canonical set: 20 items = 4 classes × 5 slots.
+canonicalRemove((item) => /^glass_catacomb_epic_/.test(item.id));
+canonicalRemove((item) => /^glass_catacomb_(warrior|ranger|mage|priest)_(head|boots)$/.test(item.id));
+canonicalClassIds.forEach((classId) => {
+  glassCanonicalSlots.forEach((slot) => {
+    upsertCanonicalItem(canonicalItemData(
+      `glass_catacomb_${classId}_${slot}`,
+      `${slotName[slot]} Стеклянных Катакомб ${canonicalClassLabel[classId]}`,
+      20,
+      'epic',
+      'dungeon_glass_catacomb',
+      slot,
+      [classId],
+      'dungeon',
+      'glass_catacomb',
+      'Стеклянные Катакомбы',
+    ));
+  });
+});
+
+// Stable source metadata for all sets and general gear.
+ITEMS.forEach((item) => {
+  if (item.setId?.startsWith('dungeon_')) {
+    item.sourceType = 'dungeon';
+    item.sourceId = sourceIds[item.setId] ?? item.sourceId;
+    item.sourceName = sourceNames[item.setId] ?? item.sourceName ?? 'Данж';
+  } else if (item.setId?.startsWith('raid_')) {
+    item.sourceType = 'raid';
+    item.sourceId = sourceIds[item.setId] ?? item.sourceId;
+    item.sourceName = sourceNames[item.setId] ?? item.sourceName ?? 'Рейд';
+  } else if (item.setId) {
+    item.sourceType = 'general';
+    item.sourceName = 'Общий сет';
+  } else if (!item.sourceType) {
+    item.sourceType = 'world';
+    item.sourceName = 'Мир';
+  }
+});
+
 rebalanceItemStats();

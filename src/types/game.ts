@@ -126,6 +126,9 @@ export interface ItemDefinition {
   price: number;
   announceIfDropped: boolean;
   setId?: Id;
+  sourceType?: "general" | "dungeon" | "raid" | "world";
+  sourceId?: Id;
+  sourceName?: string;
 }
 
 export interface ItemInstance {

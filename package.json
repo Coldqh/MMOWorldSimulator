@@ -1,14 +1,15 @@
 {
   "name": "mmoworldsimulator",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.5.1",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "build:github": "vite build",
-    "preview": "vite preview --host 0.0.0.0"
+    "preview": "vite preview --host 0.0.0.0",
+    "sanity": "node scripts/sanity-check.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
