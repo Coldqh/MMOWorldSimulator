@@ -95,10 +95,71 @@ interface GameStore {
   exportCharacter: () => void;
   importCharacter: (raw: string) => void;
   saveNow: () => void;
-  travelToCity: () => void;
-  travelToZone: (zoneId: string) => void;
-  enterSpot: (spotId: string) => void;
-  leaveSpot: () => void;
+  travelToCity: () => {
+    const { server, combat } = get();
+    if (combat || !server.characterCreated) return;
+    const next: ServerState = {
+      ...server,
+      location: { mode: "city" },
+      currentDungeonRun: undefined,
+      currentPartyListingId: undefined,
+    };
+    commit(set, next, null);
+    set({ activeScreen: "world" });
+  },
+
+  travelToZone: (zoneId) => {
+    const { server, combat } = get();
+    if (combat || !server.characterCreated || server.currentDungeonRun) return;
+    const zone = getZoneById(zoneId);
+    if (!zone) return;
+    const rng = createRng(
+      server.seed + server.serverDay * 1500 + server.currentMinute,
+    );
+    const moved: ServerState = {
+      ...server,
+      location: { mode: "zone", zoneId },
+      currentDungeonRun: undefined,
+      currentPartyListingId: undefined,
+    };
+    let next = simulateServerForMinutes(moved, 20, rng);
+    if (zoneId === 'greenfield') next = updateQuestProgressOnSystemAction(next, 'visit_greenfield');
+    commit(set, next, null);
+    set({ activeScreen: "world" });
+  },
+
+  enterSpot: (spotId) => {
+    const { server, combat } = get();
+    if (combat || !server.characterCreated || server.currentDungeonRun) return;
+    const spot = getSpotById(spotId);
+    if (!spot) return;
+    const rng = createRng(
+      server.seed + server.serverDay * 1600 + server.currentMinute,
+    );
+    const moved: ServerState = {
+      ...server,
+      location: { mode: "spot", zoneId: spot.zoneId, spotId },
+      currentDungeonRun: undefined,
+      currentPartyListingId: undefined,
+    };
+    const next = simulateServerForMinutes(moved, 5, rng);
+    commit(set, next, null);
+    set({ activeScreen: "world" });
+  },
+
+  leaveSpot: () => {
+    const { server, combat } = get();
+    if (combat || !server.characterCreated) return;
+    if (server.location.mode !== "spot" || !server.location.zoneId) return;
+    const next: ServerState = {
+      ...server,
+      location: { mode: "zone", zoneId: server.location.zoneId },
+      currentDungeonRun: undefined,
+    };
+    commit(set, next, null);
+    set({ activeScreen: "world" });
+  },
+
   startFarm: (spotId: string, mobId?: string) => void;
   startDungeon: (dungeonId: string) => void;
   refreshPartyFinder: () => void;
