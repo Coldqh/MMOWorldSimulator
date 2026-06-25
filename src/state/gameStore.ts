@@ -76,6 +76,15 @@ import {
   updateQuestProgressOnMobKill,
   updateQuestProgressOnSystemAction,
 } from "../systems/questSystem";
+import {
+  acceptContract as acceptContractState,
+  cancelContract as cancelContractState,
+  claimContractReward,
+  refreshContracts,
+  updateContractsOnArenaResult,
+  updateContractsOnDungeonComplete,
+  updateContractsOnMobKill,
+} from "../systems/contractSystem";
 
 interface GameStore {
   server: ServerState;
@@ -95,71 +104,10 @@ interface GameStore {
   exportCharacter: () => void;
   importCharacter: (raw: string) => void;
   saveNow: () => void;
-  travelToCity: () => {
-    const { server, combat } = get();
-    if (combat || !server.characterCreated) return;
-    const next: ServerState = {
-      ...server,
-      location: { mode: "city" },
-      currentDungeonRun: undefined,
-      currentPartyListingId: undefined,
-    };
-    commit(set, next, null);
-    set({ activeScreen: "world" });
-  },
-
-  travelToZone: (zoneId) => {
-    const { server, combat } = get();
-    if (combat || !server.characterCreated || server.currentDungeonRun) return;
-    const zone = getZoneById(zoneId);
-    if (!zone) return;
-    const rng = createRng(
-      server.seed + server.serverDay * 1500 + server.currentMinute,
-    );
-    const moved: ServerState = {
-      ...server,
-      location: { mode: "zone", zoneId },
-      currentDungeonRun: undefined,
-      currentPartyListingId: undefined,
-    };
-    let next = simulateServerForMinutes(moved, 20, rng);
-    if (zoneId === 'greenfield') next = updateQuestProgressOnSystemAction(next, 'visit_greenfield');
-    commit(set, next, null);
-    set({ activeScreen: "world" });
-  },
-
-  enterSpot: (spotId) => {
-    const { server, combat } = get();
-    if (combat || !server.characterCreated || server.currentDungeonRun) return;
-    const spot = getSpotById(spotId);
-    if (!spot) return;
-    const rng = createRng(
-      server.seed + server.serverDay * 1600 + server.currentMinute,
-    );
-    const moved: ServerState = {
-      ...server,
-      location: { mode: "spot", zoneId: spot.zoneId, spotId },
-      currentDungeonRun: undefined,
-      currentPartyListingId: undefined,
-    };
-    const next = simulateServerForMinutes(moved, 5, rng);
-    commit(set, next, null);
-    set({ activeScreen: "world" });
-  },
-
-  leaveSpot: () => {
-    const { server, combat } = get();
-    if (combat || !server.characterCreated) return;
-    if (server.location.mode !== "spot" || !server.location.zoneId) return;
-    const next: ServerState = {
-      ...server,
-      location: { mode: "zone", zoneId: server.location.zoneId },
-      currentDungeonRun: undefined,
-    };
-    commit(set, next, null);
-    set({ activeScreen: "world" });
-  },
-
+  travelToCity: () => void;
+  travelToZone: (zoneId: string) => void;
+  enterSpot: (spotId: string) => void;
+  leaveSpot: () => void;
   startFarm: (spotId: string, mobId?: string) => void;
   startDungeon: (dungeonId: string) => void;
   refreshPartyFinder: () => void;
@@ -198,10 +146,12 @@ interface GameStore {
   acceptQuest: (questId: string) => void;
   turnInQuest: (questId: string) => void;
   talkToQuestGiver: (giverId: string) => void;
+  acceptContract: (contractId: string) => void;
+  cancelContract: (contractId: string) => void;
+  claimContract: (contractId: string) => void;
 }
 
-
-const collectOwnedItemIds = (server: ServerState): string[] => {
+const collectOwnedItemIdsconst collectOwnedItemIds = (server: ServerState): string[] => {
   const ids = new Set<string>();
   Object.values(server.player?.equipment ?? {}).forEach((instance: any) => { if (instance?.itemId) ids.add(normalizeLegacyItemId(instance.itemId)); });
   (server.player?.inventory ?? []).forEach((entry) => ids.add(normalizeLegacyItemId(entry.itemId)));
@@ -301,6 +251,7 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
     currentPartyListingId: needsMigration ? undefined : server.currentPartyListingId,
     collectionProgress: server.collectionProgress ?? { obtainedItemIds: [], defeatedMobIds: [] },
     questStates: server.questStates ?? {},
+    contracts: server.contracts ?? [],
   };
   const baseWithProgress = addCollectionProgress(baseServer);
 
@@ -322,7 +273,7 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
 
 const safeNormalizeServer = (server: ServerState | null | undefined, mode: "full" | "light" = "full"): ServerState => {
   try {
-    return normalizeServer(server ?? createEmptyServer(), mode);
+    return refreshContracts(normalizeServer(server ?? createEmptyServer(), mode), createRng((server?.seed ?? Date.now()) + (server?.serverDay ?? 1) * 9010 + (server?.currentMinute ?? 0)));
   } catch (error) {
     console.error("[MMOWS] save normalize failed", error);
     backupRescueSave(server, "normalize_failed");
@@ -339,7 +290,7 @@ const commit = (
   combat?: CombatState | null,
   modal?: GameModal | null,
 ) => {
-  let normalized = normalizeQuestStates(safeNormalizeServer(server, "light"));
+  let normalized = refreshContracts(normalizeQuestStates(safeNormalizeServer(server, "light")), createRng((server.seed ?? Date.now()) + server.serverDay * 9020 + server.currentMinute));
   let nextModal = modal;
 
   if (nextModal === undefined && normalized.notifications.length > 0) {
@@ -440,6 +391,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     );
     const moved: ServerState = {
       ...server,
+      location: { mode: "zone", zoneId },
+      currentDungeonRun: undefined,
+      currentPartyListingId: undefined,
     };
     let next = simulateServerForMinutes(moved, 20, rng);
     if (zoneId === 'greenfield') next = updateQuestProgressOnSystemAction(next, 'visit_greenfield');
@@ -457,6 +411,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     );
     const moved: ServerState = {
       ...server,
+      location: { mode: "spot", zoneId: spot.zoneId, spotId },
+      currentDungeonRun: undefined,
+      currentPartyListingId: undefined,
     };
     const next = simulateServerForMinutes(moved, 5, rng);
     commit(set, next, null);
@@ -469,6 +426,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (server.location.mode !== "spot" || !server.location.zoneId) return;
     const next: ServerState = {
       ...server,
+      location: { mode: "zone", zoneId: server.location.zoneId },
+      currentDungeonRun: undefined,
     };
     commit(set, next, null);
     set({ activeScreen: "world" });
@@ -716,6 +675,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         );
         if (beforeRunId && !nextServer.currentDungeonRun) {
           nextServer = updateQuestProgressOnDungeonComplete(nextServer, result.combat.sourceId);
+          nextServer = updateContractsOnDungeonComplete(nextServer, result.combat.sourceId);
         }
       }
       if (
@@ -747,7 +707,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
             ? [result.combat.enemyMobId]
             : [];
         const obtained = result.combat.reward?.items?.map((entry) => entry.itemId) ?? [];
-        defeated.forEach((mobId) => { nextServer = updateQuestProgressOnMobKill(nextServer, mobId); });
+        defeated.forEach((mobId) => { nextServer = updateQuestProgressOnMobKill(nextServer, mobId); nextServer = updateContractsOnMobKill(nextServer, mobId); });
         result.combat.reward?.items?.forEach((entry) => { nextServer = updateQuestProgressOnItemGain(nextServer, entry.itemId, entry.amount); });
         nextServer = addCollectionProgress(nextServer, obtained, defeated);
       }
@@ -758,6 +718,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
           ? makeRewardModal(result.combat, server.seed + server.currentMinute)
           : makeDeathModal(result.combat, server.seed + server.currentMinute);
       nextCombat = null;
+
+      if (result.combat.source === "arena") {
+        nextServer = updateContractsOnArenaResult(nextServer, result.combat.status === "victory");
+      }
 
       if (result.combat.status === "defeat" && result.combat.source !== 'dungeon' && result.combat.source !== 'raid') set({ activeScreen: "world" });
     }
@@ -1201,6 +1165,30 @@ export const useGameStore = create<GameStore>((set, get) => ({
       text: guild?.name ?? guildId,
       lines: ["Ты больше не состоишь в гильдии."],
     });
+  },
+
+  acceptContract: (contractId) => {
+    const { server } = get();
+    const next = acceptContractState(server, contractId);
+    commit(set, next, undefined);
+  },
+
+  cancelContract: (contractId) => {
+    const { server } = get();
+    const next = cancelContractState(server, contractId);
+    commit(set, next, undefined);
+  },
+
+  claimContract: (contractId) => {
+    const { server } = get();
+    const result = claimContractReward(server, contractId);
+    commit(set, result.server, undefined, result.notification ? {
+      id: result.notification.id,
+      type: result.notification.type,
+      title: result.notification.title,
+      text: result.notification.text,
+      lines: result.notification.lines,
+    } : undefined);
   },
 
   acceptQuest: (questId) => {

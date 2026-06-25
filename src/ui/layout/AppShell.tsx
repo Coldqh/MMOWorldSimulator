@@ -12,6 +12,7 @@ import { ServerScreen } from '../screens/ServerScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { NewsScreen } from '../screens/NewsScreen';
 import { QuestScreen } from '../screens/QuestScreen';
+import { ContractsScreen } from '../screens/ContractsScreen';
 import { PartyFinderScreen } from '../screens/PartyFinderScreen';
 import { PartyLobbyScreen } from '../screens/PartyLobbyScreen';
 import { StartScreen } from '../screens/StartScreen';
@@ -37,6 +38,7 @@ const screens: Record<ScreenId, ReactNode> = {
   library: <LibraryScreen />,
   news: <NewsScreen />,
   quests: <QuestScreen />,
+  contracts: <ContractsScreen />,
 };
 
 const bottomNav: Array<{ id: ScreenId; label: string }> = [

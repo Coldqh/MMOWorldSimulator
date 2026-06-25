@@ -315,6 +315,58 @@ export interface PartyFinderListing {
   log?: string[];
 }
 
+export type ContractCategory = "daily" | "weekly";
+
+export type ContractStatus =
+  | "available"
+  | "active"
+  | "readyToClaim"
+  | "claimed"
+  | "expired"
+  | "cancelled";
+
+export type ContractObjectiveType =
+  | "kill_mobs"
+  | "kill_specific_mob"
+  | "complete_dungeon"
+  | "play_arena"
+  | "win_arena";
+
+export interface ContractObjective {
+  type: ContractObjectiveType;
+  targetId?: Id;
+  targetIds?: Id[];
+  levelMin?: number;
+  levelMax?: number;
+  required: number;
+  current: number;
+}
+
+export interface ContractReward {
+  xp: number;
+  gold: number;
+  items?: Array<{ itemId: Id; amount: number }>;
+}
+
+export interface ContractDefinition {
+  id: Id;
+  category: ContractCategory;
+  title: string;
+  objective: ContractObjective;
+  reward: ContractReward;
+  status: ContractStatus;
+  generatedDay: number;
+  generatedMinute: number;
+  expiresDay: number;
+  expiresMinute: number;
+  acceptedDay?: number;
+  acceptedMinute?: number;
+  completedDay?: number;
+  completedMinute?: number;
+  claimedDay?: number;
+  claimedMinute?: number;
+}
+
 export type WorldNpcType = "quest_giver";
 
 export interface QuestGiverDefinition {
@@ -542,6 +594,7 @@ export interface ServerState {
   currentPartyListingId?: Id;
   collectionProgress?: CollectionProgress;
   questStates: Record<Id, QuestState>;
+  contracts: ContractDefinition[];
 }
 
 export interface Combatant {
@@ -613,6 +666,7 @@ export type ScreenId =
   | "raid"
   | "partyFinder"
   | "quests"
+  | "contracts"
   | "settings"
   | "library"
   | "news";

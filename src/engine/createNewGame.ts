@@ -519,6 +519,7 @@ export const createNewGame = (
     metaTag: 'fresh_start',
     serverChronicle: [],
     questStates: {},
+    contracts: [],
     collectionProgress: {
       obtainedItemIds: Array.from(new Set([
         ...Object.values(createStarterPlayer(playerName || 'Newbie', raceId, classId, seed).equipment).filter(Boolean).map((entry: any) => entry.itemId),
