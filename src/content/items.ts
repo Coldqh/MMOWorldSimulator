@@ -8,9 +8,11 @@ import { createMobCardsForMobs } from './mobCards';
 import { BASE_MOBS, BASE_SPOTS } from './worldBase';
 import { EXTRA_MOBS, EXTRA_MOB_PATCHES, EXTRA_SPOTS, EXTRA_SPOT_PATCHES } from './worldExtraContent';
 import { finalizeWorldMobs, finalizeWorldSpots } from './worldFinalize';
+import { REBALANCE_MOBS, REMOVED_MOB_IDS } from './worldRebalance';
 
 const ITEM_WORLD_SPOTS = finalizeWorldSpots([...BASE_SPOTS, ...EXTRA_SPOTS], EXTRA_SPOT_PATCHES);
-const ITEM_WORLD_MOBS = finalizeWorldMobs([...BASE_MOBS, ...EXTRA_MOBS], ITEM_WORLD_SPOTS, EXTRA_MOB_PATCHES);
+const ITEM_WORLD_MOBS = finalizeWorldMobs([...BASE_MOBS, ...EXTRA_MOBS, ...REBALANCE_MOBS], ITEM_WORLD_SPOTS, EXTRA_MOB_PATCHES)
+  .filter((mob) => !REMOVED_MOB_IDS.has(mob.id));
 
 export const ITEMS: ItemDefinition[] = finalizeItems([
   ...BASE_ITEMS,

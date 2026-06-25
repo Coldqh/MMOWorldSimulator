@@ -58,8 +58,8 @@ export const GENERAL_SET_DEFINITIONS: GeneratedSetDefinition[] = [
   { id: 'common_20', prefix: 'set_common', familyName: 'Последнего Подъёма', level: 20, rarity: 'common', sourceType: 'general', ...generalSource, shape: 'full_class_28' },
 
   { id: 'uncommon_3', prefix: 'set_uncommon', familyName: 'Лесной Стражи', level: 3, rarity: 'uncommon', sourceType: 'general', ...generalSource, shape: 'full_class_28' },
-  { id: 'uncommon_8', prefix: 'set_uncommon', familyName: 'Карьерного Дозора', level: 8, rarity: 'uncommon', sourceType: 'general', ...generalSource, shape: 'full_class_28' },
-  { id: 'uncommon_13', prefix: 'set_uncommon', familyName: 'Небесного Перевала', level: 13, rarity: 'uncommon', sourceType: 'general', ...generalSource, shape: 'full_class_28' },
+  { id: 'uncommon_8', prefix: 'set_uncommon', familyName: 'Красных Холмов', level: 8, rarity: 'uncommon', sourceType: 'general', ...generalSource, shape: 'full_class_28' },
+  { id: 'uncommon_13', prefix: 'set_uncommon', familyName: 'Лунного Леса', level: 13, rarity: 'uncommon', sourceType: 'general', ...generalSource, shape: 'full_class_28' },
   { id: 'uncommon_18', prefix: 'set_uncommon', familyName: 'Ледяного Хребта', level: 18, rarity: 'uncommon', sourceType: 'general', ...generalSource, shape: 'full_class_28' },
 
   { id: 'rare_5', prefix: 'set_rare', familyName: 'Красного Колпака', level: 5, rarity: 'rare', sourceType: 'general', ...generalSource, shape: 'full_class_28' },
@@ -70,8 +70,7 @@ export const GENERAL_SET_DEFINITIONS: GeneratedSetDefinition[] = [
 
 export const DUNGEON_SET_DEFINITIONS: GeneratedSetDefinition[] = [
   { id: 'dungeon_old_lantern', prefix: 'old_lantern', familyName: 'Старого Фонаря', level: 6, rarity: 'epic', sourceType: 'dungeon', sourceId: 'old_lantern_cellar', sourceName: 'Подвал Старого Фонаря', shape: 'full_class_28' },
-  { id: 'dungeon_thorn_crypt', prefix: 'thorn_crypt', familyName: 'Терновой Короны', level: 8, rarity: 'epic', sourceType: 'dungeon', sourceId: 'thorn_crown_crypt', sourceName: 'Склеп Терновой Короны', shape: 'full_class_28' },
-  { id: 'dungeon_blackroot', prefix: 'blackroot', familyName: 'Чёрного Корня', level: 11, rarity: 'epic', sourceType: 'dungeon', sourceId: 'blackroot_watch', sourceName: 'Дозор Чёрного Корня', shape: 'full_class_28' },
+  { id: 'dungeon_blackroot', prefix: 'blackroot', familyName: 'Чёрного Короля', level: 11, rarity: 'epic', sourceType: 'dungeon', sourceId: 'blackroot_watch', sourceName: 'Дозор Чёрного Короля', shape: 'full_class_28' },
   { id: 'dungeon_mire_depths', prefix: 'mire_depths', familyName: 'Глубокой Топи', level: 14, rarity: 'epic', sourceType: 'dungeon', sourceId: 'mire_depths', sourceName: 'Глубины Топи', shape: 'full_class_28' },
   { id: 'dungeon_frost_vault', prefix: 'frost_vault', familyName: 'Ледяного Хранилища', level: 18, rarity: 'epic', sourceType: 'dungeon', sourceId: 'frost_vault', sourceName: 'Ледяное Хранилище', shape: 'full_class_28' },
   { id: 'dungeon_glass_catacomb', prefix: 'glass_catacomb', familyName: 'Стеклянных Катакомб', level: 20, rarity: 'epic', sourceType: 'dungeon', sourceId: 'glass_catacomb', sourceName: 'Стеклянные Катакомбы', shape: 'glass_20' },

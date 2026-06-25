@@ -86,6 +86,14 @@ const availableZonesForPlayer = (level: number) =>
     .filter((zone) => level >= zone.levelRange[0])
     .sort((a, b) => b.levelRange[0] - a.levelRange[0] || b.levelRange[1] - a.levelRange[1] || a.name.localeCompare(b.name));
 
+const spotLevelText = (mobIds: string[]) => {
+  const levels = mobIds.map((mobId) => getMobById(mobId)?.level).filter((level): level is number => typeof level === 'number');
+  if (levels.length === 0) return 'Lv. ?';
+  const min = Math.min(...levels);
+  const max = Math.max(...levels);
+  return min === max ? `Lv. ${min}` : `Lv. ${min}–${max}`;
+};
+
 export const WorldScreen = () => {
   const server = useGameStore((state) => state.server);
   const combat = useGameStore((state) => state.combat);
@@ -122,7 +130,7 @@ export const WorldScreen = () => {
     : server.location.mode === 'spot' && currentSpot && currentZone
       ? `${currentZone.name} · Lv. ${currentSpot.levelRange[0]}–${currentSpot.levelRange[1]} · риск ${currentSpot.risk}`
       : currentZone
-        ? currentZone.description
+        ? `Lv. ${currentZone.levelRange[0]}–${currentZone.levelRange[1]}`
         : '';
 
   const openScreen = (screen: ScreenId) => setScreen(screen);
@@ -196,7 +204,7 @@ export const WorldScreen = () => {
                 return (
                   <button key={spot.id} className="content-card" onClick={() => enterSpot(spot.id)} disabled={Boolean(combat)}>
                     <strong>{spot.name}</strong>
-                    <span>Lv. {spot.levelRange[0]}–{spot.levelRange[1]}</span>
+                    <span>{spotLevelText(spot.mobIds)}</span>
                     <span>{spot.timeCostMinutes} мин · риск {spot.risk}</span>
                   </button>
                 );
@@ -292,7 +300,7 @@ export const WorldScreen = () => {
                 >
                   <strong>{zone.name}</strong>
                   <span>Lv. {zone.levelRange[0]}–{zone.levelRange[1]}</span>
-                  <span>{zone.description}</span>
+                  {zone.description && <span>{zone.description}</span>}
                 </button>
               ))}
             </div>

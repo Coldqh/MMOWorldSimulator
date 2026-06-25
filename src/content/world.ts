@@ -20,10 +20,11 @@ import {
   EXTRA_ZONES,
 } from './worldExtraContent';
 import { finalizeWorldContent } from './worldFinalize';
+import { REBALANCE_MOBS, rebalanceWorldContent } from './worldRebalance';
 
-const WORLD = finalizeWorldContent({
+const WORLD = rebalanceWorldContent(finalizeWorldContent({
   lootTables: [...BASE_LOOT_TABLES, ...EXTRA_LOOT_TABLES],
-  mobs: [...BASE_MOBS, ...EXTRA_MOBS],
+  mobs: [...BASE_MOBS, ...EXTRA_MOBS, ...REBALANCE_MOBS],
   spots: [...BASE_SPOTS, ...EXTRA_SPOTS],
   zones: [...BASE_ZONES, ...EXTRA_ZONES],
   dungeons: [...BASE_DUNGEONS, ...EXTRA_DUNGEONS],
@@ -32,7 +33,7 @@ const WORLD = finalizeWorldContent({
   spotPatches: EXTRA_SPOT_PATCHES,
   dungeonPatches: EXTRA_DUNGEON_PATCHES,
   mobPatches: EXTRA_MOB_PATCHES,
-});
+}));
 
 export { CITY_ID, CITY_NAME };
 export const LOOT_TABLES = WORLD.lootTables;

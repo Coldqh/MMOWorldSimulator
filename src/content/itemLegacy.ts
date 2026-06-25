@@ -23,6 +23,9 @@ export const normalizeLegacyItemId = (id: string): string => {
     return `glass_catacomb_${glassDuplicate[1]}_${slotMap[glassDuplicate[2]] ?? glassDuplicate[2]}`;
   }
 
+  const thornCrypt = id.match(/^thorn_crypt_(warrior|ranger|mage|priest)_(weapon|head|chest|legs|boots|ring|amulet)$/);
+  if (thornCrypt) return `old_lantern_${thornCrypt[1]}_${thornCrypt[2]}`;
+
   const glassTrimmed = id.match(/^glass_catacomb_(warrior|ranger|mage|priest)_(head|boots)$/);
   if (glassTrimmed) return `glass_catacomb_${glassTrimmed[1]}_${glassTrimmed[2] === 'head' ? 'chest' : 'legs'}`;
 
@@ -45,6 +48,7 @@ export const normalizeLegacyItemId = (id: string): string => {
 
 export const normalizeLegacySetId = (setId?: string) => {
   if (!setId) return setId;
+  if (setId === 'dungeon_thorn_crypt') return 'dungeon_old_lantern';
   if (setId === 'dungeon_glass_catacomb_epic') return 'dungeon_glass_catacomb';
   if (/^epic_(warrior|ranger|mage|priest)_/.test(setId)) return setId.replace(/^epic_/, 'rare_');
   return setId;

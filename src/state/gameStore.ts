@@ -240,6 +240,7 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
     currentPartyListingId: needsMigration ? undefined : server.currentPartyListingId,
     collectionProgress: server.collectionProgress ?? { obtainedItemIds: [], defeatedMobIds: [] },
     questStates: server.questStates ?? {},
+    location: server.location.mode !== 'city' && ['iron_quarry', 'skyfall_pass'].includes(server.location.zoneId ?? '') ? { mode: 'city' } : server.location,
   };
   const baseWithProgress = addCollectionProgress(baseServer);
 
