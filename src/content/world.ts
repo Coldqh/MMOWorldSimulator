@@ -1,4 +1,4 @@
-import type { DungeonDefinition, LootTable, MobDefinition, SpotDefinition, ZoneDefinition, Rarity } from '../types/game';
+import type { DungeonDefinition, ItemDefinition, LootTable, MobDefinition, SpotDefinition, ZoneDefinition, Rarity } from '../types/game';
 import { ITEMS, getItemById, rarityScore } from './items';
 
 export const CITY_ID = 'starting_city';
@@ -568,12 +568,45 @@ MOBS.forEach((mob) => {
   const cardId = `card_${mob.id}`;
   const rarity = canonicalCardRarityForMob(mob);
   const stats = canonicalCardStatsForMob(mob) as any;
-  let card = ITEMS.find((item) => item.id === cardId);
+  let card = ITEMS.find((item) => item.id === cardId) as ItemDefinition | undefined;
+
   if (!card) {
-    card = { id: cardId, name: `Карта: ${mob.name}`, type: 'card', rarity, levelReq: mob.level, classTags: [], stats, effects: [], socketSlots: 0, tradeable: true, price: 1, announceIfDropped: true } as any;
-    ITEMS.push(card as any);
+    card = {
+      id: cardId,
+      name: `Карта: ${mob.name}`,
+      type: 'card',
+      rarity,
+      levelReq: mob.level,
+      classTags: [],
+      stats,
+      effects: [],
+      socketSlots: 0,
+      tradeable: true,
+      price: 1,
+      announceIfDropped: true,
+      sourceType: mob.tags.includes('boss') ? 'dungeon' : 'world',
+      sourceId: mob.id,
+      sourceName: mob.name,
+    } as ItemDefinition;
+    ITEMS.push(card);
   }
-  Object.assign(card, { name: `Карта: ${mob.name}`, rarity, levelReq: mob.level, stats, type: 'card', classTags: [], socketSlots: 0, tradeable: true, announceIfDropped: true, sourceType: mob.tags.includes('boss') ? 'dungeon' : 'world', sourceId: mob.id, sourceName: mob.name });
+
+  const finalCard: ItemDefinition = card;
+  Object.assign(finalCard, {
+    name: `Карта: ${mob.name}`,
+    rarity,
+    levelReq: mob.level,
+    stats,
+    type: 'card',
+    classTags: [],
+    socketSlots: 0,
+    tradeable: true,
+    announceIfDropped: true,
+    sourceType: mob.tags.includes('boss') ? 'dungeon' : 'world',
+    sourceId: mob.id,
+    sourceName: mob.name,
+  });
+
   const table = ensureLootTable(mob.lootTableId);
   const existing = table.entries.find((entry) => entry.itemId === cardId);
   if (existing) existing.chance = canonicalCardDropChanceForMob(mob);
