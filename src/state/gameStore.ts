@@ -151,7 +151,7 @@ interface GameStore {
   claimContract: (contractId: string) => void;
 }
 
-const collectOwnedItemIdsconst collectOwnedItemIds = (server: ServerState): string[] => {
+const collectOwnedItemIds = (server: ServerState): string[] => {
   const ids = new Set<string>();
   Object.values(server.player?.equipment ?? {}).forEach((instance: any) => { if (instance?.itemId) ids.add(normalizeLegacyItemId(instance.itemId)); });
   (server.player?.inventory ?? []).forEach((entry) => ids.add(normalizeLegacyItemId(entry.itemId)));
@@ -375,7 +375,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (combat || !server.characterCreated) return;
     const next: ServerState = {
       ...server,
+      location: { mode: "city" },
       currentDungeonRun: undefined,
+      currentPartyListingId: undefined,
     };
     commit(set, next, null);
     set({ activeScreen: "world" });

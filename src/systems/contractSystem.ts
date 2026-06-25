@@ -156,20 +156,32 @@ const makeArenaContract = (server: ServerState, rng: Rng, category: 'daily' | 'w
   };
 };
 
-export const generateDailyContracts = (server: ServerState, rng: Rng): ContractDefinition[] => [
-  makeKillContract(server, rng, 'daily', 1),
-  makeDungeonContract(server, rng, 'daily', 2),
-  makeArenaContract(server, rng, 'daily', 3),
-];
+const buildContracts = (
+  server: ServerState,
+  rng: Rng,
+  category: 'daily' | 'weekly',
+  count = 3,
+  startSlot = 1,
+): ContractDefinition[] => {
+  const makers = [makeKillContract, makeDungeonContract, makeArenaContract];
+  return Array.from({ length: count }, (_entry, index) => {
+    const slot = startSlot + index;
+    const maker = makers[(slot - 1) % makers.length] ?? makeKillContract;
+    return maker(server, rng, category, slot);
+  });
+};
 
-export const generateWeeklyContracts = (server: ServerState, rng: Rng): ContractDefinition[] => [
-  makeKillContract(server, rng, 'weekly', 1),
-  makeDungeonContract(server, rng, 'weekly', 2),
-  makeArenaContract(server, rng, 'weekly', 3),
-];
+export const generateDailyContracts = (server: ServerState, rng: Rng, count = 3, startSlot = 1): ContractDefinition[] =>
+  buildContracts(server, rng, 'daily', count, startSlot);
+
+export const generateWeeklyContracts = (server: ServerState, rng: Rng, count = 3, startSlot = 1): ContractDefinition[] =>
+  buildContracts(server, rng, 'weekly', count, startSlot);
 
 const liveCount = (contracts: ContractDefinition[], category: 'daily' | 'weekly') =>
   contracts.filter((contract) => contract.category === category && activeStatuses.includes(contract.status)).length;
+
+const nextSlotFor = (contracts: ContractDefinition[], category: 'daily' | 'weekly') =>
+  contracts.filter((contract) => contract.category === category).length + 1;
 
 export const isContractComplete = (contract: ContractDefinition) =>
   contract.objective.current >= contract.objective.required;
@@ -202,17 +214,19 @@ export const refreshContracts = (server: ServerState, rng: Rng = createRng(serve
     return contract;
   });
 
-  if (liveCount(contracts, 'daily') < 3) {
+  const dailyLive = liveCount(contracts, 'daily');
+  if (dailyLive < 3) {
     contracts = [
       ...contracts.filter((contract) => !(contract.category === 'daily' && !activeStatuses.includes(contract.status))),
-      ...generateDailyContracts({ ...server, contracts }, rng),
+      ...generateDailyContracts({ ...server, contracts }, rng, 3 - dailyLive, nextSlotFor(contracts, 'daily')),
     ];
   }
 
-  if (liveCount(contracts, 'weekly') < 3) {
+  const weeklyLive = liveCount(contracts, 'weekly');
+  if (weeklyLive < 3) {
     contracts = [
       ...contracts.filter((contract) => !(contract.category === 'weekly' && !activeStatuses.includes(contract.status))),
-      ...generateWeeklyContracts({ ...server, contracts }, rng),
+      ...generateWeeklyContracts({ ...server, contracts }, rng, 3 - weeklyLive, nextSlotFor(contracts, 'weekly')),
     ];
   }
 
