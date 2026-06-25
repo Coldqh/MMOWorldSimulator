@@ -7,6 +7,7 @@ import {
   loadGame,
   saveGame,
   flushSaveGame,
+  backupRescueSave,
 } from "../engine/saveLoad";
 import { DUNGEONS, LOOT_TABLES, MOBS, RAIDS, SPOTS, ZONES, getDungeonById, getSpotById, getZoneById } from "../content/world";
 import { getClassById } from "../content/classes";
@@ -258,10 +259,18 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
   return updateRankings(partyReady);
 };
 
+const safeNormalizeServer = (server: ServerState | null | undefined, mode: "full" | "light" = "full"): ServerState => {
+  try {
+    return normalizeServer(server ?? createEmptyServer(), mode);
+  } catch (error) {
+    console.error("[MMOWS] save normalize failed", error);
+    backupRescueSave(server, "normalize_failed");
+    return createEmptyServer(Date.now());
+  }
+};
+
 const savedServer = loadGame();
-const initialServer = savedServer
-  ? normalizeServer(savedServer)
-  : createEmptyServer();
+const initialServer = safeNormalizeServer(savedServer ?? createEmptyServer());
 
 const commit = (
   set: (partial: Partial<GameStore>) => void,
@@ -269,7 +278,7 @@ const commit = (
   combat?: CombatState | null,
   modal?: GameModal | null,
 ) => {
-  let normalized = normalizeQuestStates(normalizeServer(server, "light"));
+  let normalized = normalizeQuestStates(safeNormalizeServer(server, "light"));
   let nextModal = modal;
 
   if (nextModal === undefined && normalized.notifications.length > 0) {
