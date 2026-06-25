@@ -43,7 +43,6 @@ const bottomNav: Array<{ id: ScreenId; label: string }> = [
   { id: 'character', label: '🧍 Герой' },
   { id: 'world', label: '🌍 Мир' },
   { id: 'quests', label: '📜 Квесты' },
-  { id: 'guild', label: '🏰 Гильдия' },
 ];
 
 const sideNav: Array<{ id: ScreenId; label: string; cityOnly?: boolean }> = [
@@ -62,6 +61,8 @@ const sideNav: Array<{ id: ScreenId; label: string; cityOnly?: boolean }> = [
   { id: 'enhance', label: '🔨 Заточка', cityOnly: true },
   { id: 'settings', label: '⚙️ Настройки' },
 ];
+
+const cityOnlyScreens = new Set<ScreenId>(['market', 'arena', 'enhance']);
 
 const OnlineStatus = () => {
   const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
@@ -87,6 +88,7 @@ export const AppShell = () => {
   const closeSidebar = useGameStore((state) => state.closeSidebar);
   const dungeonOpen = Boolean(server.currentDungeonRun);
   const partyLobbyOpen = Boolean(server.currentPartyListingId);
+  const visibleScreen: ScreenId = server.location.mode !== 'city' && cityOnlyScreens.has(activeScreen) ? 'world' : activeScreen;
 
   if (!server.characterCreated) {
     return (
@@ -98,7 +100,7 @@ export const AppShell = () => {
     );
   }
 
-  const dungeonInnerScreen = activeScreen === 'character' ? <CharacterScreen /> : <DungeonScreen />;
+  const dungeonInnerScreen = visibleScreen === 'character' ? <CharacterScreen /> : <DungeonScreen />;
 
   return (
     <main className="app-shell fantasy-shell">
@@ -124,7 +126,7 @@ export const AppShell = () => {
           {sideNav.map((entry) => {
             const locked = entry.cityOnly && server.location.mode !== 'city';
             return (
-              <button key={entry.id} className={activeScreen === entry.id ? 'active' : ''} onClick={() => setScreen(entry.id)} disabled={locked || dungeonOpen || partyLobbyOpen}>
+              <button key={entry.id} className={visibleScreen === entry.id ? 'active' : ''} onClick={() => setScreen(entry.id)} disabled={locked || dungeonOpen || partyLobbyOpen}>
                 <span>{entry.label}</span>
                 {locked && <small>город</small>}
                 {dungeonOpen && entry.id !== 'guild' && <small>данж</small>}{partyLobbyOpen && <small>пати</small>}
@@ -134,7 +136,7 @@ export const AppShell = () => {
         </div>
       </aside>
 
-      <section className="screen-frame">{screens[activeScreen] ?? screens.world}</section>
+      <section className="screen-frame">{screens[visibleScreen] ?? screens.world}</section>
 
       {dungeonOpen && (
         <div className="dungeon-fullscreen">
@@ -144,8 +146,8 @@ export const AppShell = () => {
               <strong>Экземпляр активен</strong>
             </div>
             <div className="mini-tabs">
-              <button className={activeScreen !== 'character' ? 'active' : ''} onClick={() => setScreen('dungeon')}>Данж</button>
-              <button className={activeScreen === 'character' ? 'active' : ''} onClick={() => setScreen('character')}>Профиль</button>
+              <button className={visibleScreen !== 'character' ? 'active' : ''} onClick={() => setScreen('dungeon')}>Данж</button>
+              <button className={visibleScreen === 'character' ? 'active' : ''} onClick={() => setScreen('character')}>Профиль</button>
             </div>
           </div>
           <div className="dungeon-overlay-body">{dungeonInnerScreen}</div>
