@@ -190,9 +190,12 @@ export const startSpotCombat = (server: ServerState, spotId: string, rng: Rng, f
   if (!enemy) return null;
   enemy.maxHp = Math.max(1, Math.round(enemy.maxHp * 1.875));
   enemy.hp = enemy.maxHp;
-  // spot damage v0.5.12: open-world spot mobs were overtuned after global stat scaling.
-  enemy.attack = Math.max(1, Math.round(enemy.attack / 5));
-  enemy.magic = Math.max(0, Math.round(enemy.magic / 5));
+  // v0.6.12: spot mobs keep reduced burst, but get enough penetration to hurt geared players.
+  const playerDefense = getPlayerStats(server.player).defense;
+  const minPenetratingAttack = Math.max(enemy.attack, Math.ceil(playerDefense * 0.7) + enemy.level * 2);
+  const minPenetratingMagic = Math.max(enemy.magic, Math.ceil(playerDefense * 0.45) + enemy.level);
+  enemy.attack = Math.max(3, Math.round(minPenetratingAttack * 0.72));
+  enemy.magic = Math.max(2, Math.round(minPenetratingMagic * 0.72));
 
   return {
     id: uid('combat', rng),
