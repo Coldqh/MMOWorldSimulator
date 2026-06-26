@@ -26,14 +26,20 @@ const renderBootError = (error: unknown) => {
 const boot = async () => {
   try {
     prepareRuntimeResetBeforeAppImport();
+
     const { App } = await import('./app/App');
+
     ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
       <React.StrictMode>
         <App />
       </React.StrictMode>,
     );
+
     if (import.meta.env.DEV) console.log('[MMOWS] app mounted');
-    window.setTimeout(() => { void runDeferredRuntimeCleanup(); }, 0);
+
+    window.setTimeout(() => {
+      void runDeferredRuntimeCleanup();
+    }, 0);
   } catch (error) {
     console.error('[MMOWS] boot failed', error);
     renderBootError(error);

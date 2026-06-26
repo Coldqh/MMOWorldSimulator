@@ -2,11 +2,18 @@
   "name": "MMO World Simulator",
   "short_name": "MMOWS",
   "description": "Offline MMO world simulator.",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#111827",
   "theme_color": "#111827",
-  "icons": [{ "src": "./mmows-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+  "icons": [
+    {
+      "src": "./mmows-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
 }
