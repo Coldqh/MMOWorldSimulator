@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { formatTime } from '../../engine/time';
+import { getGameDayOfWeekName } from '../../systems/contractSystem';
 import { useGameStore } from '../../state/gameStore';
 import type { ScreenId } from '../../types/game';
 import { ArenaScreen } from '../screens/ArenaScreen';
@@ -112,7 +113,7 @@ export const AppShell = () => {
         <button className="menu-button" onClick={toggleSidebar}>☰</button>
         <div className="topbar-center">
           <div className="app-title">MMO World Simulator</div>
-          <div className="muted">День {server.serverDay} · {formatTime(server.currentMinute)}</div>
+          <div className="muted">День {server.serverDay} · {getGameDayOfWeekName(server.serverDay)} · {formatTime(server.currentMinute)}</div>
         </div>
         <div className="topbar-player">
           <strong>{server.player.name}</strong>

@@ -5,7 +5,7 @@ import { addPlayerXp } from './progressionSystem';
 
 const WEEKDAYS = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
 
-const activeStatuses: ContractStatus[] = ['available', 'active', 'readyToClaim'];
+const visibleStatuses: ContractStatus[] = ['available', 'active', 'readyToClaim'];
 
 const timeReached = (server: ServerState, day: number, minute: number) =>
   server.serverDay > day || (server.serverDay === day && server.currentMinute >= minute);
@@ -23,10 +23,9 @@ export const getNextDailyReset = (server: ServerState) => ({
 
 export const getNextWeeklyReset = (server: ServerState) => {
   const dayIndex = getGameDayOfWeekIndex(server.serverDay);
-  const isSunday = dayIndex === 6;
-  const daysUntilSunday = isSunday ? 7 : 6 - dayIndex;
+  const daysUntilNextSunday = dayIndex === 6 ? 7 : 6 - dayIndex;
   return {
-    day: server.serverDay + daysUntilSunday,
+    day: server.serverDay + daysUntilNextSunday,
     minute: 0,
   };
 };
@@ -160,82 +159,49 @@ const buildContracts = (
   server: ServerState,
   rng: Rng,
   category: 'daily' | 'weekly',
-  count = 3,
-  startSlot = 1,
 ): ContractDefinition[] => {
   const makers = [makeKillContract, makeDungeonContract, makeArenaContract];
-  return Array.from({ length: count }, (_entry, index) => {
-    const slot = startSlot + index;
-    const maker = makers[(slot - 1) % makers.length] ?? makeKillContract;
-    return maker(server, rng, category, slot);
-  });
+  return makers.map((maker, index) => maker(server, rng, category, index + 1));
 };
 
-export const generateDailyContracts = (server: ServerState, rng: Rng, count = 3, startSlot = 1): ContractDefinition[] =>
-  buildContracts(server, rng, 'daily', count, startSlot);
+export const generateDailyContracts = (server: ServerState, rng: Rng): ContractDefinition[] =>
+  buildContracts(server, rng, 'daily');
 
-export const generateWeeklyContracts = (server: ServerState, rng: Rng, count = 3, startSlot = 1): ContractDefinition[] =>
-  buildContracts(server, rng, 'weekly', count, startSlot);
+export const generateWeeklyContracts = (server: ServerState, rng: Rng): ContractDefinition[] =>
+  buildContracts(server, rng, 'weekly');
 
-const liveCount = (contracts: ContractDefinition[], category: 'daily' | 'weekly') =>
-  contracts.filter((contract) => contract.category === category && activeStatuses.includes(contract.status)).length;
+const categoryContracts = (contracts: ContractDefinition[], category: 'daily' | 'weekly') =>
+  contracts.filter((contract) => contract.category === category);
 
-const nextSlotFor = (contracts: ContractDefinition[], category: 'daily' | 'weekly') =>
-  contracts.filter((contract) => contract.category === category).length + 1;
+const categoryNeedsFullReset = (server: ServerState, contracts: ContractDefinition[], category: 'daily' | 'weekly') => {
+  const list = categoryContracts(contracts, category);
+  if (list.length === 0) return true;
+  return list.every((contract) => timeReached(server, contract.expiresDay, contract.expiresMinute));
+};
 
 export const isContractComplete = (contract: ContractDefinition) =>
   contract.objective.current >= contract.objective.required;
 
-const markReadyIfComplete = (server: ServerState, contract: ContractDefinition): { contract: ContractDefinition; notification?: ServerNotification } => {
-  if (contract.status !== 'active' || !isContractComplete(contract)) return { contract };
-  const ready: ContractDefinition = {
-    ...contract,
-    status: 'readyToClaim',
-    completedDay: server.serverDay,
-    completedMinute: server.currentMinute,
-  };
-  return {
-    contract: ready,
-    notification: {
-      id: `contract_ready_${contract.id}_${server.serverDay}_${server.currentMinute}`,
-      type: 'reward',
-      title: 'Контракт выполнен',
-      text: contract.title,
-      lines: [getContractGoalText(contract), 'Забери награду во вкладке Контракты.'],
-    },
-  };
-};
-
 export const refreshContracts = (server: ServerState, rng: Rng = createRng(server.seed + server.serverDay * 8800 + server.currentMinute)): ServerState => {
-  let contracts = [...(server.contracts ?? [])].map((contract) => {
-    if (activeStatuses.includes(contract.status) && timeReached(server, contract.expiresDay, contract.expiresMinute)) {
-      return { ...contract, status: 'expired' as const };
-    }
-    return contract;
-  });
+  let contracts = [...(server.contracts ?? [])];
 
-  const dailyLive = liveCount(contracts, 'daily');
-  if (dailyLive < 3) {
+  if (categoryNeedsFullReset(server, contracts, 'daily')) {
     contracts = [
-      ...contracts.filter((contract) => !(contract.category === 'daily' && !activeStatuses.includes(contract.status))),
-      ...generateDailyContracts({ ...server, contracts }, rng, 3 - dailyLive, nextSlotFor(contracts, 'daily')),
+      ...contracts.filter((contract) => contract.category !== 'daily'),
+      ...generateDailyContracts({ ...server, contracts }, rng),
     ];
   }
 
-  const weeklyLive = liveCount(contracts, 'weekly');
-  if (weeklyLive < 3) {
+  if (categoryNeedsFullReset(server, contracts, 'weekly')) {
     contracts = [
-      ...contracts.filter((contract) => !(contract.category === 'weekly' && !activeStatuses.includes(contract.status))),
-      ...generateWeeklyContracts({ ...server, contracts }, rng, 3 - weeklyLive, nextSlotFor(contracts, 'weekly')),
+      ...contracts.filter((contract) => contract.category !== 'weekly'),
+      ...generateWeeklyContracts({ ...server, contracts }, rng),
     ];
   }
-
-  const unique = new Map<string, ContractDefinition>();
-  contracts.forEach((contract) => unique.set(contract.id, contract));
 
   return {
     ...server,
-    contracts: [...unique.values()],
+    contracts,
   };
 };
 
@@ -248,14 +214,14 @@ export const acceptContract = (server: ServerState, contractId: Id): ServerState
   ),
 });
 
-export const cancelContract = (server: ServerState, contractId: Id): ServerState => {
-  const cancelled = (server.contracts ?? []).map((contract) =>
-    contract.id === contractId && (contract.status === 'available' || contract.status === 'active')
+export const cancelContract = (server: ServerState, contractId: Id): ServerState => ({
+  ...server,
+  contracts: (server.contracts ?? []).map((contract) =>
+    contract.id === contractId && (contract.status === 'available' || contract.status === 'active' || contract.status === 'readyToClaim')
       ? { ...contract, status: 'cancelled' as const }
       : contract,
-  );
-  return refreshContracts({ ...server, contracts: cancelled }, createRng(server.seed + server.serverDay * 8911 + server.currentMinute));
-};
+  ),
+});
 
 export const claimContractReward = (server: ServerState, contractId: Id): { server: ServerState; notification: ServerNotification | null } => {
   const contract = (server.contracts ?? []).find((entry) => entry.id === contractId);
@@ -264,26 +230,48 @@ export const claimContractReward = (server: ServerState, contractId: Id): { serv
   let player = addPlayerXp(server.player, contract.reward.xp);
   player = { ...player, gold: player.gold + contract.reward.gold };
 
-  const next: ServerState = refreshContracts({
-    ...server,
-    player,
-    contracts: (server.contracts ?? []).map((entry) =>
-      entry.id === contract.id
-        ? { ...entry, status: 'claimed', claimedDay: server.serverDay, claimedMinute: server.currentMinute }
-        : entry,
-    ),
-  }, createRng(server.seed + server.serverDay * 8922 + server.currentMinute));
-
   return {
-    server: next,
+    server: {
+      ...server,
+      player,
+      contracts: (server.contracts ?? []).map((entry) =>
+        entry.id === contract.id
+          ? { ...entry, status: 'claimed', claimedDay: server.serverDay, claimedMinute: server.currentMinute }
+          : entry,
+      ),
+    },
     notification: {
       id: `contract_claim_${contract.id}_${server.serverDay}_${server.currentMinute}`,
       type: 'reward',
-      title: 'Награда получена',
+      title: 'Контракт выполнен',
       text: contract.title,
-      lines: [`XP +${contract.reward.xp}`, `Gold +${contract.reward.gold}`],
+      lines: [getContractGoalText(contract), `XP +${contract.reward.xp}`, `Gold +${contract.reward.gold}`],
     },
   };
+};
+
+const completeContract = (server: ServerState, contract: ContractDefinition) => {
+  let player = addPlayerXp(server.player, contract.reward.xp);
+  player = { ...player, gold: player.gold + contract.reward.gold };
+
+  const completed: ContractDefinition = {
+    ...contract,
+    status: 'claimed',
+    completedDay: server.serverDay,
+    completedMinute: server.currentMinute,
+    claimedDay: server.serverDay,
+    claimedMinute: server.currentMinute,
+  };
+
+  const notification: ServerNotification = {
+    id: `contract_auto_claim_${contract.id}_${server.serverDay}_${server.currentMinute}`,
+    type: 'reward',
+    title: 'Контракт выполнен',
+    text: contract.title,
+    lines: [getContractGoalText(contract), `XP +${contract.reward.xp}`, `Gold +${contract.reward.gold}`],
+  };
+
+  return { player, contract: completed, notification };
 };
 
 const updateContracts = (
@@ -291,15 +279,21 @@ const updateContracts = (
   updater: (objective: ContractObjective) => ContractObjective,
 ): ServerState => {
   const notifications: ServerNotification[] = [];
+  let player = server.player;
+
   const contracts = (server.contracts ?? []).map((contract) => {
     if (contract.status !== 'active') return contract;
     const next = { ...contract, objective: updater(contract.objective) };
-    const ready = markReadyIfComplete(server, next);
-    if (ready.notification) notifications.push(ready.notification);
-    return ready.contract;
+    if (!isContractComplete(next)) return next;
+    const result = completeContract({ ...server, player }, next);
+    player = result.player;
+    notifications.push(result.notification);
+    return result.contract;
   });
+
   return {
     ...server,
+    player,
     contracts,
     notifications: [...(server.notifications ?? []), ...notifications],
   };
@@ -365,3 +359,6 @@ export const getContractGoalText = (contract: ContractDefinition) => {
 
 export const getContractRewardText = (contract: ContractDefinition) =>
   `XP ${contract.reward.xp} · Gold ${contract.reward.gold}`;
+
+export const isContractVisible = (contract: ContractDefinition) =>
+  visibleStatuses.includes(contract.status);

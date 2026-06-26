@@ -1,30 +1,51 @@
-import { getItemById } from '../content/items';
+import { getItemById, rarityScore } from '../content/items';
 import { getLootTableById } from '../content/world';
 import type { Rng } from '../engine/rng';
 import type { ItemDefinition } from '../types/game';
 
+const equipmentDropChance = (item: ItemDefinition, lootTableId: string) => {
+  if (!item.slot) return 0;
+  if (item.rarity === 'common') return 0.4;
+  if (item.rarity === 'uncommon') return 0.2;
+  if (item.rarity === 'rare') return 0.1;
+  if (item.rarity === 'epic') return 0.05;
+  if (item.rarity === 'legendary') return lootTableId.includes('raid') ? 0.01 : 0;
+  return 0;
+};
+
 const baseDropChance = (item: ItemDefinition, lootTableId: string, declaredChance: number) => {
   if (item.type === 'card') return Math.min(declaredChance, 0.000025);
-  if (!item.slot) return declaredChance;
-  if (item.rarity === 'common') return 0.2;
-  if (item.rarity === 'uncommon') return 0.1;
-  if (item.rarity === 'rare') return 0.05;
-  if (item.rarity === 'epic') return 0.01;
-  if (item.rarity === 'legendary') return lootTableId.includes('raid') ? 0.01 : 0;
+  if (item.slot) return equipmentDropChance(item, lootTableId);
   return declaredChance;
+};
+
+const bestEquipmentDrop = (items: ItemDefinition[], rng: Rng) => {
+  const hits = items.filter((item) => rng.chance(equipmentDropChance(item, '')));
+  if (hits.length === 0) return undefined;
+  const bestRarity = Math.max(...hits.map((item) => rarityScore[item.rarity] ?? 0));
+  const best = hits.filter((item) => (rarityScore[item.rarity] ?? 0) === bestRarity);
+  return rng.pick(best);
 };
 
 export const rollLoot = (lootTableId: string, rng: Rng, level = 1): ItemDefinition[] => {
   const table = getLootTableById(lootTableId);
   if (!table) return [];
 
-  return table.entries
+  const eligible = table.entries
     .filter((entry) => (entry.minLevel === undefined || level >= entry.minLevel) && (entry.maxLevel === undefined || level <= entry.maxLevel))
-    .filter((entry) => {
-      const item = getItemById(entry.itemId);
-      if (!item) return false;
-      return rng.chance(baseDropChance(item, lootTableId, entry.chance));
-    })
-    .map((entry) => getItemById(entry.itemId))
-    .filter((item): item is ItemDefinition => Boolean(item));
+    .map((entry) => ({ entry, item: getItemById(entry.itemId) }))
+    .filter((pair): pair is { entry: typeof table.entries[number]; item: ItemDefinition } => Boolean(pair.item));
+
+  const normalDrops = eligible
+    .filter(({ item }) => !item.slot)
+    .filter(({ entry, item }) => rng.chance(baseDropChance(item, lootTableId, entry.chance)))
+    .map(({ item }) => item);
+
+  const equipmentPool = eligible
+    .map(({ item }) => item)
+    .filter((item) => Boolean(item.slot));
+
+  const equipment = bestEquipmentDrop(equipmentPool, rng);
+
+  return equipment ? [...normalDrops, equipment] : normalDrops;
 };

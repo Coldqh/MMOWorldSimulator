@@ -358,8 +358,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   closeSidebar: () => set({ sidebarOpen: false }),
-  closeModal: () => set({ modal: null }),
-
+  closeModal: () => {
+    const { server } = get();
+    if (server.notifications.length > 0) {
+      const [first, ...rest] = server.notifications;
+      const next = { ...server, notifications: rest };
+      saveGame(next);
+      set({ server: next, modal: notificationToModal(first) });
+      return;
+    }
+    set({ modal: null });
+  },
   newGame: (name, raceId, classId) => {
     const cleanName = name.trim().slice(0, 18) || "Newbie";
     const next = createNewGame(cleanName, raceId, classId, Date.now(), true);
@@ -570,19 +579,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({ activeScreen: "world" });
       return;
     }
-    const playerGear = getGearScore(server.player.equipment);
-    const candidates = server.npcs
+
+    const ratingPool = server.npcs
       .filter((npc) => ['PVP_PLAYER', 'HARDCORE', 'GUILD_PLAYER', 'LEADER'].includes(npc.roleFocus))
-      .filter((npc) => server.player.level >= 20 ? npc.level === 20 : Math.abs(npc.level - server.player.level) <= 1)
-      .filter((npc) => Math.abs(npc.arenaRating - server.player.arenaRating) <= 300)
-      .filter((npc) => Math.abs(npc.gearScore - playerGear) <= Math.max(180, playerGear * 0.38))
-      .sort((a, b) =>
-        (Math.abs(a.arenaRating - server.player.arenaRating) + Math.abs(a.gearScore - playerGear) * 0.8) -
-        (Math.abs(b.arenaRating - server.player.arenaRating) + Math.abs(b.gearScore - playerGear) * 0.8),
-      );
-    const fallbackPool = server.npcs.filter((npc) => ['PVP_PLAYER', 'HARDCORE', 'GUILD_PLAYER', 'LEADER'].includes(npc.roleFocus)).filter((npc) => server.player.level >= 20 ? npc.level === 20 : Math.abs(npc.level - server.player.level) <= 1);
-    const pool = candidates.length >= 4 ? candidates.slice(0, 18) : fallbackPool;
+      .filter((npc) => Math.abs(npc.arenaRating - server.player.arenaRating) <= 50)
+      .sort((a, b) => Math.abs(a.arenaRating - server.player.arenaRating) - Math.abs(b.arenaRating - server.player.arenaRating));
+
+    const fallbackPool = server.npcs
+      .filter((npc) => ['PVP_PLAYER', 'HARDCORE', 'GUILD_PLAYER', 'LEADER'].includes(npc.roleFocus))
+      .sort((a, b) => Math.abs(a.arenaRating - server.player.arenaRating) - Math.abs(b.arenaRating - server.player.arenaRating));
+
+    const pool = ratingPool.length > 0 ? ratingPool.slice(0, 18) : fallbackPool.slice(0, 18);
     const opponent = rng.pick(pool.length > 0 ? pool : server.npcs);
+    const playerGear = getGearScore(server.player.equipment);
     const opponentStats = getPlayerStats({ ...server.player, id: opponent.id, name: opponent.name, raceId: opponent.raceId, classId: opponent.classId, level: opponent.level, xp: 0, gold: opponent.gold, inventory: opponent.inventory, equipment: opponent.equipment, guildId: opponent.guildId, reputation: opponent.reputation, arenaRating: opponent.arenaRating });
     const buildArenaFighter = (base: ReturnType<typeof createPlayerCombatant>, gearScore: number) => {
       const role = base.classId === 'warrior' ? 'tank' : base.classId === 'priest' ? 'healer' : 'dps';
@@ -600,7 +609,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       } else if (role === 'healer') {
         maxHp = Math.round(maxHp * 0.98);
         attack = Math.round(attack * 0.72);
-        magic = Math.round(magic * 0.9);
+        magic = Math.round(base.magic * 0.9);
         defense = Math.round(defense * 0.82);
       } else {
         maxHp = Math.round(maxHp * 0.96);
@@ -653,7 +662,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
     };
     commit(set, server, arenaCombat, null);
   },
-
   combatAction: (actionId) => {
     const { server, combat } = get();
     if (!combat) return;

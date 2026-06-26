@@ -1,6 +1,6 @@
 import type { ContractCategory, ContractDefinition } from '../../types/game';
 import { useGameStore } from '../../state/gameStore';
-import { getContractGoalText, getContractRewardText, getContractTimeLeft } from '../../systems/contractSystem';
+import { getContractGoalText, getContractRewardText, getContractTimeLeft, isContractVisible } from '../../systems/contractSystem';
 
 const categoryTitle: Record<ContractCategory, string> = {
   daily: 'Ежедневные',
@@ -16,8 +16,7 @@ const statusText: Record<string, string> = {
   cancelled: 'отменён',
 };
 
-const visibleContract = (contract: ContractDefinition) =>
-  contract.status === 'available' || contract.status === 'active' || contract.status === 'readyToClaim';
+const visibleContract = (contract: ContractDefinition) => isContractVisible(contract);
 
 export const ContractListPanel = ({ category }: { category: ContractCategory }) => {
   const server = useGameStore((state) => state.server);
@@ -33,7 +32,7 @@ export const ContractListPanel = ({ category }: { category: ContractCategory }) 
   return (
     <section className="panel">
       <div className="section-title">{categoryTitle[category]}</div>
-      {contracts.length === 0 && <p className="muted">Контрактов нет.</p>}
+      {contracts.length === 0 && <p className="muted">Контрактов нет до следующего обновления.</p>}
       <div className="list-lines">
         {contracts.map((contract) => (
           <div key={contract.id} className={`list-line quest-log-line ${contract.status === 'readyToClaim' ? 'ready-line' : ''}`}>
