@@ -122,6 +122,7 @@ interface GameStore {
   closeModal: () => void;
   newGame: (name: string, raceId: string, classId: string) => void;
   resetGame: () => void;
+  skipHour: () => void;
   skipDay: () => void;
   exportSave: () => void;
   importSave: () => void;
@@ -820,12 +821,26 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
 
+  skipHour: () => {
+    const { server, combat } = get();
+    if (combat || !server.characterCreated) return;
+    const rng = createRng(server.seed + server.serverDay * 11900 + server.currentMinute);
+    const next = simulateServerForMinutes(server, 60, rng);
+    commit(set, next, null, {
+      id: `modal_skip_hour_${server.serverDay}_${server.currentMinute}`,
+      type: 'system',
+      title: 'Час пропущен',
+      text: `День ${next.serverDay} · ${String(Math.floor(next.currentMinute / 60)).padStart(2, '0')}:${String(next.currentMinute % 60).padStart(2, '0')}`,
+      lines: ['Мир прожил 60 минут.', 'Войны гильдий просимулированы.'],
+    });
+  },
+
   skipDay: () => {
     const { server, combat } = get();
     if (combat || !server.characterCreated) return;
     const rng = createRng(server.seed + server.serverDay * 12000 + server.currentMinute);
-    const minutes = 1440 - server.currentMinute;
-    let next = simulateServerForMinutes(server, minutes <= 0 ? 1440 : minutes, rng);
+    const minutes = Math.max(60, 1440 - server.currentMinute);
+    let next = simulateServerForMinutes(server, minutes, rng);
     const stats = getPlayerStats(next.player);
     next = { ...next, player: { ...next.player, hp: stats.hp, mana: stats.mana } };
     commit(set, next, null, {
@@ -833,7 +848,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       type: 'system',
       title: 'День пропущен',
       text: `День ${next.serverDay}`,
-      lines: ['HP и Mana восстановлены.'],
+      lines: ['HP и Mana восстановлены.', 'Войны гильдий просимулированы.'],
     });
   },
 
@@ -1422,9 +1437,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
           `Репутация: ${guild.reputation}`,
           `PvP рейтинг: ${guild.pvpRating}`,
           `Активные войны: ${activeWars.length}`,
-          leader ? `ACTION_NPC_PROFILE:${leader.id}:ГМ: ${leader.name}` : 'ГМ: нет',
-          deputy ? `ACTION_NPC_PROFILE:${deputy.id}:Зам: ${deputy.name}` : 'Зам: нет',
-          ...officers.slice(0, 4).map((npc) => `ACTION_NPC_PROFILE:${npc.id}:Офицер: ${npc.name}`),
+          leader ? `NPC_PROFILE_LINE:${leader.id}:ГМ:${leader.name}` : 'ГМ: нет',
+          deputy ? `NPC_PROFILE_LINE:${deputy.id}:Зам:${deputy.name}` : 'Зам: нет',
+          ...officers.slice(0, 4).map((npc) => `NPC_PROFILE_LINE:${npc.id}:Офицер:${npc.name}`),
           `ACTION_GUILD_ROSTER:${guild.id}`,
           `ACTION_GUILD_RELATIONS:${guild.id}`,
         ],

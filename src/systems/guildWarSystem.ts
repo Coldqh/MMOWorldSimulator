@@ -165,24 +165,59 @@ export const recordGuildWarKill = (server: ServerState, warId: Id, record: Guild
   }),
 });
 
-export const simulateActiveGuildWars = (server: ServerState, rng: Rng): ServerState => {
+export const simulateActiveGuildWars = (server: ServerState, rng: Rng, maxDuelsPerWar = 1): ServerState => {
   let next = server;
+
   for (const war of server.guildWars ?? []) {
     if (war.status !== 'active') continue;
-    const last = totalMinute(war.lastSimulatedDay ?? war.declaredDay, war.lastSimulatedMinute ?? war.declaredMinute);
-    const now = totalMinute(server.serverDay, server.currentMinute);
-    if (now - last < 30) continue;
-    const a = next.npcs.filter((npc) => npc.guildId === war.attackerGuildId);
-    const b = next.npcs.filter((npc) => npc.guildId === war.defenderGuildId);
-    if (a.length === 0 || b.length === 0) continue;
-    const guild = next.guilds.find((entry) => entry.id === war.attackerGuildId);
-    const fighterA = rng.pick(a);
-    const fighterB = rng.pick(b);
-    const duel = resolveNpcDuel(fighterA, fighterB, guild?.tier ?? 'low', rng);
-    const record = makeKillRecord(next, duel.winner.id, duel.winner.guildId!, duel.loser.id, duel.loser.guildId!, 'simulated');
-    next = { ...next, npcs: next.npcs.map((npc) => npc.id === duel.winner.id ? growNpcAfterDuel(npc, true, rng) : npc.id === duel.loser.id ? growNpcAfterDuel(npc, false, rng) : npc) };
-    next = recordGuildWarKill(next, war.id, record);
+
+    const latestWar = next.guildWars.find((entry) => entry.id === war.id);
+    if (!latestWar || latestWar.status !== 'active') continue;
+
+    const last = totalMinute(latestWar.lastSimulatedDay ?? latestWar.declaredDay, latestWar.lastSimulatedMinute ?? latestWar.declaredMinute);
+    const now = totalMinute(next.serverDay, next.currentMinute);
+    const dueDuels = Math.max(0, Math.min(maxDuelsPerWar, Math.floor((now - last) / 30)));
+    if (dueDuels <= 0) continue;
+
+    for (let i = 0; i < dueDuels; i += 1) {
+      const currentWar = next.guildWars.find((entry) => entry.id === war.id);
+      if (!currentWar || currentWar.status !== 'active') break;
+
+      const attackers = next.npcs.filter((npc) => npc.guildId === currentWar.attackerGuildId);
+      const defenders = next.npcs.filter((npc) => npc.guildId === currentWar.defenderGuildId);
+
+      if (attackers.length === 0 || defenders.length === 0) {
+        next = {
+          ...next,
+          guildWars: next.guildWars.map((entry) =>
+            entry.id === currentWar.id
+              ? { ...entry, lastSimulatedDay: next.serverDay, lastSimulatedMinute: next.currentMinute }
+              : entry,
+          ),
+        };
+        break;
+      }
+
+      const guild = next.guilds.find((entry) => entry.id === currentWar.attackerGuildId);
+      const fighterA = rng.pick(attackers);
+      const fighterB = rng.pick(defenders);
+      const duel = resolveNpcDuel(fighterA, fighterB, guild?.tier ?? 'low', rng);
+      const record = makeKillRecord(next, duel.winner.id, duel.winner.guildId!, duel.loser.id, duel.loser.guildId!, 'simulated');
+
+      next = {
+        ...next,
+        npcs: next.npcs.map((npc) =>
+          npc.id === duel.winner.id
+            ? growNpcAfterDuel(npc, true, rng)
+            : npc.id === duel.loser.id
+              ? growNpcAfterDuel(npc, false, rng)
+              : npc,
+        ),
+      };
+      next = recordGuildWarKill(next, currentWar.id, record);
+    }
   }
+
   return next;
 };
 
@@ -240,11 +275,12 @@ export const tickGuildWars = (server: ServerState, rng: Rng, minutes = 0): Serve
   let next = moveNpcPlayers(server, rng, minutes);
   next = handleWarNpcEncountersAfterNpcMovement(next, rng);
   if (minutes >= 30 || next.currentMinute % 30 === 0) {
+    const duelTicks = Math.max(1, Math.floor(Math.max(0, minutes) / 30));
     next = updateGuildRelations(next, rng);
     next = maybeCreateGuildWarVotes(next, rng);
     next = resolveGuildWarVotes(next, rng);
     next = maybeCreateWarExtensionVotes(next, rng);
-    next = simulateActiveGuildWars(next, rng);
+    next = simulateActiveGuildWars(next, rng, duelTicks);
     next = finishExpiredGuildWars(next, rng);
   }
   return next;

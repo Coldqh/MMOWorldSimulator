@@ -31,9 +31,19 @@ const splitLine = (line: string) => {
   return { key: clean.slice(0, idx), value: clean.slice(idx + 1).trim() };
 };
 
-const ProfileGrid = ({ lines }: { lines: string[] }) => (
+const ProfileGrid = ({ lines, onNpcProfile }: { lines: string[]; onNpcProfile?: (npcId: string) => void }) => (
   <div className="profile-grid-modal">
     {lines.map((line, index) => {
+      if (line.startsWith('NPC_PROFILE_LINE:')) {
+        const [, npcId, key, ...valueParts] = line.split(':');
+        const value = valueParts.join(':') || npcId;
+        return (
+          <div key={`${line}_${index}`} className="profile-cell">
+            <span>{key}</span>
+            <strong><button className="text-button inline-button" onClick={() => onNpcProfile?.(npcId)}>{value}</button></strong>
+          </div>
+        );
+      }
       const pair = splitLine(line);
       return (
         <div key={`${line}_${index}`} className="profile-cell">
@@ -124,7 +134,7 @@ export const ResultModal = () => {
         <div className="modal-header-line">
           <div>
             <div className="section-title">
-              {modal.type === 'death' ? '☠️ Смерть' : modal.type === 'item' ? '🎒 Предмет' : modal.type === 'npc' ? '👤 Игрок' : modal.type === 'enhance' ? '🔨 Заточка' : modal.type === 'loot' ? '🎲 Ролл' : 'Итог'}
+              {modal.type === 'death' ? '☠️ Смерть' : modal.type === 'item' ? '🎒 Предмет' : modal.type === 'npc' ? '👤 Игрок' : modal.type === 'guild' ? 'Профиль' : modal.type === 'enhance' ? '🔨 Заточка' : modal.type === 'loot' ? '🎲 Ролл' : 'Итог'}
             </div>
             <h2>{modal.title}</h2>
           </div>
@@ -161,7 +171,7 @@ export const ResultModal = () => {
         {visibleLines.length > 0 && (
           <div className="modal-section">
             <div className="section-title">{profileMode ? 'Профиль' : 'События'}</div>
-            {profileMode ? <ProfileGrid lines={visibleLines} /> : (
+            {profileMode || modal.type === 'guild' ? <ProfileGrid lines={visibleLines} onNpcProfile={openNpcProfile} /> : (
               <div className="modal-lines card-lines">
                 {visibleLines.map((line, index) => <div key={`${line}_${index}`}>{line}</div>)}
               </div>

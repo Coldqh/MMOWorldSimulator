@@ -1,6 +1,6 @@
 {
-  "version": "0.7.11",
+  "version": "0.7.13",
   "channel": "stable",
-  "build": "2026-06-26-v0711-typecheck-hard-gate",
+  "build": "2026-06-26-v0713-guild-war-seed-ts-cleanup",
   "buildTime": "2026-06-25T00:00:00.000Z"
 }

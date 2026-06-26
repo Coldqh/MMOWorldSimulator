@@ -35,6 +35,7 @@ const statLine = (itemId: string) => {
 
 export const CharacterScreen = () => {
   const server = useGameStore((state) => state.server);
+  const skipHour = useGameStore((state) => state.skipHour);
   const skipDay = useGameStore((state) => state.skipDay);
   const recoverFullHp = useGameStore((state) => state.recoverFullHp);
   const equipItem = useGameStore((state) => state.equipItem);
@@ -73,6 +74,7 @@ export const CharacterScreen = () => {
         <div className="section-title">Действия</div>
         <div className="action-grid">
           <button onClick={recoverFullHp}>Восстановить · ~{recoveryMinutes} мин</button>
+          <button onClick={skipHour}>Пропустить час</button>
           <button onClick={skipDay}>Пропустить день</button>
         </div>
       </section>

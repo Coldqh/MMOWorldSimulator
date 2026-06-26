@@ -550,6 +550,10 @@ const resolvePartyRound = (server: ServerState, combat: CombatState, enemy: Comb
 
 export const resolveCombatAction = (server: ServerState, combat: CombatState, actionId: string, rng: Rng): { server: ServerState; combat: CombatState } => {
   if (combat.status !== 'active') return { server, combat };
+  if (combat.enemy.hp <= 0) return finishVictory(server, combat, rng);
+  const groupAtStart = combat.source === 'dungeon' || combat.source === 'raid';
+  const partyAliveAtStart = (combat.partyMembers ?? []).some((member) => member.id !== server.player.id && member.hp > 0);
+  if (combat.player.hp <= 0 && (!groupAtStart || !partyAliveAtStart)) return finishDefeat(server, combat, rng);
 
   let player = { ...combat.player, defending: false, cooldowns: reduceCooldowns(combat.player.cooldowns), shield: Math.max(0, combat.player.shield - 2) };
   let enemy = { ...combat.enemy, defending: false, cooldowns: reduceCooldowns(combat.enemy.cooldowns), shield: Math.max(0, combat.enemy.shield - 2) };
@@ -696,10 +700,17 @@ export const resolveCombatAction = (server: ServerState, combat: CombatState, ac
     log.push(`${enemy.name}: АоЕ ${totalAoe} урона по пати.`);
   }
 
-  const nextCombat = { ...combat, player, enemy, partyMembers, turn: combat.turn + 1, log: log.slice(-28) };
+  let nextCombat = { ...combat, player, enemy, partyMembers, turn: combat.turn + 1, log: log.slice(-28) };
+  if (enemy.hp <= 0) return finishVictory(server, nextCombat, rng);
   const isGroup = combat.source === 'dungeon' || combat.source === 'raid';
   const partyAlive = (partyMembers ?? []).some((member) => member.id !== server.player.id && member.hp > 0);
   if (player.hp <= 0 && (!isGroup || !partyAlive)) return finishDefeat(server, nextCombat, rng);
+  if (nextCombat.turn > 180) {
+    nextCombat = { ...nextCombat, log: [...nextCombat.log, 'combat_max_turn: бой принудительно завершён.'].slice(-28) };
+    const enemyPercent = enemy.hp / Math.max(1, enemy.maxHp);
+    const playerPercent = player.hp / Math.max(1, player.maxHp);
+    return enemyPercent <= playerPercent ? finishVictory(server, nextCombat, rng) : finishDefeat(server, nextCombat, rng);
+  }
   return { server, combat: nextCombat };
 };
 

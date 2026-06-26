@@ -6,7 +6,7 @@ import { guildFocusLabel } from "../../systems/guildIdentitySystem";
 import { GuildWarPanel, ServerGuildWarList } from "../components/GuildWarPanel";
 import type { Guild } from "../../types/game";
 
-type GuildTab = "roster" | "relations" | "wars" | "events";
+type GuildTab = "profile" | "roster" | "relations" | "wars" | "events";
 
 const getNpcName = (
   server: ReturnType<typeof useGameStore.getState>["server"],
@@ -43,6 +43,9 @@ const tierLabel: Record<string, string> = {
 
 const guildPower = (guild: Guild) => (guild.reputation ?? 0) + (guild.pvpRating ?? 0);
 
+const relationPercent = (value: number) => `${Math.max(0, Math.min(100, value + 100) / 2)}%`;
+const relationTone = (value: number) => value <= -40 ? "danger-line" : value >= 40 ? "ready-line" : "";
+
 export const GuildScreen = () => {
   const server = useGameStore((state) => state.server);
   const applyToGuild = useGameStore((state) => state.applyToGuild);
@@ -51,7 +54,7 @@ export const GuildScreen = () => {
   const openGuildProfile = useGameStore((state) => state.openGuildProfile);
   const [showAllGuilds, setShowAllGuilds] = useState(false);
   const [tierFilter, setTierFilter] = useState<"all" | "high" | "mid" | "low">("all");
-  const [tab, setTab] = useState<GuildTab>("roster");
+  const [tab, setTab] = useState<GuildTab>("profile");
 
   const playerGuild = server.guilds.find((entry) => entry.id === server.player.guildId);
   const pendingByGuild = new Map(
@@ -67,8 +70,8 @@ export const GuildScreen = () => {
     [server.guilds, tierFilter],
   );
 
-  const renderNpcButton = (id?: string) => {
-    if (!id) return <span>нет</span>;
+  const renderNpcLink = (id?: string, fallback = "нет") => {
+    if (!id) return <span>{fallback}</span>;
     if (id === server.player.id) return <strong>{server.player.name} · ты</strong>;
     return <button className="text-button inline-button" onClick={() => openNpcProfile(id)}>{getNpcName(server, id)}</button>;
   };
@@ -92,6 +95,10 @@ export const GuildScreen = () => {
       .filter((entry) => entry.text.includes(playerGuild.name))
       .slice(0, 8);
 
+    const activeWars = (server.guildWars ?? []).filter((war: any) =>
+      war.status === "active" && (war.attackerGuildId === playerGuild.id || war.defenderGuildId === playerGuild.id),
+    );
+
     const relationRows = server.guilds
       .filter((guild) => guild.id !== playerGuild.id)
       .map((guild) => ({
@@ -100,6 +107,10 @@ export const GuildScreen = () => {
         incoming: server.guildRelations.find((rel) => rel.fromGuildId === guild.id && rel.toGuildId === playerGuild.id)?.value ?? 0,
       }))
       .sort((a, b) => a.outgoing - b.outgoing || a.guild.name.localeCompare(b.guild.name));
+
+    const officerText = (playerGuild.officerIds ?? []).length === 0
+      ? <span>нет</span>
+      : (playerGuild.officerIds ?? []).slice(0, 4).map((id) => <span key={id}> {renderNpcLink(id)}</span>);
 
     return (
       <div className="screen-stack">
@@ -112,22 +123,33 @@ export const GuildScreen = () => {
           <p className="muted">
             {guildFocusLabel(playerGuild.guildFocus)} · {playerGuild.tier ?? "low"} · Lv. {playerGuild.level} · сила {guildPower(playerGuild)}
           </p>
-          <div className="stat-grid">
-            <span>👑 ГМ: {renderNpcButton(playerGuild.leaderId)}</span>
-            <span>🛡️ Зам: {renderNpcButton(playerGuild.deputyId)}</span>
-            <span>⚔️ Офицеры: {(playerGuild.officerIds ?? []).length === 0 ? "нет" : (playerGuild.officerIds ?? []).slice(0, 4).map((id) => <span key={id}> {renderNpcButton(id)}</span>)}</span>
-            <span>Твоя роль: {guildRoleIcon(playerGuild, server.player.id)} {guildRole(playerGuild, server.player.id)}</span>
-            <span>Участников: {playerGuild.memberIds.length}</span>
-            <span>Репутация: {playerGuild.reputation}</span>
-            <span>PvP: {playerGuild.pvpRating}</span>
-          </div>
           <div className="tab-row">
+            <button className={tab === "profile" ? "active" : ""} onClick={() => setTab("profile")}>Профиль</button>
             <button className={tab === "roster" ? "active" : ""} onClick={() => setTab("roster")}>Ростер</button>
             <button className={tab === "relations" ? "active" : ""} onClick={() => setTab("relations")}>Отношения</button>
             <button className={tab === "wars" ? "active" : ""} onClick={() => setTab("wars")}>Войны</button>
             <button className={tab === "events" ? "active" : ""} onClick={() => setTab("events")}>События</button>
           </div>
         </section>
+
+        {tab === "profile" && (
+          <section className="panel">
+            <div className="section-title">Профиль</div>
+            <div className="profile-grid-modal">
+              <div className="profile-cell"><span>Тип</span><strong>{guildFocusLabel(playerGuild.guildFocus)}</strong></div>
+              <div className="profile-cell"><span>Уровень</span><strong>{playerGuild.level}</strong></div>
+              <div className="profile-cell"><span>Требование</span><strong>{playerGuild.minLevel ?? 1}+ уровень</strong></div>
+              <div className="profile-cell"><span>Участников</span><strong>{playerGuild.memberIds.length}</strong></div>
+              <div className="profile-cell"><span>Репутация</span><strong>{playerGuild.reputation}</strong></div>
+              <div className="profile-cell"><span>PvP рейтинг</span><strong>{playerGuild.pvpRating}</strong></div>
+              <div className="profile-cell"><span>Активные войны</span><strong>{activeWars.length}</strong></div>
+              <div className="profile-cell"><span>Твоя роль</span><strong>{guildRoleIcon(playerGuild, server.player.id)} {guildRole(playerGuild, server.player.id)}</strong></div>
+              <div className="profile-cell"><span>ГМ</span><strong>{renderNpcLink(playerGuild.leaderId)}</strong></div>
+              <div className="profile-cell"><span>Зам</span><strong>{renderNpcLink(playerGuild.deputyId)}</strong></div>
+              <div className="profile-cell wide-cell"><span>Офицеры</span><strong>{officerText}</strong></div>
+            </div>
+          </section>
+        )}
 
         {tab === "roster" && (
           <section className="panel">
@@ -155,9 +177,16 @@ export const GuildScreen = () => {
             <div className="section-title">Отношения</div>
             <div className="list-lines scroll-list">
               {relationRows.map(({ guild, outgoing, incoming }) => (
-                <div key={guild.id} className="list-line">
-                  <button className="text-button" onClick={() => openGuildProfile(guild.id)}>{guild.name}</button>
-                  <strong>мы → они: {outgoing} · они → мы: {incoming}</strong>
+                <div key={guild.id} className={`list-line relation-line ${relationTone(outgoing)}`}>
+                  <span>
+                    <button className="text-button" onClick={() => openGuildProfile(guild.id)}>{guild.name}</button>
+                    <small>мы → они: {outgoing} · они → мы: {incoming}</small>
+                    <span className="relation-bars">
+                      <span className="relation-track"><span className="relation-fill" style={{ width: relationPercent(outgoing) }} /></span>
+                      <span className="relation-track"><span className="relation-fill" style={{ width: relationPercent(incoming) }} /></span>
+                    </span>
+                  </span>
+                  <strong>{outgoing}/{incoming}</strong>
                 </div>
               ))}
             </div>
@@ -219,8 +248,8 @@ export const GuildScreen = () => {
                 <button className="text-button guild-title-button" onClick={() => openGuildProfile(guild.id)}>
                   <strong>{guild.name}</strong>
                 </button>
-                <span>{guildFocusLabel(guild.guildFocus)} · {guild.tier ?? "low"} · Lv. {guild.level} · вход {guild.minLevel ?? 1}+</span>
-                <span>👑 ГМ: {renderNpcButton(guild.leaderId)}</span>
+                <span>{guildFocusLabel(guild.guildFocus)} · {guild.tier ?? "low"} · Lv. {guild.level} · требование {guild.minLevel ?? 1}+</span>
+                <span>ГМ: {renderNpcLink(guild.leaderId)}</span>
                 <span>Участников: {guild.memberIds.length}</span>
                 <span>Сила: {guildPower(guild)}</span>
                 <span>Репутация: {guild.reputation} · PvP: {guild.pvpRating}</span>
