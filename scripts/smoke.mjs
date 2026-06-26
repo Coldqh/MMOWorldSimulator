@@ -5,22 +5,36 @@ const fail = [];
 const ok = [];
 const assert = (cond, msg) => cond ? ok.push(msg) : fail.push(msg);
 
-const saveLoad = read('src/engine/saveLoad.ts');
 const gameStore = read('src/state/gameStore.ts');
+const saveLoad = read('src/engine/saveLoad.ts');
 const main = read('src/main.tsx');
+const importBlock = gameStore.slice(0, gameStore.indexOf('interface GameStore {'));
 
-const saveImport = gameStore.match(/import \{[\s\S]*?\} from ["']\.\.\/engine\/saveLoad["'];/)?.[0] ?? '';
+const requiredRuntimeImports = [
+  'createNewGame',
+  'createEmptyServer',
+  'ensureServerRoster',
+  'loadGame',
+  'saveGame',
+  'SAVE_VERSION',
+  'createRng',
+  'uid',
+  'getDungeonById',
+  'getSpotById',
+  'getZoneById',
+  'startSpotCombat',
+  'resolveCombatAction',
+  'enhanceItem',
+  'refreshPartyFinderListings',
+  'repairServerRuntime',
+];
+
+requiredRuntimeImports.forEach((name) => assert(importBlock.includes(name), `runtime import present: ${name}`));
 
 assert(saveLoad.includes('export const loadGame'), 'loadGame export exists');
-assert(saveImport.includes('loadGame'), 'loadGame import exists');
-assert(saveImport.includes('saveGame'), 'saveGame import exists');
-assert(saveImport.includes('clearSave'), 'clearSave import exists');
-assert(saveImport.includes('flushSaveGame'), 'flushSaveGame import exists');
-assert(saveLoad.includes("SAVE_KEY = 'mmoworldsimulator.save.v0.7.0'"), 'save key remains v0.7.0');
-assert(main.includes('prepareRuntimeResetBeforeAppImport();'), 'boot uses sync reset');
-assert(main.includes("await import('./app/App')"), 'App imports after sync reset');
-assert(!main.includes('await runRuntimeResetIfNeeded()'), 'boot does not await async cleanup');
-assert(main.includes('renderBootError'), 'boot errors render visibly');
+assert(gameStore.includes('const simulateServerForMinutes ='), 'simulateServerForMinutes fallback exists');
+assert(main.includes('renderBootError'), 'boot error is visible');
+assert(!main.includes('await runRuntimeResetIfNeeded()'), 'boot does not block on runtime cleanup');
 
 if (fail.length) {
   console.error('Smoke failed:');

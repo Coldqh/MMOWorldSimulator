@@ -1,3 +1,12 @@
+import { create } from "zustand";
+
+import { getClassById } from "../content/classes";
+import { ITEMS, getItemById, normalizeLegacyItemId } from "../content/items";
+import { getDungeonById, getSpotById, getZoneById } from "../content/world";
+
+import { addNews } from "../engine/news";
+import { createEmptyServer, createNewGame, ensureServerRoster } from "../engine/createNewGame";
+import { createRng, uid } from "../engine/rng";
 import {
   backupRescueSave,
   clearSave,
@@ -6,14 +15,18 @@ import {
   importSave as importSaveData,
   loadGame,
   saveGame,
+  SAVE_VERSION,
 } from "../engine/saveLoad";
+import { advanceServerClock } from "../engine/time";
+import { repairServerRuntime, validateServerRuntime } from "../engine/runtimeValidation";
+
 import {
   buyListing,
-  sellInventoryItem,
-  normalizeMarketListings,
-  generateMarketListings,
   generateFullMarket,
+  generateMarketListings,
+  normalizeMarketListings,
   repairMarketIfBroken,
+  sellInventoryItem,
 } from "../systems/marketSystem";
 import {
   addInventoryItem,
@@ -22,14 +35,17 @@ import {
   getGearScore,
   getInstanceGearScore,
   getPlayerStats,
+  getSocketSlotCount,
   normalizeInventory,
   socketCardIntoEquipment,
   socketCardIntoInventoryItem,
-  getSocketSlotCount,
 } from "../systems/itemSystem";
-import { arenaRankIcon, arenaRankName, estimateArenaRatingValue, updateRankings } from "../systems/progressionSystem";
-import { addNews } from "../engine/news";
-import { repairServerRuntime, validateServerRuntime } from "../engine/runtimeValidation";
+import {
+  arenaRankIcon,
+  arenaRankName,
+  estimateArenaRatingValue,
+  updateRankings,
+} from "../systems/progressionSystem";
 import {
   acceptQuest as acceptQuestState,
   normalizeQuestStates,
@@ -49,6 +65,38 @@ import {
   updateContractsOnDungeonComplete,
   updateContractsOnMobKill,
 } from "../systems/contractSystem";
+import {
+  createPlayerCombatant,
+  resolveCombatAction,
+  startSpotCombat,
+} from "../systems/combatSystem";
+import {
+  completeDungeonFloor,
+  resolveDungeonEventFloor,
+  restInDungeon,
+  startDungeonFloorCombat,
+} from "../systems/dungeonSystem";
+import { enhanceItem, type EnhanceTarget } from "../systems/enhancementSystem";
+import {
+  acceptPartyApplicant as acceptPartyFinderApplicant,
+  cancelPartyListing as cancelPartyFinderListing,
+  createPlayerPartyListing,
+  joinPartyListing as joinPartyFinderListing,
+  leavePartyListing as leavePartyFinderListing,
+  refreshPartyFinderListings,
+  rejectPartyApplicant as rejectPartyFinderApplicant,
+  startPartyFromListing,
+  waitPartyListing as waitPartyFinderListing,
+} from "../systems/partyFinderSystem";
+
+import type {
+  CombatState,
+  GameModal,
+  LootChoice,
+  ScreenId,
+  ServerNotification,
+  ServerState,
+} from "../types/game";
 
 interface GameStore {
   server: ServerState;
@@ -299,6 +347,9 @@ const makeDeathModal = (combat: CombatState, rngSeed: number): GameModal => ({
   text: combat.source === "dungeon" || combat.source === "raid" ? "Пати продолжает бой." : "Персонаж возвращён в город.",
   lines: combat.defeatLines ?? ["Возврат в город."],
 });
+
+const simulateServerForMinutes = (server: ServerState, minutes: number): ServerState =>
+  advanceServerClock(server, minutes);
 
 const addMinutesToClock = (day: number, minute: number, add: number) => {
   const total = (day - 1) * 1440 + minute + add;
