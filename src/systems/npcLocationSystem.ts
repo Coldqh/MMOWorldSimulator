@@ -84,7 +84,7 @@ export const handleWarNpcEncountersOnPlayerLocationEnter = (server: ServerState,
       lines.push(`${npc.name} ушёл в город.`);
     }
   });
-  return lines.length === 0 ? server : { ...server, npcs, notifications: [...(server.notifications ?? []), { id: `war_location_${server.serverDay}_${server.currentMinute}_${rng.int(1, 999999)}`, type: 'pvp', title: 'Враги рядом', text: 'Вражеские игроки в локации.', lines: lines.slice(0, 4) }] };
+  return lines.length === 0 ? server : { ...server, npcs, notifications: [...(server.notifications ?? []), { id: `war_location_${server.serverDay}_${server.currentMinute}_${rng.int(1, 999999)}`, type: 'guild', title: 'Враги рядом', text: 'Вражеские игроки в локации.', lines: lines.slice(0, 4) }] };
 };
 
 export const handleWarNpcEncountersAfterNpcMovement = handleWarNpcEncountersOnPlayerLocationEnter;

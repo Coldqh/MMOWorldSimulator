@@ -91,6 +91,7 @@ import {
   waitPartyListing as waitPartyFinderListing,
 } from "../systems/partyFinderSystem";
 import { guildFocusLabel, normalizeGuildAndNpcIdentities, npcPlaystyleLabel } from "../systems/guildIdentitySystem";
+import { seedInitialGuildWarsIfNeeded } from "../systems/guildWarSeedSystem";
 import {
   attackWarEnemyNpc as resolveWarEnemyNpcAttack,
   castGuildWarVote,
@@ -1343,14 +1344,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { server } = get();
     const guild = server.guilds.find((entry) => entry.id === guildId);
     if (!guild) return;
+
     const rows = server.guilds
       .filter((entry) => entry.id !== guild.id)
       .map((other) => {
         const outgoing = server.guildRelations.find((rel) => rel.fromGuildId === guild.id && rel.toGuildId === other.id)?.value ?? 0;
         const incoming = server.guildRelations.find((rel) => rel.fromGuildId === other.id && rel.toGuildId === guild.id)?.value ?? 0;
-        const line = `${other.name}: мы → ${outgoing} / они → ${incoming}`;
-        return `ACTION_GUILD_RELATION:${other.id}:${outgoing}:${incoming}:${line}`;
+        const label = `${other.name}: мы → ${outgoing} / они → ${incoming}`;
+        return `ACTION_GUILD_RELATION:${other.id}:${outgoing}:${incoming}:${label}`;
       });
+
     set({
       modal: {
         id: `modal_guild_relations_${guild.id}`,
@@ -1366,11 +1369,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { server } = get();
     const guild = server.guilds.find((entry) => entry.id === guildId);
     if (!guild) return;
-    const roleWeight = (id: string) => guild.leaderId === id ? 0 : guild.deputyId === id ? 1 : (guild.officerIds ?? []).includes(id) ? 2 : 3;
+
+    const roleWeight = (id: string) =>
+      guild.leaderId === id ? 0 : guild.deputyId === id ? 1 : (guild.officerIds ?? []).includes(id) ? 2 : 3;
+
     const members = guild.memberIds
       .map((id) => id === server.player.id ? server.player : server.npcs.find((npc) => npc.id === id))
       .filter(Boolean)
       .sort((a: any, b: any) => roleWeight(a.id) - roleWeight(b.id) || b.level - a.level || (b.gearScore ?? getGearScore(b.equipment ?? {})) - (a.gearScore ?? getGearScore(a.equipment ?? {})));
+
     set({
       modal: {
         id: `modal_guild_roster_${guild.id}`,
@@ -1391,10 +1398,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { server } = get();
     const guild = server.guilds.find((entry) => entry.id === guildId);
     if (!guild) return;
+
     const leader = server.npcs.find((npc) => npc.id === guild.leaderId);
     const deputy = server.npcs.find((npc) => npc.id === guild.deputyId);
-    const officers = (guild.officerIds ?? []).map((id) => server.npcs.find((npc) => npc.id === id)).filter(Boolean) as any[];
-    const activeWars = (server.guildWars ?? []).filter((war: any) => war.status === 'active' && (war.attackerGuildId === guild.id || war.defenderGuildId === guild.id));
+    const officers = (guild.officerIds ?? [])
+      .map((id) => server.npcs.find((npc) => npc.id === id))
+      .filter(Boolean) as any[];
+    const activeWars = (server.guildWars ?? []).filter((war: any) =>
+      war.status === 'active' && (war.attackerGuildId === guild.id || war.defenderGuildId === guild.id),
+    );
+
     set({
       modal: {
         id: `modal_guild_${guild.id}`,
@@ -1417,7 +1430,5 @@ export const useGameStore = create<GameStore>((set, get) => ({
         ],
       },
     });
-  },
-}));
   },
 }));

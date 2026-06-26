@@ -1,6 +1,6 @@
 {
-  "version": "0.7.9",
+  "version": "0.7.11",
   "channel": "stable",
-  "build": "2026-06-26-v079-guild-profile-wars",
+  "build": "2026-06-26-v0711-typecheck-hard-gate",
   "buildTime": "2026-06-25T00:00:00.000Z"
 }

@@ -218,7 +218,7 @@ export const attackWarEnemyNpc = (server: ServerState, npcId: Id, rng: Rng): Ser
     : makeKillRecord(server, npc.id, npc.guildId, server.player.id, server.player.guildId, 'npc_attack_player');
   let next = { ...server, npcs: server.npcs.map((entry) => entry.id === npc.id ? growNpcAfterDuel(entry, !duel.playerWon, rng) : entry) };
   next = recordGuildWarKill(next, war.id, record);
-  return { ...next, notifications: [...(next.notifications ?? []), { id: `war_player_attack_${server.serverDay}_${server.currentMinute}_${npcId}`, type: 'pvp', title: duel.playerWon ? 'Победа в войне' : 'Поражение в войне', text: npc.name, lines: [`Счёт обновлён.`, `Шанс победы: ${Math.round(duel.playerChance * 100)}%`] }] };
+  return { ...next, notifications: [...(next.notifications ?? []), { id: `war_player_attack_${server.serverDay}_${server.currentMinute}_${npcId}`, type: 'guild', title: duel.playerWon ? 'Победа в войне' : 'Поражение в войне', text: npc.name, lines: [`Счёт обновлён.`, `Шанс победы: ${Math.round(duel.playerChance * 100)}%`] }] };
 };
 
 export const initializeGuildWarsCore = (server: ServerState, rng: Rng): ServerState => {
