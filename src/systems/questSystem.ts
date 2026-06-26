@@ -13,6 +13,7 @@ import type {
 } from '../types/game';
 import { addInventoryItem } from './itemSystem';
 import { addPlayerXp } from './progressionSystem';
+import { advanceObjectiveProgress, haveObjectivesChanged, isObjectiveProgressComplete } from './objectiveSystem';
 
 const cloneObjective = (objective: QuestObjective): QuestObjective => ({
   ...objective,
@@ -39,7 +40,7 @@ export const getQuestTurnInGiverId = (quest: QuestDefinition) => {
 };
 
 export const isQuestObjectiveComplete = (objective: QuestObjective) =>
-  (objective.current ?? 0) >= objective.required;
+  isObjectiveProgressComplete(objective);
 
 export const isQuestReadyToTurnIn = (server: ServerState, questId: Id) => {
   const state = server.questStates?.[questId];
@@ -166,10 +167,8 @@ export const turnInQuest = (server: ServerState, questId: Id): { server: ServerS
   };
 };
 
-const updateObjective = (objective: QuestObjective, amount = 1): QuestObjective => ({
-  ...objective,
-  current: Math.min(objective.required, (objective.current ?? 0) + amount),
-});
+const updateObjective = (objective: QuestObjective, amount = 1): QuestObjective =>
+  advanceObjectiveProgress(objective, amount);
 
 export const refreshReadyQuests = (server: ServerState): ServerState => {
   const states = Object.fromEntries(Object.entries(server.questStates ?? {}).map(([questId, state]) => {
@@ -191,7 +190,7 @@ const updateActiveQuestObjectives = (
     const state = questStates[quest.id];
     if (!state || state.status !== 'active') return;
     const nextObjectives = state.objectives.map((objective) => updater(quest, objective));
-    if (JSON.stringify(nextObjectives) !== JSON.stringify(state.objectives)) {
+    if (haveObjectivesChanged(state.objectives, nextObjectives)) {
       questStates[quest.id] = { ...state, objectives: nextObjectives };
       changed = true;
     }

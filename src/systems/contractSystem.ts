@@ -2,6 +2,7 @@ import { DUNGEONS, MOBS, getDungeonById, getMobById } from '../content/world';
 import { createRng, type Rng } from '../engine/rng';
 import type { ContractDefinition, ContractObjective, ContractReward, ContractStatus, Id, ServerNotification, ServerState } from '../types/game';
 import { addPlayerXp } from './progressionSystem';
+import { advanceObjectiveProgress, isObjectiveProgressComplete } from './objectiveSystem';
 
 const WEEKDAYS = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
 
@@ -180,7 +181,10 @@ const categoryNeedsFullReset = (server: ServerState, contracts: ContractDefiniti
 };
 
 export const isContractComplete = (contract: ContractDefinition) =>
-  contract.objective.current >= contract.objective.required;
+  isObjectiveProgressComplete(contract.objective);
+
+const updateContractObjective = (objective: ContractObjective, amount = 1): ContractObjective =>
+  advanceObjectiveProgress(objective, amount);
 
 export const refreshContracts = (server: ServerState, rng: Rng = createRng(server.seed + server.serverDay * 8800 + server.currentMinute)): ServerState => {
   let contracts = [...(server.contracts ?? [])];
@@ -303,13 +307,13 @@ export const updateContractsOnMobKill = (server: ServerState, mobId: Id): Server
   const mob = getMobById(mobId);
   return updateContracts(server, (objective) => {
     if (objective.type === 'kill_specific_mob' && objective.targetId === mobId) {
-      return { ...objective, current: Math.min(objective.required, objective.current + 1) };
+      return updateContractObjective(objective);
     }
     if (objective.type === 'kill_mobs' && mob) {
       const min = objective.levelMin ?? 1;
       const max = objective.levelMax ?? 20;
       if (mob.level >= min && mob.level <= max) {
-        return { ...objective, current: Math.min(objective.required, objective.current + 1) };
+        return updateContractObjective(objective);
       }
     }
     return objective;
@@ -325,16 +329,16 @@ export const updateContractsOnDungeonComplete = (server: ServerState, dungeonId:
     const min = objective.levelMin ?? 1;
     const max = objective.levelMax ?? 20;
     if (dungeon.levelRange[0] < min || dungeon.levelRange[0] > max) return objective;
-    return { ...objective, current: Math.min(objective.required, objective.current + 1) };
+    return updateContractObjective(objective);
   });
 
 export const updateContractsOnArenaResult = (server: ServerState, won: boolean): ServerState =>
   updateContracts(server, (objective) => {
     if (objective.type === 'play_arena') {
-      return { ...objective, current: Math.min(objective.required, objective.current + 1) };
+      return updateContractObjective(objective);
     }
     if (objective.type === 'win_arena' && won) {
-      return { ...objective, current: Math.min(objective.required, objective.current + 1) };
+      return updateContractObjective(objective);
     }
     return objective;
   });
