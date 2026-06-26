@@ -100,6 +100,16 @@ import {
   tickGuildWars,
 } from "../systems/guildWarSystem";
 import { handleWarNpcEncountersOnPlayerLocationEnter } from "../systems/npcLocationSystem";
+import {
+  acceptPlayerGuildApplication,
+  createPlayerGuildRuntime,
+  declareWarDirectRuntime,
+  ensureSoloNpcPool,
+  maybeGeneratePlayerGuildApplication,
+  rejectPlayerGuildApplication,
+  seedActiveGuildWarsIfEmpty,
+  simulateGuildWarsEveryHalfHour,
+} from "../systems/guildRuntimeSystem";
 
 import type {
   CombatState,
@@ -108,6 +118,7 @@ import type {
   ScreenId,
   ServerNotification,
   ServerState,
+  GuildFocus,
 } from "../types/game";
 
 interface GameStore {
@@ -170,6 +181,9 @@ interface GameStore {
   openGuildProfile: (guildId: string) => void;
   openGuildRoster: (guildId: string) => void;
   openGuildRelations: (guildId: string) => void;
+  createPlayerGuild: (name: string, focus: GuildFocus, level: number) => void;
+  acceptGuildApplicant: (applicationId: string) => void;
+  rejectGuildApplicant: (applicationId: string) => void;
   acceptQuest: (questId: string) => void;
   turnInQuest: (questId: string) => void;
   talkToQuestGiver: (giverId: string) => void;
@@ -215,6 +229,19 @@ const normalizeEquipmentItemIds = (equipment: any = {}) => {
     const itemId = normalizeLegacyItemId(instance.itemId);
     if (getItemById(itemId)) next[slot] = { ...instance, itemId };
   });
+  return next;
+};
+
+const simulateServerForMinutes = (server: ServerState, minutes: number, rngInput?: unknown): ServerState => {
+  const rng = rngInput && typeof (rngInput as any).next === 'function'
+    ? (rngInput as any)
+    : createRng((server.seed ?? Date.now()) + server.serverDay * 47000 + server.currentMinute + Math.max(0, minutes));
+  let next = advanceServerClock(server, minutes);
+  next = ensureSoloNpcPool(next);
+  next = seedActiveGuildWarsIfEmpty(next);
+  next = tickGuildWars(next, rng, minutes);
+  next = simulateGuildWarsEveryHalfHour(next, rng, minutes);
+  next = maybeGeneratePlayerGuildApplication(next, rng);
   return next;
 };
 
@@ -287,7 +314,7 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
     questStates: server.questStates ?? {},
     contracts: server.contracts ?? [],
   };
-  const baseWithProgress = seedInitialGuildWarsIfNeeded(normalizeGuildAndNpcIdentities(addCollectionProgress(baseServer)));
+  const baseWithProgress = seedActiveGuildWarsIfEmpty(ensureSoloNpcPool(seedInitialGuildWarsIfNeeded(normalizeGuildAndNpcIdentities(addCollectionProgress(baseServer)))));
 
   if (mode === "light" && !needsMigration) {
     const repairedLight = repairMarketIfBroken(baseWithProgress, marketRng, "light");
@@ -310,7 +337,7 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
 const safeNormalizeServer = (server: ServerState | null | undefined, mode: "full" | "light" = "full"): ServerState => {
   try {
     const normalized = normalizeServer(server ?? createEmptyServer(), mode);
-    const repaired = seedInitialGuildWarsIfNeeded(repairServerRuntime(normalized));
+    const repaired = seedActiveGuildWarsIfEmpty(ensureSoloNpcPool(seedInitialGuildWarsIfNeeded(repairServerRuntime(normalized))));
     const issues = validateServerRuntime(repaired);
     if (import.meta.env.DEV && issues.some((issue) => issue.severity === 'critical')) console.warn('[MMOWS] runtime issues', issues);
     return refreshContracts(repaired, createRng((server?.seed ?? Date.now()) + (server?.serverDay ?? 1) * 9010 + (server?.currentMinute ?? 0)));
@@ -330,7 +357,7 @@ const commit = (
   combat?: CombatState | null,
   modal?: GameModal | null,
 ) => {
-  let normalized = refreshContracts(seedInitialGuildWarsIfNeeded(repairServerRuntime(normalizeQuestStates(safeNormalizeServer(server, "light")))), createRng((server.seed ?? Date.now()) + server.serverDay * 9020 + server.currentMinute));
+  let normalized = refreshContracts(seedActiveGuildWarsIfEmpty(ensureSoloNpcPool(seedInitialGuildWarsIfNeeded(repairServerRuntime(normalizeQuestStates(safeNormalizeServer(server, "light")))))), createRng((server.seed ?? Date.now()) + server.serverDay * 9020 + server.currentMinute));
   let nextModal = modal;
 
   if (nextModal === undefined && normalized.notifications.length > 0) {
@@ -1299,10 +1326,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   declareGuildWar: (targetGuildId) => {
     const { server } = get();
-    if (!server.player.guildId) return;
-    const rng = createRng(server.seed + server.serverDay * 7200 + server.currentMinute);
-    const next = createGuildWarDeclareVote(server, server.player.guildId, targetGuildId, rng, 7);
-    commit(set, next, undefined);
+    const result = declareWarDirectRuntime(server, targetGuildId);
+    commit(set, result.server, undefined, {
+      id: `modal_declare_war_${server.serverDay}_${server.currentMinute}_${targetGuildId}`,
+      type: 'guild',
+      title: result.ok ? 'Война объявлена' : 'Война не объявлена',
+      text: result.message,
+      lines: [result.message],
+    });
   },
 
   voteGuildWar: (voteId, vote) => {
@@ -1317,6 +1348,42 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const rng = createRng(server.seed + server.serverDay * 7300 + server.currentMinute);
     const next = resolveWarEnemyNpcAttack(server, npcId, rng);
     commit(set, next, undefined);
+  },
+
+  createPlayerGuild: (name, focus, level) => {
+    const { server } = get();
+    const result = createPlayerGuildRuntime(server, name, focus, level);
+    commit(set, result.server, undefined, {
+      id: `modal_create_guild_${server.serverDay}_${server.currentMinute}`,
+      type: 'guild',
+      title: result.ok ? 'Гильдия создана' : 'Гильдия не создана',
+      text: result.message,
+      lines: result.ok ? ['Цена: 50 000 золота.', 'Ты стал ГМ.'] : [result.message],
+    });
+  },
+
+  acceptGuildApplicant: (applicationId) => {
+    const { server } = get();
+    const next = acceptPlayerGuildApplication(server, applicationId);
+    commit(set, next, undefined, {
+      id: `modal_accept_guild_app_${applicationId}`,
+      type: 'guild',
+      title: 'Заявка принята',
+      text: 'Игрок добавлен в ростер.',
+      lines: ['Одиночка вступил в гильдию.'],
+    });
+  },
+
+  rejectGuildApplicant: (applicationId) => {
+    const { server } = get();
+    const next = rejectPlayerGuildApplication(server, applicationId);
+    commit(set, next, undefined, {
+      id: `modal_reject_guild_app_${applicationId}`,
+      type: 'guild',
+      title: 'Заявка отклонена',
+      text: 'Игрок не принят.',
+      lines: ['Заявка закрыта.'],
+    });
   },
 
   openNpcProfile: (npcId) => {

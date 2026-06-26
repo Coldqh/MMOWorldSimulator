@@ -326,6 +326,7 @@ export interface GuildApplication {
   createdMinute: number;
   resolveDay: number;
   resolveMinute: number;
+  applicantNpcId?: Id;
   resultText?: string;
 }
 
