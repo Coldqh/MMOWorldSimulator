@@ -6,6 +6,7 @@ import { initializeGuildRelations, getGuildRelationValue, updateGuildRelations, 
 import { rebalanceGuildRoster } from './guildRosterSystem';
 import { assignInitialNpcLocations, moveNpcPlayers, handleWarNpcEncountersAfterNpcMovement, canPlayerAttackWarNpc } from './npcLocationSystem';
 import { growNpcAfterDuel, makeKillRecord, resolveNpcDuel, resolvePlayerNpcDuel } from './pvpSimulationSystem';
+import { normalizeGuildAndNpcIdentities } from './guildIdentitySystem';
 
 const clampDuration = (days: number) => Math.max(7, Math.min(30, Math.round(days)));
 const totalMinute = (day: number, minute: number) => (day - 1) * 1440 + minute;
@@ -221,14 +222,14 @@ export const attackWarEnemyNpc = (server: ServerState, npcId: Id, rng: Rng): Ser
 };
 
 export const initializeGuildWarsCore = (server: ServerState, rng: Rng): ServerState => {
-  let next = rebalanceGuildRoster(server, rng);
+  let next = normalizeGuildAndNpcIdentities(rebalanceGuildRoster(server, rng));
   next = initializeGuildRelations(next, rng);
   next = assignInitialNpcLocations(next, rng);
   return { ...next, guildWars: next.guildWars ?? [], guildWarVotes: next.guildWarVotes ?? [] };
 };
 
 export const normalizeGuildWarsCore = (server: ServerState, rng: Rng): ServerState => {
-  let next = { ...server, guildRelations: server.guildRelations ?? [], guildWars: server.guildWars ?? [], guildWarVotes: server.guildWarVotes ?? [] };
+  let next = normalizeGuildAndNpcIdentities({ ...server, guildRelations: server.guildRelations ?? [], guildWars: server.guildWars ?? [], guildWarVotes: server.guildWarVotes ?? [] });
   next = rebalanceGuildRoster(next, rng);
   next = initializeGuildRelations(next, rng);
   next = assignInitialNpcLocations(next, rng);

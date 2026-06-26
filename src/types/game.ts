@@ -47,7 +47,7 @@ export type GuildType =
   | "NEWBIE"
   | "MIXED";
 export type GuildFocus = "pvp" | "pve" | "hybrid";
-export type NpcPlaystyle = "pvp" | "pve" | "hybrid";
+export type NpcPlaystyle = "pvp" | "pve" | "solo";
 export type NpcLocationMode = "city" | "zone" | "spot";
 export type GuildWarVoteKind = "declare" | "accept" | "extend";
 export type GuildWarVoteStatus = "active" | "passed" | "failed" | "expired" | "cancelled";
@@ -651,6 +651,7 @@ export interface CollectionProgress {
 
 export interface ServerState {
   version: string;
+  appVersion?: string;
   seed: number;
   characterCreated: boolean;
   serverDay: number;

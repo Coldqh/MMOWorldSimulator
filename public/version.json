@@ -1,6 +1,6 @@
 {
-  "version": "0.7.6",
+  "version": "0.7.7",
   "channel": "stable",
-  "build": "2026-06-25-v076-guild-wars",
+  "build": "2026-06-26-v077-guild-cleanup",
   "buildTime": "2026-06-25T00:00:00.000Z"
 }

@@ -1,57 +1,49 @@
 import fs from 'node:fs';
 
 const read = (path) => fs.existsSync(path) ? fs.readFileSync(path, 'utf8') : '';
+
 const files = {
   pkg: read('package.json'),
-  types: read('src/types/game.ts'),
-  gameStore: read('src/state/gameStore.ts'),
-  createNewGame: read('src/engine/createNewGame.ts'),
-  runtimeValidation: read('src/engine/runtimeValidation.ts'),
-  guildWar: read('src/systems/guildWarSystem.ts'),
+  version: read('src/engine/version.ts'),
+  versionJson: read('public/version.json'),
+  manifest: read('public/manifest.webmanifest'),
+  settings: read('src/ui/screens/SettingsScreen.tsx'),
+  guildIdentity: read('src/systems/guildIdentitySystem.ts'),
   guildRoster: read('src/systems/guildRosterSystem.ts'),
-  guildRelation: read('src/systems/guildRelationSystem.ts'),
-  npcSkill: read('src/systems/npcSkillSystem.ts'),
-  npcLocation: read('src/systems/npcLocationSystem.ts'),
-  pvp: read('src/systems/pvpSimulationSystem.ts'),
   guildScreen: read('src/ui/screens/GuildScreen.tsx'),
-  worldScreen: read('src/ui/screens/WorldScreen.tsx'),
-  guildWarPanel: read('src/ui/components/GuildWarPanel.tsx'),
   locationNpcList: read('src/ui/components/LocationNpcList.tsx'),
-  saveLoad: read('src/engine/saveLoad.ts'),
-  sw: read('public/sw.js'),
+  gameStore: read('src/state/gameStore.ts'),
+  resultModal: read('src/ui/components/ResultModal.tsx'),
+  types: read('src/types/game.ts'),
 };
+
 const fail = [];
 const ok = [];
 const assert = (cond, msg) => cond ? ok.push(msg) : fail.push(msg);
 
-assert(files.pkg.includes('"version": "0.7.6"'), 'package version is 0.7.6');
-assert(files.saveLoad.includes("SAVE_KEY = 'mmoworldsimulator.save.v0.7.0'"), 'save key unchanged');
-assert(files.sw.includes("CACHE_NAME = 'mmows-v0.7.3'"), 'service worker cache unchanged');
-assert(files.types.includes('export type GuildFocus'), 'GuildFocus type exists');
-assert(files.types.includes('guildRelations: GuildRelation[]'), 'ServerState has guildRelations');
-assert(files.types.includes('guildWars: GuildWar[]'), 'ServerState has guildWars');
-assert(files.types.includes('guildWarVotes: GuildWarVote[]'), 'ServerState has guildWarVotes');
-assert(files.types.includes('skill?: number'), 'NPC skill field exists');
-assert(files.types.includes('playstyle?: NpcPlaystyle'), 'NPC playstyle field exists');
-assert(files.guildRoster.includes('rebalanceGuildRoster'), 'guild roster rebalance helper exists');
-assert(files.guildRelation.includes('initializeGuildRelations'), 'guild relations initializer exists');
-assert(files.guildWar.includes('createGuildWarDeclareVote'), 'war declare vote function exists');
-assert(files.guildWar.includes('simulateActiveGuildWars'), 'active war simulation exists');
-assert(files.guildWar.includes('attackWarEnemyNpc'), 'player attack action system exists');
-assert(files.npcLocation.includes('getNpcPlayersInLocation'), 'location npc system exists');
-assert(files.pvp.includes('resolveNpcDuel'), 'pvp duel resolver exists');
-assert(files.pvp.includes('getNpcSkillModifier'), 'skill modifier affects pvp');
-assert(files.createNewGame.includes('initializeGuildWarsCore'), 'createNewGame initializes guild wars core');
-assert(files.gameStore.includes('normalizeGuildWarsCore'), 'gameStore migration normalizes guild wars');
-assert(files.gameStore.includes('tickGuildWars'), 'server tick integrates guild wars');
-assert(files.gameStore.includes('declareGuildWar'), 'store declareGuildWar action exists');
-assert(files.gameStore.includes('voteGuildWar'), 'store voteGuildWar action exists');
-assert(files.gameStore.includes('attackWarEnemyNpc'), 'store attackWarEnemyNpc action exists');
-assert(files.runtimeValidation.includes('guild_wars_missing'), 'runtime validation checks guild wars');
-assert(files.guildScreen.includes('GuildWarPanel'), 'guild screen shows guild war panel');
-assert(files.guildScreen.includes('ServerGuildWarList'), 'guild list shows server wars');
-assert(files.worldScreen.includes('LocationNpcList'), 'world screen uses location NPC list');
-assert(files.locationNpcList.includes('danger-button'), 'enemy NPC attack button exists');
+assert(files.pkg.includes('"version": "0.7.7"'), 'package version 0.7.7');
+assert(files.version.includes("APP_VERSION = '0.7.7'"), 'APP_VERSION 0.7.7');
+assert(files.versionJson.includes('"version": "0.7.7"'), 'version.json 0.7.7');
+assert(files.manifest.includes('"version": "0.7.7"'), 'manifest 0.7.7');
+
+assert(files.settings.includes('app v{APP_VERSION}') && !files.settings.includes('save v{server.version}'), 'settings does not show internal save v0.7.0');
+assert(files.guildIdentity.includes('normalizeGuildAndNpcIdentities'), 'guild identity cleanup helper exists');
+assert(files.guildIdentity.includes("guildFocusToLegacyType"), 'guild type normalization helper exists');
+assert(files.guildIdentity.includes("'solo'"), 'solo NPC playstyle exists');
+assert(files.guildRoster.includes('normalizeGuildAndNpcIdentities'), 'guild roster normalizes identities');
+assert(!files.guildRoster.includes("return 'hybrid';"), 'guild roster no longer assigns hybrid NPC playstyle');
+assert(files.locationNpcList.includes('Lv. {npc.level}') && !files.locationNpcList.includes('Gear') && !files.locationNpcList.includes('skill'), 'location list is compact');
+assert(files.guildScreen.includes('Отношения'), 'guild screen has relations tab');
+assert(files.guildScreen.includes('renderNpcButton'), 'guild screen renders clickable GM/officers');
+assert(!files.guildScreen.includes('raidProgress') && !files.guildScreen.includes('stability'), 'guild profile screen hides raid/stability');
+assert(files.gameStore.includes('normalizeGuildAndNpcIdentities'), 'gameStore migration normalizes identities');
+assert(!files.gameStore.includes('`Активность: ${npc.activityLevel}/10`'), 'NPC profile activity removed');
+assert(!files.gameStore.includes('`Амбиции: ${npc.ambition}/10`'), 'NPC profile ambition removed');
+assert(!files.gameStore.includes('`Риск: ${npc.risk}/10`'), 'NPC profile risk removed');
+assert(files.gameStore.includes('`Skill: ${npc.skill ?? 5}/10`'), 'NPC profile shows skill');
+assert(files.gameStore.includes('`Guild Type: ${guildFocusLabel(guild?.guildFocus)}`'), 'NPC profile shows guild type');
+assert(files.resultModal.includes('ACTION_NPC_PROFILE:'), 'modal supports clickable NPC profile actions');
+assert(files.types.includes('"solo"'), 'types allow solo playstyle');
 
 if (fail.length) {
   console.error('Sanity failed:');

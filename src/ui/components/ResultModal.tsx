@@ -55,6 +55,7 @@ export const ResultModal = () => {
   const socketCard = useGameStore((state) => state.socketCard);
   const openGuildProfile = useGameStore((state) => state.openGuildProfile);
   const openGuildRoster = useGameStore((state) => state.openGuildRoster);
+  const openNpcProfile = useGameStore((state) => state.openNpcProfile);
   const pendingLoot = server.pendingLootRoll;
 
   if (!modal && !pendingLoot) return null;
@@ -111,6 +112,7 @@ export const ResultModal = () => {
   const npcItemActions = actionLines.filter((line) => line.startsWith('ACTION_NPC_ITEM|'));
   const guildAction = actionLines.find((line) => line.startsWith('ACTION_GUILD_PROFILE:'));
   const guildRosterAction = actionLines.find((line) => line.startsWith('ACTION_GUILD_ROSTER:'));
+  const npcProfileActions = actionLines.filter((line) => line.startsWith('ACTION_NPC_PROFILE:'));
   const profileMode = modal.type === 'item' || modal.type === 'npc' || modal.type === 'loot';
 
   return (
@@ -173,6 +175,19 @@ export const ResultModal = () => {
           const [, guildId] = guildRosterAction.split(':');
           return <button className="wide-button" onClick={() => openGuildRoster(guildId)}>Ростер</button>;
         })()}
+
+        {npcProfileActions.length > 0 && (
+          <div className="modal-section">
+            <div className="section-title">Игроки</div>
+            <div className="loot-card-list">
+              {npcProfileActions.map((line) => {
+                const [, npcId, ...labelParts] = line.split(':');
+                const label = labelParts.join(':') || npcId;
+                return <button key={line} className="loot-card-button" onClick={() => openNpcProfile(npcId)}>{label}</button>;
+              })}
+            </div>
+          </div>
+        )}
 
         {npcItemActions.length > 0 && (
           <div className="modal-section">

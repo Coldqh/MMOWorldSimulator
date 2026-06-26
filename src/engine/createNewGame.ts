@@ -3,6 +3,7 @@ import { GUILD_TEMPLATES, NPC_NAMES, ROLE_FOCUSES } from '../content/npc';
 import { RACES } from '../content/races';
 import type { Guild, GuildType, NpcPlayer, Player, RoleFocus, ServerState } from '../types/game';
 import { SAVE_VERSION } from './saveLoad';
+import { APP_VERSION } from './version';
 import { createRng } from './rng';
 import { estimateArenaRatingValue, estimateWealthValue, updateRankings } from '../systems/progressionSystem';
 import { generateFullMarket, repairMarketIfBroken } from '../systems/marketSystem';
@@ -493,6 +494,7 @@ export const createNewGame = (
 
   const server: ServerState = {
     version: SAVE_VERSION,
+    appVersion: APP_VERSION,
     seed,
     characterCreated,
     serverDay: 1,

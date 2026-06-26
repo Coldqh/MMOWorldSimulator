@@ -64,7 +64,7 @@ export const SettingsScreen = () => {
       <section className="panel hero-panel">
         <div className="section-title">⚙️ Настройки</div>
         <h1>Сейв и проверка</h1>
-        <p className="muted">app v{APP_VERSION} · save v{server.version} · день {server.serverDay}</p>
+        <p className="muted">app v{APP_VERSION} · день {server.serverDay}</p>
         <p className="muted">Offline: {offlineReady ? 'готов' : 'готовится'}{updateText ? ` · ${updateText}` : ''}</p>
         <div className="action-grid">
           <button onClick={saveNow}>Сохранить</button>

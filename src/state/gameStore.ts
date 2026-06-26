@@ -19,6 +19,7 @@ import {
   SAVE_VERSION,
 } from "../engine/saveLoad";
 import { advanceServerClock } from "../engine/time";
+import { APP_VERSION } from "../engine/version";
 import { repairServerRuntime, validateServerRuntime } from "../engine/runtimeValidation";
 
 import {
@@ -89,6 +90,7 @@ import {
   startPartyFromListing,
   waitPartyListing as waitPartyFinderListing,
 } from "../systems/partyFinderSystem";
+import { guildFocusLabel, normalizeGuildAndNpcIdentities, npcPlaystyleLabel } from "../systems/guildIdentitySystem";
 import {
   attackWarEnemyNpc as resolveWarEnemyNpcAttack,
   castGuildWarVote,
@@ -228,6 +230,7 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
   const baseServer: ServerState = {
     ...server,
     version: SAVE_VERSION,
+    appVersion: server.appVersion ?? APP_VERSION,
     characterCreated,
     location: server.location && server.location.mode !== 'city' && ['iron_quarry', 'skyfall_pass'].includes(server.location.zoneId ?? '') ? { mode: "city" } : (server.location ?? { mode: "city" }),
     player: {
@@ -281,7 +284,7 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
     questStates: server.questStates ?? {},
     contracts: server.contracts ?? [],
   };
-  const baseWithProgress = addCollectionProgress(baseServer);
+  const baseWithProgress = normalizeGuildAndNpcIdentities(addCollectionProgress(baseServer));
 
   if (mode === "light" && !needsMigration) {
     const repairedLight = repairMarketIfBroken(baseWithProgress, marketRng, "light");
@@ -1305,21 +1308,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!npc) return;
     const race = getRaceById(npc.raceId)?.name ?? npc.raceId;
     const className = getClassById(npc.classId)?.name ?? npc.classId;
-    const guild = npc.guildId
-      ? server.guilds.find((entry) => entry.id === npc.guildId)
-      : undefined;
-    const roleText: Record<string, string> = {
-      PVE_FARMER: "PvE фарм",
-      RAIDER: "рейды",
-      PVP_PLAYER: "PvP",
-      GUILD_PLAYER: "гильдии",
-      COLLECTOR: "коллекции",
-      TRADER: "рынок",
-      CASUAL: "казуал",
-      HARDCORE: "хардкор",
-      LEADER: "лидер",
-      DRAMA: "конфликты",
-    };
+    const guild = npc.guildId ? server.guilds.find((entry) => entry.id === npc.guildId) : undefined;
     const equipmentLines = equipmentEntries(npc.equipment ?? {}).map(({ slot, instance }) => {
       const item = getItemById(instance.itemId);
       const label = `${slot}: ${item?.name ?? instance.itemId}${instance.enhancement > 0 ? ` +${instance.enhancement}` : ''}${item ? ` · Lv. ${item.levelReq}` : ''}`;
@@ -1333,21 +1322,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
       text: `Lv. ${npc.level} · ${race} · ${className} · Gear ${gearScore}`,
       lines: [
         guild ? `ACTION_GUILD_PROFILE:${guild.id}:${guild.name}` : `Гильдия: нет`,
+        `Гильдия: ${guild?.name ?? 'нет'}`,
+        `Guild Type: ${guildFocusLabel(guild?.guildFocus)}`,
+        `Playstyle: ${npcPlaystyleLabel(npc.playstyle)}`,
+        `Skill: ${npc.skill ?? 5}/10`,
+        `Gear Score: ${gearScore}`,
+        `PvP: ${npc.arenaRating}`,
         `Ранг арены: ${arenaRankIcon(npc.arenaRating)} ${arenaRankName(npc.arenaRating)} · ${npc.arenaRating}`,
-        `Фокус: ${roleText[npc.roleFocus] ?? npc.roleFocus}`,
         `Цель: ${npc.currentGoal}`,
-        `Арена: ${npc.arenaRating}`,
         `Репутация: ${npc.reputation}`,
         `Золото: ${npc.gold}g`,
-        `Активность: ${npc.activityLevel}/10`,
-        `Амбиции: ${npc.ambition}/10`,
-        `Риск: ${npc.risk}/10`,
-        `Gear Score: ${gearScore}`,
         ...equipmentLines,
       ],
     };
     set({ modal });
-
   },
 
   openGuildRoster: (guildId) => {
@@ -1368,7 +1356,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         lines: members.map((member: any) => {
           const role = guild.leaderId === member.id ? '👑 ГМ' : guild.deputyId === member.id ? '🛡️ Зам' : (guild.officerIds ?? []).includes(member.id) ? '⚔️ Офицер' : 'Участник';
           const gear = member.id === server.player.id ? getGearScore(server.player.equipment) : member.gearScore;
-          return `${role}: ${member.name}${member.id === server.player.id ? ' · ты' : ''} · Lv. ${member.level} · Gear ${gear}`;
+          const label = `${role}: ${member.name}${member.id === server.player.id ? ' · ты' : ''} · Lv. ${member.level} · Gear ${gear}`;
+          return member.id === server.player.id ? label : `ACTION_NPC_PROFILE:${member.id}:${label}`;
         }),
       },
     });
@@ -1381,24 +1370,35 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const members = guild.memberIds.map((id) => server.npcs.find((npc) => npc.id === id)).filter(Boolean);
     const leader = server.npcs.find((npc) => npc.id === guild.leaderId);
     const deputy = server.npcs.find((npc) => npc.id === guild.deputyId);
+    const officers = (guild.officerIds ?? []).map((id) => server.npcs.find((npc) => npc.id === id)).filter(Boolean) as any[];
+    const relations = server.guilds
+      .filter((entry) => entry.id !== guild.id)
+      .slice(0, 10)
+      .map((other) => {
+        const outgoing = server.guildRelations.find((rel) => rel.fromGuildId === guild.id && rel.toGuildId === other.id)?.value ?? 0;
+        const incoming = server.guildRelations.find((rel) => rel.fromGuildId === other.id && rel.toGuildId === guild.id)?.value ?? 0;
+        return `${other.name}: ${outgoing} / ${incoming}`;
+      });
     set({
       modal: {
         id: `modal_guild_${guild.id}`,
         type: 'guild',
         title: guild.name,
-        text: `${guild.type} · ${guild.tier ?? 'low'} · ${members.length} игроков`,
+        text: `${guildFocusLabel(guild.guildFocus)} · ${guild.tier ?? 'low'} · ${members.length} игроков`,
         lines: [
           `Уровень: ${guild.level}`,
+          `Тип: ${guildFocusLabel(guild.guildFocus)}`,
           `Вход: ${guild.minLevel ?? 1}+`,
-          `ГМ: ${leader?.name ?? 'нет'}`,
-          `Зам: ${deputy?.name ?? 'нет'}`,
-          `Офицеры: ${(guild.officerIds ?? []).map((id) => server.npcs.find((npc) => npc.id === id)?.name ?? id).join(', ') || 'нет'}`,
+          leader ? `ACTION_NPC_PROFILE:${leader.id}:ГМ: ${leader.name}` : 'ГМ: нет',
+          deputy ? `ACTION_NPC_PROFILE:${deputy.id}:Зам: ${deputy.name}` : 'Зам: нет',
+          ...officers.slice(0, 4).map((npc) => `ACTION_NPC_PROFILE:${npc.id}:Офицер: ${npc.name}`),
           `PvP: ${guild.pvpRating}`,
-          `Gear: ${guild.reputation}`,
-          `Рейд: ${guild.raidProgress}%`,
-          `Стабильность: ${guild.stability}%`,
+          `Репутация: ${guild.reputation}`,
+          `Отношения: ${relations.join(' · ') || 'нет'}`,
           `ACTION_GUILD_ROSTER:${guild.id}`,
         ],
       },
     });
+  },
+  },}));
   },}));

@@ -2,47 +2,19 @@ import type { Guild, GuildFocus, GuildType, NpcPlayer, NpcPlaystyle, ServerState
 import type { Rng } from '../engine/rng';
 import { SPOTS, ZONES } from '../content/world';
 import { inferNpcSkill, clampNpcSkill } from './npcSkillSystem';
+import { cleanGuildIdentity, cleanNpcIdentity, normalizeGuildAndNpcIdentities, normalizeNpcPlaystyle, roleFocusToPlaystyle } from './guildIdentitySystem';
 
 const focusOrder: GuildFocus[] = ['pvp', 'pve', 'hybrid'];
 
-export const guildFocusFromType = (type?: GuildType | string, index = 0): GuildFocus => {
-  if (type === 'PVP' || type === 'HARDCORE') return 'pvp';
-  if (type === 'PVE' || type === 'NEWBIE' || type === 'CASUAL') return 'pve';
-  if (type === 'TRADE' || type === 'MIXED') return 'hybrid';
-  return focusOrder[index % focusOrder.length];
-};
+export const guildFocusFromType = (type?: GuildType | string, index = 0): GuildFocus => cleanGuildIdentity({ id: 'tmp', name: 'tmp', type: (type as GuildType) ?? 'MIXED', level: 1, reputation: 0, memberIds: [], focus: '', raidProgress: 0, pvpRating: 0, stability: 0, recruitmentPolicy: 'open' }, index).guildFocus ?? 'hybrid';
 
-export const normalizeGuildFocusDistribution = (guilds: Guild[]): Guild[] => {
-  const count = guilds.length;
-  const base = Math.floor(count / 3);
-  const targets: Record<GuildFocus, number> = { pvp: base, pve: base, hybrid: base + (count % 3) };
-  const sorted = [...guilds].sort((a, b) => a.id.localeCompare(b.id));
-  const assigned = new Map<string, GuildFocus>();
-  focusOrder.forEach((focus) => {
-    sorted.filter((guild) => !assigned.has(guild.id)).filter((guild, index) => guildFocusFromType(guild.type, index) === focus).slice(0, targets[focus]).forEach((guild) => assigned.set(guild.id, focus));
-  });
-  focusOrder.forEach((focus) => {
-    while ([...assigned.values()].filter((entry) => entry === focus).length < targets[focus]) {
-      const guild = sorted.find((entry) => !assigned.has(entry.id));
-      if (!guild) break;
-      assigned.set(guild.id, focus);
-    }
-  });
-  return guilds.map((guild, index) => ({ ...guild, guildFocus: assigned.get(guild.id) ?? guild.guildFocus ?? guildFocusFromType(guild.type, index) }));
-};
+export const normalizeGuildFocusDistribution = (guilds: Guild[]): Guild[] => guilds.map(cleanGuildIdentity);
 
-export const playstyleForGuild = (guild: Guild | undefined, npc: NpcPlayer, rng: Rng): NpcPlaystyle => {
-  if (guild?.guildFocus === 'pvp') return 'pvp';
-  if (guild?.guildFocus === 'pve') return 'pve';
-  if (guild?.guildFocus === 'hybrid') {
-    const roll = rng.next();
-    if (roll < 0.34) return 'pvp';
-    if (roll < 0.68) return 'pve';
-    return 'hybrid';
-  }
-  if (npc.roleFocus === 'PVP_PLAYER') return 'pvp';
-  if (npc.roleFocus === 'RAIDER' || npc.roleFocus === 'PVE_FARMER') return 'pve';
-  return 'hybrid';
+export const playstyleForGuild = (guild: Guild | undefined, npc: NpcPlayer, _rng: Rng): NpcPlaystyle => {
+  if (!guild) return 'solo';
+  if (guild.guildFocus === 'pvp') return 'pvp';
+  if (guild.guildFocus === 'pve') return 'pve';
+  return normalizeNpcPlaystyle(npc.playstyle, roleFocusToPlaystyle(npc.roleFocus));
 };
 
 const tierForNpcLevel = (level: number, rng: Rng): 'low' | 'mid' | 'high' | 'none' => {
@@ -109,5 +81,5 @@ export const rebalanceGuildRoster = (server: ServerState, rng: Rng): ServerState
     const playerMember = server.player.guildId === guild.id ? [server.player.id] : [];
     return { ...guild, memberIds: [...new Set([...members, ...playerMember])], leaderId: guild.leaderId && members.includes(guild.leaderId) ? guild.leaderId : ranked[0]?.id, deputyId: guild.deputyId && members.includes(guild.deputyId) ? guild.deputyId : ranked[1]?.id, officerIds: (guild.officerIds ?? []).filter((id) => members.includes(id)).length ? (guild.officerIds ?? []).filter((id) => members.includes(id)).slice(0, 4) : ranked.slice(2, 6).map((npc) => npc.id) };
   });
-  return { ...server, guilds: nextGuilds, npcs };
+  return normalizeGuildAndNpcIdentities({ ...server, guilds: nextGuilds, npcs });
 };
