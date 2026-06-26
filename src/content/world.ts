@@ -1,10 +1,8 @@
-import { ITEMS } from './items';
+import { ITEMS } from './itemContent';
 import {
   BASE_DUNGEONS,
   BASE_LOOT_TABLES,
-  BASE_MOBS,
   BASE_RAIDS,
-  BASE_SPOTS,
   BASE_ZONES,
   CITY_ID,
   CITY_NAME,
@@ -14,18 +12,17 @@ import {
   EXTRA_DUNGEONS,
   EXTRA_LOOT_TABLES,
   EXTRA_MOB_PATCHES,
-  EXTRA_MOBS,
   EXTRA_SPOT_PATCHES,
-  EXTRA_SPOTS,
   EXTRA_ZONES,
 } from './worldExtraContent';
 import { finalizeWorldContent } from './worldFinalize';
-import { REBALANCE_MOBS, rebalanceWorldContent } from './worldRebalance';
+import { rebalanceWorldContent } from './worldRebalance';
+import { WORLD_MOB_DEFINITIONS, WORLD_SPOT_DEFINITIONS } from './mobDefinitions';
 
 const WORLD = rebalanceWorldContent(finalizeWorldContent({
   lootTables: [...BASE_LOOT_TABLES, ...EXTRA_LOOT_TABLES],
-  mobs: [...BASE_MOBS, ...EXTRA_MOBS, ...REBALANCE_MOBS],
-  spots: [...BASE_SPOTS, ...EXTRA_SPOTS],
+  mobs: WORLD_MOB_DEFINITIONS,
+  spots: WORLD_SPOT_DEFINITIONS,
   zones: [...BASE_ZONES, ...EXTRA_ZONES],
   dungeons: [...BASE_DUNGEONS, ...EXTRA_DUNGEONS],
   raids: [...BASE_RAIDS],

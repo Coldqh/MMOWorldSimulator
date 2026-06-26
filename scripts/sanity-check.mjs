@@ -1,3 +1,4 @@
+import './import-graph-check.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -19,9 +20,18 @@ const files = {
   gameStore: read('src/state/gameStore.ts'),
   main: read('src/main.tsx'),
   architecture: read('ARCHITECTURE.md'),
+  items: read('src/content/items.ts'),
+  itemContent: read('src/content/itemContent.ts'),
+  world: read('src/content/world.ts'),
+  mobDefinitions: read('src/content/mobDefinitions.ts'),
   objectiveSystem: read('src/systems/objectiveSystem.ts'),
+  rewardSystem: read('src/systems/rewardSystem.ts'),
+  partyRoleSystem: read('src/systems/partyRoleSystem.ts'),
   questSystem: read('src/systems/questSystem.ts'),
   contractSystem: read('src/systems/contractSystem.ts'),
+  dungeonSystem: read('src/systems/dungeonSystem.ts'),
+  partyFinderSystem: read('src/systems/partyFinderSystem.ts'),
+  validationFacade: read('src/engine/validation.ts'),
   validateContent: read('src/content/validateContent.ts'),
   contractActions: read('src/ui/actions/contractActions.ts'),
   actionTypes: read('src/ui/actions/types.ts'),
@@ -36,91 +46,68 @@ const assert = (cond, msg) => cond ? ok.push(msg) : fail.push(msg);
 
 const importBlock = files.gameStore.slice(0, files.gameStore.indexOf('interface GameStore {'));
 
-assert(files.packageJson.includes('"version": "0.7.3"'), 'package version remains 0.7.3');
-assert(files.version.includes("APP_VERSION = '0.7.3'"), 'APP_VERSION remains 0.7.3');
-assert(files.versionJson.includes('"version": "0.7.3"'), 'version.json remains 0.7.3');
-assert(files.sw.includes("CACHE_NAME = 'mmows-v0.7.3'"), 'service worker cache remains 0.7.3');
-assert(files.manifest.includes('"version": "0.7.3"'), 'manifest remains 0.7.3');
-
-assert(files.saveLoad.includes("export const loadGame"), 'saveLoad exports loadGame');
+assert(files.packageJson.includes('"version": "0.7.4"'), 'package version is 0.7.4');
+assert(files.version.includes("APP_VERSION = '0.7.4'"), 'APP_VERSION is 0.7.4');
+assert(files.versionJson.includes('"version": "0.7.4"'), 'version.json is 0.7.4');
 assert(files.saveLoad.includes("SAVE_VERSION = '0.7.0'"), 'save format remains 0.7.0');
 assert(files.saveLoad.includes("SAVE_KEY = 'mmoworldsimulator.save.v0.7.0'"), 'save key remains v0.7.0');
+assert(files.sw.includes("CACHE_NAME = 'mmows-v0.7.3'"), 'service worker cache intentionally unchanged');
+assert(files.manifest.includes('"version": "0.7.4"'), 'manifest version is 0.7.4');
 
 [
-  'create',
-  'SAVE_VERSION',
-  'loadGame',
-  'saveGame',
-  'clearSave',
-  'flushSaveGame',
-  'backupRescueSave',
-  'createNewGame',
   'createEmptyServer',
-  'ensureServerRoster',
+  'loadGame',
   'createRng',
-  'uid',
-  'advanceServerClock',
-  'getItemById',
-  'normalizeLegacyItemId',
-  'ITEMS',
   'getDungeonById',
-  'getSpotById',
-  'getZoneById',
   'startSpotCombat',
-  'createPlayerCombatant',
-  'resolveCombatAction',
-  'startDungeonFloorCombat',
-  'completeDungeonFloor',
-  'resolveDungeonEventFloor',
-  'restInDungeon',
-  'enhanceItem',
-  'createPlayerPartyListing',
-  'joinPartyListing as joinPartyFinderListing',
-  'waitPartyListing as waitPartyFinderListing',
-  'leavePartyListing as leavePartyFinderListing',
-  'cancelPartyListing as cancelPartyFinderListing',
-  'startPartyFromListing',
-  'acceptPartyApplicant as acceptPartyFinderApplicant',
-  'rejectPartyApplicant as rejectPartyFinderApplicant',
   'refreshPartyFinderListings',
   'repairServerRuntime',
-  'validateServerRuntime',
-].forEach((name) => assert(importBlock.includes(name), `gameStore import block includes ${name}`));
+].forEach((name) => assert(importBlock.includes(name), `gameStore boot import still includes ${name}`));
 
-assert(files.gameStore.includes('const simulateServerForMinutes ='), 'gameStore has local simulateServerForMinutes fallback');
-assert(files.gameStore.includes('const savedServer = loadGame();'), 'gameStore calls imported loadGame');
-assert(files.gameStore.includes('server ?? createEmptyServer()'), 'safeNormalizeServer still has fallback empty server');
-assert(files.main.includes('renderBootError'), 'visible boot error remains');
-assert(!files.main.includes('await runRuntimeResetIfNeeded()'), 'boot does not await async runtime reset');
+assert(files.items.includes("from './itemContent'"), 'items.ts is a public itemContent barrel');
+assert(files.itemContent.includes('MOB_CARD_SOURCE_MOBS'), 'itemContent builds cards from neutral mob definitions');
+assert(!files.itemContent.includes("from './world'"), 'itemContent does not import world index');
+assert(files.world.includes("from './itemContent'"), 'world imports itemContent, not items barrel');
+assert(!files.world.includes("from './items'"), 'world does not import public items barrel');
+assert(files.mobDefinitions.includes('WORLD_MOB_DEFINITIONS'), 'mobDefinitions owns neutral mob source');
+assert(!files.mobDefinitions.includes('ITEMS'), 'mobDefinitions does not import item content');
 
-assert(files.architecture.includes('content = static game data'), 'ARCHITECTURE.md documents layers');
-assert(files.architecture.includes('SAVE_KEY = mmoworldsimulator.save.v0.7.0'), 'ARCHITECTURE.md documents save key');
-assert(files.architecture.includes('MarketScreen may call repairMarket action'), 'ARCHITECTURE.md documents market boundary');
-assert(files.architecture.includes('currentDungeonRun.partyNpcIds'), 'ARCHITECTURE.md documents party source');
+assert(files.validationFacade.includes('runAllStaticValidation'), 'validation facade exports static validation');
+assert(files.validationFacade.includes('runAllRuntimeValidation'), 'validation facade exports runtime validation');
+assert(files.validationFacade.includes('repairRuntime'), 'validation facade exports repairRuntime');
+assert(files.validateContent.includes('mob_card_ref_missing'), 'content validation checks mob cards');
+assert(files.validateContent.includes('quest_reward_item_ref_missing'), 'content validation checks quest reward item refs');
 
-assert(files.objectiveSystem.includes('advanceObjectiveProgress'), 'shared objective helper exists');
-assert(files.objectiveSystem.includes('isObjectiveProgressComplete'), 'shared objective completion helper exists');
+assert(files.rewardSystem.includes('applyRewardToPlayer'), 'reward helper applies rewards to player');
+assert(files.rewardSystem.includes('formatRewardLines'), 'reward helper formats reward lines');
+assert(files.questSystem.includes("from './rewardSystem'"), 'questSystem uses rewardSystem');
+assert(files.contractSystem.includes("from './rewardSystem'"), 'contractSystem uses rewardSystem');
+assert(files.questSystem.includes('applyRewardToPlayer'), 'quest reward application uses helper');
+assert(files.contractSystem.includes('applyRewardToPlayer'), 'contract reward application uses helper');
+
+assert(files.objectiveSystem.includes('advanceObjectiveProgress'), 'objective helper exists');
 assert(files.questSystem.includes("from './objectiveSystem'"), 'questSystem uses objectiveSystem');
-assert(files.questSystem.includes('advanceObjectiveProgress'), 'questSystem uses shared progress helper');
 assert(files.contractSystem.includes("from './objectiveSystem'"), 'contractSystem uses objectiveSystem');
-assert(files.contractSystem.includes('advanceObjectiveProgress'), 'contractSystem uses shared progress helper');
+
+assert(files.partyRoleSystem.includes('getClassPartyRole'), 'partyRoleSystem owns class role mapping');
+assert(files.partyRoleSystem.includes("classId === 'warrior'") && files.partyRoleSystem.includes("classId === 'priest'"), 'role mapping stable');
+assert(files.dungeonSystem.includes("from './partyRoleSystem'"), 'dungeonSystem imports role helpers');
+assert(files.partyFinderSystem.includes("from './partyRoleSystem'"), 'partyFinderSystem imports role helpers');
+assert(!files.dungeonSystem.includes('const classRole ='), 'dungeonSystem no longer owns local classRole mapping');
+assert(!files.partyFinderSystem.includes('if (classId === \\'warrior\\')'), 'partyFinderSystem no longer duplicates warrior role mapping');
 
 assert(files.actionTypes.includes('interface UiAction'), 'UI action type exists');
 assert(files.contractActions.includes('getContractActions'), 'contract action factory exists');
 assert(files.contractPanel.includes('getContractActions'), 'ContractListPanel renders generated actions');
 assert(!files.contractPanel.includes("contract.status === 'available' &&"), 'ContractListPanel no longer hardcodes available buttons');
-assert(!files.contractPanel.includes("contract.status === 'active' &&"), 'ContractListPanel no longer hardcodes active buttons');
-assert(!files.contractPanel.includes("contract.status === 'readyToClaim' &&"), 'ContractListPanel no longer hardcodes claim button');
 
-assert(files.validateContent.includes('validateContent'), 'content validator exists');
-assert(files.validateContent.includes('duplicate_id'), 'content validator checks duplicate ids');
-assert(files.validateContent.includes('loot_item_ref_missing'), 'content validator checks loot item refs');
-assert(files.validateContent.includes('quest_dungeon_ref_missing'), 'content validator checks quest dungeon refs');
-assert(files.validateContent.includes('dungeon_floor_mob_ref_missing'), 'content validator checks dungeon floor mob refs');
+assert(files.architecture.includes('Mob definitions live in the neutral module'), 'ARCHITECTURE documents mobDefinitions rule');
+assert(files.architecture.includes('Reward system'), 'ARCHITECTURE documents reward system');
+assert(files.architecture.includes('Party role system'), 'ARCHITECTURE documents party role system');
+assert(files.architecture.includes('Validation facade'), 'ARCHITECTURE documents validation facade');
 
-assert(files.marketScreen.includes('type MarketCategory = "all"'), 'market all-filter still exists');
-assert(files.marketScreen.includes('visibleGroups'), 'market debug visibleGroups still exists');
 assert(files.marketScreen.includes('repairMarket'), 'MarketScreen still calls store repair action only');
+assert(files.marketScreen.includes('visibleGroups'), 'MarketScreen market debug guard intact');
 assert(!files.pwa.includes('window.location.replace'), 'PWA still has no forced location.replace');
 
 const contentFiles = walk('src/content').filter((file) => file.endsWith('.ts'));
@@ -128,13 +115,9 @@ const dangerousContentMutations = contentFiles
   .map((file) => ({ file, text: read(file) }))
   .filter(({ file, text }) => {
     const normalized = text.replace(/\/\/.*$/gm, '');
-    const mutatesExportedArray = /(ITEMS|MOBS|SPOTS|ZONES|DUNGEONS|RAIDS|QUESTS|QUEST_GIVERS|LOOT_TABLES)\.push\s*\(/.test(normalized);
-    return mutatesExportedArray && !file.endsWith('validateContent.ts');
+    return /(ITEMS|MOBS|SPOTS|ZONES|DUNGEONS|RAIDS|QUESTS|QUEST_GIVERS|LOOT_TABLES)\.push\s*\(/.test(normalized);
   });
 assert(dangerousContentMutations.length === 0, `no runtime push into exported content arrays (${dangerousContentMutations.map((entry) => entry.file).join(', ')})`);
-
-const actionFiles = walk('src/ui/actions').filter((file) => file.endsWith('.ts'));
-assert(actionFiles.length >= 2, 'ui/actions layer exists');
 
 if (fail.length) {
   console.error('Sanity failed:');

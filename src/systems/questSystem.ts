@@ -11,8 +11,8 @@ import type {
   ServerNotification,
   ServerState,
 } from '../types/game';
-import { addInventoryItem } from './itemSystem';
-import { addPlayerXp } from './progressionSystem';
+import { advanceObjectiveProgress, haveObjectivesChanged, isObjectiveProgressComplete } from './objectiveSystem';
+import { applyRewardToPlayer, formatRewardLines } from './rewardSystem';
 import { advanceObjectiveProgress, haveObjectivesChanged, isObjectiveProgressComplete } from './objectiveSystem';
 
 const cloneObjective = (objective: QuestObjective): QuestObjective => ({
@@ -119,8 +119,7 @@ export const turnInQuest = (server: ServerState, questId: Id): { server: ServerS
   const state = quest ? getQuestState(server, questId) : undefined;
   if (!quest || !state || state.status !== 'readyToTurnIn') return { server, notification: null };
 
-  let player = addPlayerXp(server.player, quest.reward.xp);
-  player = { ...player, gold: player.gold + quest.reward.gold };
+  let player = applyRewardToPlayer(server.player, quest.reward, { includeItems: false, includeReputation: false });
 
   state.objectives.forEach((objective) => {
     if (objective.type === 'collect' && objective.itemId) {
@@ -128,12 +127,7 @@ export const turnInQuest = (server: ServerState, questId: Id): { server: ServerS
     }
   });
 
-  (quest.reward.items ?? []).forEach((reward) => {
-    player = {
-      ...player,
-      inventory: addInventoryItem(player.inventory, reward.itemId, reward.amount, 0),
-    };
-  });
+  player = applyRewardToPlayer(player, { xp: 0, gold: 0, items: quest.reward.items ?? [] }, { includeReputation: false });
 
   const next: ServerState = {
     ...server,
@@ -149,11 +143,7 @@ export const turnInQuest = (server: ServerState, questId: Id): { server: ServerS
     },
   };
 
-  const rewardLines = [
-    `XP +${quest.reward.xp}`,
-    `Gold +${quest.reward.gold}`,
-    ...(quest.reward.items ?? []).map((item) => `${item.itemId} ×${item.amount}`),
-  ];
+  const rewardLines = formatRewardLines(quest.reward);
 
   return {
     server: next,

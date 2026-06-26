@@ -1,7 +1,8 @@
 import { DUNGEONS, MOBS, getDungeonById, getMobById } from '../content/world';
 import { createRng, type Rng } from '../engine/rng';
 import type { ContractDefinition, ContractObjective, ContractReward, ContractStatus, Id, ServerNotification, ServerState } from '../types/game';
-import { addPlayerXp } from './progressionSystem';
+import { advanceObjectiveProgress, isObjectiveProgressComplete } from './objectiveSystem';
+import { applyRewardToPlayer, formatRewardLines } from './rewardSystem';
 import { advanceObjectiveProgress, isObjectiveProgressComplete } from './objectiveSystem';
 
 const WEEKDAYS = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
@@ -231,8 +232,7 @@ export const claimContractReward = (server: ServerState, contractId: Id): { serv
   const contract = (server.contracts ?? []).find((entry) => entry.id === contractId);
   if (!contract || contract.status !== 'readyToClaim') return { server, notification: null };
 
-  let player = addPlayerXp(server.player, contract.reward.xp);
-  player = { ...player, gold: player.gold + contract.reward.gold };
+  const player = applyRewardToPlayer(server.player, contract.reward);
 
   return {
     server: {
@@ -249,14 +249,13 @@ export const claimContractReward = (server: ServerState, contractId: Id): { serv
       type: 'reward',
       title: 'Контракт выполнен',
       text: contract.title,
-      lines: [getContractGoalText(contract), `XP +${contract.reward.xp}`, `Gold +${contract.reward.gold}`],
+      lines: [getContractGoalText(contract), ...formatRewardLines(contract.reward)],
     },
   };
 };
 
 const completeContract = (server: ServerState, contract: ContractDefinition) => {
-  let player = addPlayerXp(server.player, contract.reward.xp);
-  player = { ...player, gold: player.gold + contract.reward.gold };
+  const player = applyRewardToPlayer(server.player, contract.reward);
 
   const completed: ContractDefinition = {
     ...contract,
@@ -272,7 +271,7 @@ const completeContract = (server: ServerState, contract: ContractDefinition) => 
     type: 'reward',
     title: 'Контракт выполнен',
     text: contract.title,
-    lines: [getContractGoalText(contract), `XP +${contract.reward.xp}`, `Gold +${contract.reward.gold}`],
+    lines: [getContractGoalText(contract), ...formatRewardLines(contract.reward)],
   };
 
   return { player, contract: completed, notification };

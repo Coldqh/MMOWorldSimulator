@@ -16,6 +16,15 @@ import type {
   ServerState,
 } from '../types/game';
 import { getGearScore } from './itemSystem';
+import {
+  buildListingRolesFromMembers,
+  buildPartyRolesFromMembers,
+  canMemberFillNeededRole,
+  getClassPartyRole,
+  getPartyRequirementForDungeon,
+  hasRoleSlot,
+  totalPartyRequired as totalPartyRequiredForRoles,
+} from './partyRoleSystem';
 
 const ACTIVE_STATUSES: PartyListingStatus[] = ['forming', 'ready'];
 
@@ -32,7 +41,7 @@ const addMinutes = (server: Pick<ServerState, 'serverDay' | 'currentMinute'>, mi
 
 const unique = (ids: string[]) => [...new Set(ids)];
 
-export const totalPartyRequired = (requirements: PartyRequirement) => requirements.tanks + requirements.healers + requirements.dps;
+export const totalPartyRequired = totalPartyRequiredForRoles;
 
 const allMembersKnown = (server: ServerState, ids: string[]) =>
   ids.every((id) => id === server.player.id || server.npcs.some((npc) => npc.id === id));
@@ -50,58 +59,12 @@ const memberGearScore = (server: ServerState, id: string) =>
 
 const listingMemberLimit = (listing: PartyFinderListing) => totalPartyRequired(listing.requirements);
 
-export const getClassPartyRole = (classId: string): PartyRole => {
-  if (classId === 'warrior') return 'tank';
-  if (classId === 'priest') return 'healer';
-  if (classId === 'mage') return 'magicDps';
-  return 'physicalDps';
-};
+export const getDungeonPartyRequirement = getPartyRequirementForDungeon;
 
-export const getDungeonPartyRequirement = (dungeon: DungeonDefinition): PartyRequirement => {
-  const contentType = dungeon.contentType ?? 'dungeon';
-  const size = contentType === 'raid' ? Math.max(10, dungeon.partySize) : Math.max(5, dungeon.partySize);
-  const tanks = contentType === 'raid' ? 2 : 1;
-  const healers = contentType === 'raid' ? 2 : 1;
-  const dps = Math.max(1, size - tanks - healers);
-  const minLevel = dungeon.levelRange[0];
-  const maxLevel = Math.max(dungeon.levelRange[1], minLevel);
-  const minGearScore = contentType === 'raid'
-    ? Math.max(1500, minLevel * 88)
-    : minLevel >= 16
-      ? minLevel * 55
-      : minLevel >= 10
-        ? minLevel * 42
-        : undefined;
+const rolesForMembers = buildListingRolesFromMembers;
 
-  return { tanks, healers, dps, minLevel, maxLevel, minGearScore };
-};
-
-const rolesForMembers = (server: ServerState, memberIds: string[]): PartyFinderListing['roles'] => {
-  const roles: PartyFinderListing['roles'] = { tankIds: [], healerIds: [], dpsIds: [] };
-  unique(memberIds).forEach((id) => {
-    const classId = memberClassId(server, id);
-    if (!classId) return;
-    const role = getClassPartyRole(classId);
-    if (role === 'tank') roles.tankIds.push(id);
-    else if (role === 'healer') roles.healerIds.push(id);
-    else roles.dpsIds.push(id);
-  });
-  return roles;
-};
-
-export const buildPartyRolesFromListing = (server: ServerState, listing: PartyFinderListing): PartyRoleMap | null => {
-  const roles = rolesForMembers(server, listing.memberIds);
-  const tankId = roles.tankIds[0];
-  const healerId = roles.healerIds[0];
-  if (!tankId || !healerId) return null;
-  return { tankId, healerId, dpsIds: roles.dpsIds };
-};
-
-const hasRoleSlot = (listing: PartyFinderListing, role: PartyRole) => {
-  if (role === 'tank') return listing.roles.tankIds.length < listing.requirements.tanks;
-  if (role === 'healer') return listing.roles.healerIds.length < listing.requirements.healers;
-  return listing.roles.dpsIds.length < listing.requirements.dps;
-};
+export const buildPartyRolesFromListing = (server: ServerState, listing: PartyFinderListing): PartyRoleMap | null =>
+  buildPartyRolesFromMembers(server, listing.memberIds);
 
 const missingRoleText = (listing: PartyFinderListing) => {
   if (listing.roles.tankIds.length < listing.requirements.tanks) return 'Не хватает танка';
@@ -178,7 +141,7 @@ export const canNpcJoinListing = (npc: NpcPlayer, listing: PartyFinderListing, d
   if ((listing.visibility === 'guild_internal' || listing.visibility === 'static') && (!listing.guildId || npc.guildId !== listing.guildId)) return false;
   if (dungeon.contentType === 'raid' && !['RAIDER', 'HARDCORE', 'GUILD_PLAYER', 'LEADER'].includes(npc.roleFocus)) return false;
 
-  return hasRoleSlot(listing, getClassPartyRole(npc.classId));
+  return canMemberFillNeededRole(npc, listing, server);
 };
 
 export const getPlayerListingBlockReason = (server: ServerState, listing: PartyFinderListing) => {

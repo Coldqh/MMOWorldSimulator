@@ -4,28 +4,10 @@ import { uid } from '../engine/rng';
 import type { CombatState, DungeonRunState, GameModal, PartyRoleMap, ServerState } from '../types/game';
 import { getPlayerStats } from './itemSystem';
 import { startBossCombat } from './combatSystem';
+import { buildPartyRolesFromMembers, getClassPartyRole, isDpsRole } from './partyRoleSystem';
 
-const classRole = (classId: string) => {
-  if (classId === 'warrior') return 'tank';
-  if (classId === 'priest') return 'healer';
-  if (classId === 'mage') return 'magicDps';
-  return 'physicalDps';
-};
-
-export const buildPartyRoles = (server: ServerState, partyNpcIds: string[]): PartyRoleMap | null => {
-  const members = [
-    { id: server.player.id, classId: server.player.classId },
-    ...partyNpcIds.map((id) => ({ id, classId: server.npcs.find((npc) => npc.id === id)?.classId ?? 'ranger' })),
-  ];
-  const tank = members.find((entry) => classRole(entry.classId) === 'tank');
-  const healer = members.find((entry) => classRole(entry.classId) === 'healer');
-  if (!tank || !healer) return null;
-  return {
-    tankId: tank.id,
-    healerId: healer.id,
-    dpsIds: members.filter((entry) => entry.id !== tank.id && entry.id !== healer.id).map((entry) => entry.id),
-  };
-};
+export const buildPartyRoles = (server: ServerState, partyNpcIds: string[]): PartyRoleMap | null =>
+  buildPartyRolesFromMembers(server, [server.player.id, ...partyNpcIds]);
 
 const shuffle = <T,>(items: T[], rng: Rng) => {
   const copy = [...items];
@@ -44,7 +26,7 @@ export const findDungeonParty = (server: ServerState, dungeonId: string, rng: Rn
     ? server.guilds.find((guild) => guild.id === server.player.guildId)
     : undefined;
   const guildLocked = playerGuild?.tier === 'high';
-  const playerRole = classRole(server.player.classId);
+  const playerRole = getClassPartyRole(server.player.classId);
 
   const basePool = shuffle(
     server.npcs
@@ -65,14 +47,14 @@ export const findDungeonParty = (server: ServerState, dungeonId: string, rng: Rn
     return npc;
   };
 
-  if (playerRole !== 'tank') takeFirst((npc) => npc.classId === 'warrior');
-  if (playerRole !== 'healer') takeFirst((npc) => npc.classId === 'priest');
+  if (playerRole !== 'tank') takeFirst((npc) => getClassPartyRole(npc.classId) === 'tank');
+  if (playerRole !== 'healer') takeFirst((npc) => getClassPartyRole(npc.classId) === 'healer');
 
-  // DPS slots are strict: only mage/ranger may fill damage roles.
+  // DPS slots are strict: only damage roles may fill damage slots.
   for (const npc of basePool) {
     if (selected.length >= dungeon.partySize - 1) break;
     if (selected.includes(npc.id)) continue;
-    if (npc.classId !== 'mage' && npc.classId !== 'ranger') continue;
+    if (!isDpsRole(getClassPartyRole(npc.classId))) continue;
     selected.push(npc.id);
   }
 
@@ -81,7 +63,7 @@ export const findDungeonParty = (server: ServerState, dungeonId: string, rng: Rn
   if (!roles) return [];
   const allMembers = [server.player, ...selected.map((id) => server.npcs.find((npc) => npc.id === id)).filter(Boolean) as ServerState['npcs']];
   const hasOnlyValidRoles = allMembers.every((member) => {
-    const role = classRole(member.classId);
+    const role = getClassPartyRole(member.classId);
     if (role === 'tank') return member.classId === 'warrior';
     if (role === 'healer') return member.classId === 'priest';
     return member.classId === 'mage' || member.classId === 'ranger';

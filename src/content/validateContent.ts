@@ -2,6 +2,7 @@ import { ITEMS } from './items';
 import { QUESTS } from './quests';
 import { QUEST_GIVERS } from './questGivers';
 import { DUNGEONS, LOOT_TABLES, MOBS, RAIDS, SPOTS, ZONES } from './world';
+import { getMobCardId } from './mobCards';
 
 export type ContentIssueSeverity = 'error' | 'warning';
 
@@ -47,18 +48,22 @@ export const validateContent = (): ContentValidationIssue[] => {
   issues.push(...duplicateIds('quest', QUESTS.map((quest) => quest.id)));
   issues.push(...duplicateIds('questGiver', QUEST_GIVERS.map((giver) => giver.id)));
 
+  MOBS.forEach((mob) => {
+    const cardId = getMobCardId(mob);
+    if (!has(itemIds, cardId)) {
+      issues.push({ severity: 'error', code: 'mob_card_ref_missing', message: `${mob.id} has no generated card ${cardId}`, id: mob.id });
+    }
+    if (!has(lootTableIds, mob.lootTableId)) {
+      issues.push({ severity: 'error', code: 'mob_loot_ref_missing', message: `${mob.id} references missing loot table ${mob.lootTableId}`, id: mob.id });
+    }
+  });
+
   LOOT_TABLES.forEach((table) => {
     table.entries.forEach((entry) => {
       if (!has(itemIds, entry.itemId)) {
         issues.push({ severity: 'error', code: 'loot_item_ref_missing', message: `${table.id} references missing item ${entry.itemId}`, id: table.id });
       }
     });
-  });
-
-  MOBS.forEach((mob) => {
-    if (!has(lootTableIds, mob.lootTableId)) {
-      issues.push({ severity: 'error', code: 'mob_loot_ref_missing', message: `${mob.id} references missing loot table ${mob.lootTableId}`, id: mob.id });
-    }
   });
 
   SPOTS.forEach((spot) => {
