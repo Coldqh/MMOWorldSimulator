@@ -7,6 +7,7 @@ import { createRng } from './rng';
 import { estimateArenaRatingValue, estimateWealthValue, updateRankings } from '../systems/progressionSystem';
 import { generateFullMarket, repairMarketIfBroken } from '../systems/marketSystem';
 import { refreshPartyFinderListings } from '../systems/partyFinderSystem';
+import { initializeGuildWarsCore } from '../systems/guildWarSystem';
 import { generateEquipmentForClassLevel, generateEliteEquipmentForClassLevel, generateScaledEquipmentForClassLevel, getGearScore, normalizeNpcEquipmentAndGear } from '../systems/itemSystem';
 
 export const NPC_TARGET_COUNT = 500;
@@ -500,6 +501,9 @@ export const createNewGame = (
     player: createStarterPlayer(playerName || 'Newbie', raceId, classId, seed),
     npcs,
     guilds: guildsWithMembers,
+    guildRelations: [],
+    guildWars: [],
+    guildWarVotes: [],
     market: [],
     rankings: {
       arenaTop: [],
@@ -534,7 +538,8 @@ export const createNewGame = (
   const fullMarket = { ...finalRoster, market: generateFullMarket(finalRoster, marketRng) };
   const finalMarket = repairMarketIfBroken(fullMarket, marketRng, "createNewGame");
   const partyReady = refreshPartyFinderListings(finalMarket, createRng(seed + 880001));
-  return updateRankings(partyReady);
+  const guildWarReady = initializeGuildWarsCore(partyReady, createRng(seed + 990001));
+  return updateRankings(guildWarReady);
 };
 
 export const createEmptyServer = (seed = Date.now()) => createNewGame('Newbie', 'human', 'warrior', seed, false);

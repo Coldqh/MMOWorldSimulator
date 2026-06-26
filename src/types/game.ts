@@ -46,6 +46,12 @@ export type GuildType =
   | "TRADE"
   | "NEWBIE"
   | "MIXED";
+export type GuildFocus = "pvp" | "pve" | "hybrid";
+export type NpcPlaystyle = "pvp" | "pve" | "hybrid";
+export type NpcLocationMode = "city" | "zone" | "spot";
+export type GuildWarVoteKind = "declare" | "accept" | "extend";
+export type GuildWarVoteStatus = "active" | "passed" | "failed" | "expired" | "cancelled";
+export type GuildWarStatus = "pending_votes" | "scheduled" | "active" | "finished" | "cancelled";
 export type NewsType =
   | "drop"
   | "guild"
@@ -215,12 +221,20 @@ export interface NpcPlayer {
   arenaRating: number;
   nextLevelAtDay?: number;
   nextLevelAtMinute?: number;
+  skill?: number;
+  playstyle?: NpcPlaystyle;
+  currentZoneId?: Id;
+  currentSpotId?: Id;
+  locationMode?: NpcLocationMode;
+  lastMovedDay?: number;
+  lastMovedMinute?: number;
 }
 
 export interface Guild {
   id: Id;
   name: string;
   type: GuildType;
+  guildFocus?: GuildFocus;
   level: number;
   reputation: number;
   memberIds: Id[];
@@ -235,6 +249,73 @@ export interface Guild {
   pvpRating: number;
   stability: number;
   recruitmentPolicy: "open" | "invite" | "strict";
+}
+
+export interface GuildRelation {
+  fromGuildId: Id;
+  toGuildId: Id;
+  value: number;
+  lastChangedDay: number;
+  lastChangedMinute: number;
+}
+
+export interface GuildWarVote {
+  id: Id;
+  kind: GuildWarVoteKind;
+  proposerGuildId: Id;
+  targetGuildId: Id;
+  guildId: Id;
+  warId?: Id;
+  proposedDurationDays: number;
+  status: GuildWarVoteStatus;
+  createdDay: number;
+  createdMinute: number;
+  endsDay: number;
+  endsMinute: number;
+  yesNpcIds: Id[];
+  noNpcIds: Id[];
+  playerVote?: "yes" | "no";
+  resultText?: string;
+}
+
+export interface GuildWarKillRecord {
+  id: Id;
+  day: number;
+  minute: number;
+  killerId: Id;
+  killerGuildId: Id;
+  victimId: Id;
+  victimGuildId: Id;
+  locationId?: Id;
+  source: "simulated" | "player_attack" | "npc_attack_player";
+}
+
+export interface GuildWarTopKiller {
+  characterId: Id;
+  guildId: Id;
+  kills: number;
+}
+
+export interface GuildWar {
+  id: Id;
+  attackerGuildId: Id;
+  defenderGuildId: Id;
+  status: GuildWarStatus;
+  declaredDay: number;
+  declaredMinute: number;
+  startsDay?: number;
+  startsMinute?: number;
+  endsDay: number;
+  endsMinute: number;
+  durationDays: number;
+  extensionCount: number;
+  attackerKills: number;
+  defenderKills: number;
+  killRecords: GuildWarKillRecord[];
+  attackerTopKillers: GuildWarTopKiller[];
+  defenderTopKillers: GuildWarTopKiller[];
+  lastSimulatedDay?: number;
+  lastSimulatedMinute?: number;
 }
 
 export interface GuildApplication {
@@ -578,6 +659,9 @@ export interface ServerState {
   player: Player;
   npcs: NpcPlayer[];
   guilds: Guild[];
+  guildRelations: GuildRelation[];
+  guildWars: GuildWar[];
+  guildWarVotes: GuildWarVote[];
   market: MarketListing[];
   rankings: RankingState;
   worldNews: NewsEntry[];

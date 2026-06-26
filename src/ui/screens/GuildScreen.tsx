@@ -3,6 +3,7 @@ import { CLASSES } from "../../content/classes";
 import { useGameStore } from "../../state/gameStore";
 import { getGearScore } from "../../systems/itemSystem";
 import type { Guild } from "../../types/game";
+import { GuildWarPanel, ServerGuildWarList } from "../components/GuildWarPanel";
 
 const getNpcName = (
   server: ReturnType<typeof useGameStore.getState>["server"],
@@ -129,6 +130,8 @@ export const GuildScreen = () => {
           </div>
         </section>
 
+        <GuildWarPanel />
+
         <section className="panel">
           <div className="section-title">Ростер</div>
           <div className="list-lines">
@@ -203,6 +206,8 @@ export const GuildScreen = () => {
           ))}
         </div>
       </section>
+
+      <ServerGuildWarList />
 
       <section className="panel">
         <div className="section-title">Топ по общей силе</div>

@@ -1,55 +1,62 @@
 import fs from 'node:fs';
 
 const read = (path) => fs.existsSync(path) ? fs.readFileSync(path, 'utf8') : '';
-
 const files = {
-  packageJson: read('package.json'),
-  saveLoad: read('src/engine/saveLoad.ts'),
+  pkg: read('package.json'),
+  types: read('src/types/game.ts'),
   gameStore: read('src/state/gameStore.ts'),
-  questSystem: read('src/systems/questSystem.ts'),
-  contractSystem: read('src/systems/contractSystem.ts'),
-  lootSystem: read('src/systems/lootSystem.ts'),
-  partyFinderSystem: read('src/systems/partyFinderSystem.ts'),
-  version: read('src/engine/version.ts'),
-  versionJson: read('public/version.json'),
-  manifest: read('public/manifest.webmanifest'),
+  createNewGame: read('src/engine/createNewGame.ts'),
+  runtimeValidation: read('src/engine/runtimeValidation.ts'),
+  guildWar: read('src/systems/guildWarSystem.ts'),
+  guildRoster: read('src/systems/guildRosterSystem.ts'),
+  guildRelation: read('src/systems/guildRelationSystem.ts'),
+  npcSkill: read('src/systems/npcSkillSystem.ts'),
+  npcLocation: read('src/systems/npcLocationSystem.ts'),
+  pvp: read('src/systems/pvpSimulationSystem.ts'),
+  guildScreen: read('src/ui/screens/GuildScreen.tsx'),
+  worldScreen: read('src/ui/screens/WorldScreen.tsx'),
+  guildWarPanel: read('src/ui/components/GuildWarPanel.tsx'),
+  locationNpcList: read('src/ui/components/LocationNpcList.tsx'),
+  saveLoad: read('src/engine/saveLoad.ts'),
   sw: read('public/sw.js'),
 };
-
 const fail = [];
 const ok = [];
 const assert = (cond, msg) => cond ? ok.push(msg) : fail.push(msg);
 
-const count = (text, needle) => text.split(needle).length - 1;
-
-assert(files.packageJson.includes('"version": "0.7.5"'), 'package version is 0.7.5');
-assert(files.version.includes("APP_VERSION = '0.7.5'"), 'APP_VERSION is 0.7.5');
-assert(files.versionJson.includes('"version": "0.7.5"'), 'version.json is 0.7.5');
-assert(files.manifest.includes('"version": "0.7.5"'), 'manifest version is 0.7.5');
-
-assert(files.saveLoad.includes("SAVE_VERSION = '0.7.0'"), 'save version remains 0.7.0');
-assert(files.saveLoad.includes("SAVE_KEY = 'mmoworldsimulator.save.v0.7.0'"), 'save key remains v0.7.0');
-assert(!files.saveLoad.includes('.replaceAll('), 'saveLoad avoids replaceAll for tsconfig target');
-assert(files.saveLoad.includes(".split('.').join('_')"), 'saveLoad uses split/join fallback');
-
-assert(files.gameStore.includes('getRaceById'), 'gameStore imports/uses getRaceById');
-assert(files.gameStore.includes('const simulateServerForMinutes = (server: ServerState, minutes: number, _rng?: unknown): ServerState'), 'simulateServerForMinutes accepts optional third arg');
-
-assert(count(files.questSystem, "from './objectiveSystem'") === 1, 'questSystem has one objectiveSystem import');
-assert(count(files.contractSystem, "from './objectiveSystem'") === 1, 'contractSystem has one objectiveSystem import');
-assert(count(files.questSystem, 'advanceObjectiveProgress') >= 2, 'questSystem still uses objective helper');
-assert(count(files.contractSystem, 'advanceObjectiveProgress') >= 2, 'contractSystem still uses objective helper');
-
-assert(files.lootSystem.includes('mythic:'), 'lootSystem rarityRank includes mythic');
-assert(files.partyFinderSystem.includes("export { getClassPartyRole } from './partyRoleSystem';"), 'partyFinderSystem re-exports getClassPartyRole for UI');
-
-assert(files.sw.includes("CACHE_NAME = 'mmows-v0.7.3'") || files.sw.includes("CACHE_NAME = 'mmows-v0.7.2'") || files.sw.includes("CACHE_NAME = 'mmows-v0.7.1'"), 'service worker cache not rewritten by compile fix');
+assert(files.pkg.includes('"version": "0.7.6"'), 'package version is 0.7.6');
+assert(files.saveLoad.includes("SAVE_KEY = 'mmoworldsimulator.save.v0.7.0'"), 'save key unchanged');
+assert(files.sw.includes("CACHE_NAME = 'mmows-v0.7.3'"), 'service worker cache unchanged');
+assert(files.types.includes('export type GuildFocus'), 'GuildFocus type exists');
+assert(files.types.includes('guildRelations: GuildRelation[]'), 'ServerState has guildRelations');
+assert(files.types.includes('guildWars: GuildWar[]'), 'ServerState has guildWars');
+assert(files.types.includes('guildWarVotes: GuildWarVote[]'), 'ServerState has guildWarVotes');
+assert(files.types.includes('skill?: number'), 'NPC skill field exists');
+assert(files.types.includes('playstyle?: NpcPlaystyle'), 'NPC playstyle field exists');
+assert(files.guildRoster.includes('rebalanceGuildRoster'), 'guild roster rebalance helper exists');
+assert(files.guildRelation.includes('initializeGuildRelations'), 'guild relations initializer exists');
+assert(files.guildWar.includes('createGuildWarDeclareVote'), 'war declare vote function exists');
+assert(files.guildWar.includes('simulateActiveGuildWars'), 'active war simulation exists');
+assert(files.guildWar.includes('attackWarEnemyNpc'), 'player attack action system exists');
+assert(files.npcLocation.includes('getNpcPlayersInLocation'), 'location npc system exists');
+assert(files.pvp.includes('resolveNpcDuel'), 'pvp duel resolver exists');
+assert(files.pvp.includes('getNpcSkillModifier'), 'skill modifier affects pvp');
+assert(files.createNewGame.includes('initializeGuildWarsCore'), 'createNewGame initializes guild wars core');
+assert(files.gameStore.includes('normalizeGuildWarsCore'), 'gameStore migration normalizes guild wars');
+assert(files.gameStore.includes('tickGuildWars'), 'server tick integrates guild wars');
+assert(files.gameStore.includes('declareGuildWar'), 'store declareGuildWar action exists');
+assert(files.gameStore.includes('voteGuildWar'), 'store voteGuildWar action exists');
+assert(files.gameStore.includes('attackWarEnemyNpc'), 'store attackWarEnemyNpc action exists');
+assert(files.runtimeValidation.includes('guild_wars_missing'), 'runtime validation checks guild wars');
+assert(files.guildScreen.includes('GuildWarPanel'), 'guild screen shows guild war panel');
+assert(files.guildScreen.includes('ServerGuildWarList'), 'guild list shows server wars');
+assert(files.worldScreen.includes('LocationNpcList'), 'world screen uses location NPC list');
+assert(files.locationNpcList.includes('danger-button'), 'enemy NPC attack button exists');
 
 if (fail.length) {
   console.error('Sanity failed:');
   fail.forEach((msg) => console.error(`- ${msg}`));
   process.exit(1);
 }
-
 console.log('Sanity passed:');
 ok.forEach((msg) => console.log(`- ${msg}`));

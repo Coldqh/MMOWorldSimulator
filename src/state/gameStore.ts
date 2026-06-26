@@ -89,6 +89,14 @@ import {
   startPartyFromListing,
   waitPartyListing as waitPartyFinderListing,
 } from "../systems/partyFinderSystem";
+import {
+  attackWarEnemyNpc as resolveWarEnemyNpcAttack,
+  castGuildWarVote,
+  createGuildWarDeclareVote,
+  normalizeGuildWarsCore,
+  tickGuildWars,
+} from "../systems/guildWarSystem";
+import { handleWarNpcEncountersOnPlayerLocationEnter } from "../systems/npcLocationSystem";
 
 import type {
   CombatState,
@@ -163,6 +171,9 @@ interface GameStore {
   acceptContract: (contractId: string) => void;
   cancelContract: (contractId: string) => void;
   claimContract: (contractId: string) => void;
+  declareGuildWar: (targetGuildId: string) => void;
+  voteGuildWar: (voteId: string, vote: "yes" | "no") => void;
+  attackWarEnemyNpc: (npcId: string) => void;
 }
 
 const collectOwnedItemIds = (server: ServerState): string[] => {
@@ -240,6 +251,9 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
           arenaRating: Number.isFinite(npc.arenaRating) ? npc.arenaRating : 900,
         })),
     guilds: server.guilds ?? [],
+    guildRelations: server.guildRelations ?? [],
+    guildWars: server.guildWars ?? [],
+    guildWarVotes: server.guildWarVotes ?? [],
     market: needsMigration ? [] : (server.market ?? []),
     worldNews: needsMigration ? [] : (server.worldNews ?? []).filter(
       (entry) => (entry.type as string) !== "siege" && !/фарм|фармит|уровень|апнул|повысил|рейд-прогресс|мета|лидер арены|высокий онлайн|рост влияния|потеря влияния/i.test(entry.text),
@@ -278,7 +292,7 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
     };
   }
 
-  const rosterReady = ensureServerRoster(baseWithProgress);
+  const rosterReady = normalizeGuildWarsCore(ensureServerRoster(baseWithProgress), createRng((baseWithProgress.seed ?? Date.now()) + 610001 + baseWithProgress.serverDay));
   const marketReadyBase = needsMigration
     ? { ...rosterReady, market: generateFullMarket(rosterReady, marketRng) }
     : normalizeMarketListings(rosterReady, marketRng);
@@ -349,8 +363,10 @@ const makeDeathModal = (combat: CombatState, rngSeed: number): GameModal => ({
   lines: combat.defeatLines ?? ["Возврат в город."],
 });
 
-const simulateServerForMinutes = (server: ServerState, minutes: number, _rng?: unknown): ServerState =>
-  advanceServerClock(server, minutes);
+const simulateServerForMinutes = (server: ServerState, minutes: number, _rng?: unknown): ServerState => {
+  const rng = _rng && typeof (_rng as any).next === "function" ? _rng as ReturnType<typeof createRng> : createRng(server.seed + server.serverDay * 9100 + server.currentMinute + minutes);
+  return tickGuildWars(advanceServerClock(server, minutes), rng, minutes);
+};
 
 const addMinutesToClock = (day: number, minute: number, add: number) => {
   const total = (day - 1) * 1440 + minute + add;
@@ -429,7 +445,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       currentDungeonRun: undefined,
       currentPartyListingId: undefined,
     };
-    let next = simulateServerForMinutes(moved, 20, rng);
+    let next = handleWarNpcEncountersOnPlayerLocationEnter(simulateServerForMinutes(moved, 20, rng), rng);
     if (zoneId === 'greenfield') next = updateQuestProgressOnSystemAction(next, 'visit_greenfield');
     commit(set, next, null);
     set({ activeScreen: "world" });
@@ -449,7 +465,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       currentDungeonRun: undefined,
       currentPartyListingId: undefined,
     };
-    const next = simulateServerForMinutes(moved, 5, rng);
+    const next = handleWarNpcEncountersOnPlayerLocationEnter(simulateServerForMinutes(moved, 5, rng), rng);
     commit(set, next, null);
     set({ activeScreen: "world" });
   },
@@ -1258,6 +1274,28 @@ export const useGameStore = create<GameStore>((set, get) => ({
   talkToQuestGiver: (giverId) => {
     const { server } = get();
     const next = talkToQuestGiverState(server, giverId);
+    commit(set, next, undefined);
+  },
+
+  declareGuildWar: (targetGuildId) => {
+    const { server } = get();
+    if (!server.player.guildId) return;
+    const rng = createRng(server.seed + server.serverDay * 7200 + server.currentMinute);
+    const next = createGuildWarDeclareVote(server, server.player.guildId, targetGuildId, rng, 7);
+    commit(set, next, undefined);
+  },
+
+  voteGuildWar: (voteId, vote) => {
+    const { server } = get();
+    const next = castGuildWarVote(server, voteId, vote);
+    commit(set, next, undefined);
+  },
+
+  attackWarEnemyNpc: (npcId) => {
+    const { server, combat } = get();
+    if (combat) return;
+    const rng = createRng(server.seed + server.serverDay * 7300 + server.currentMinute);
+    const next = resolveWarEnemyNpcAttack(server, npcId, rng);
     commit(set, next, undefined);
   },
 

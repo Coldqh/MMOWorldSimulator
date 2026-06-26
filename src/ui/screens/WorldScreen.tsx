@@ -15,6 +15,7 @@ import { getGearScore } from '../../systems/itemSystem';
 import type { ScreenId } from '../../types/game';
 import { CombatPanel } from '../components/CombatPanel';
 import { QuestGiverCard } from '../components/QuestGiverCard';
+import { LocationNpcList } from '../components/LocationNpcList';
 
 type WorldTab = 'overview' | 'players';
 
@@ -149,24 +150,7 @@ export const WorldScreen = () => {
         </div>
       </section>
 
-      {tab === 'players' && (
-        <section className="panel">
-          <div className="section-title">Игроки рядом</div>
-          <div className="list-lines">
-            <div className="list-line self-line">
-              <span>{server.player.name}</span>
-              <strong>ты · Lv. {server.player.level} · Gear {playerGear}</strong>
-            </div>
-            {locationPlayers.length === 0 && <span className="muted">Пусто.</span>}
-            {locationPlayers.map((npc) => (
-              <div key={npc.id} className="list-line">
-                <button className="text-button" onClick={() => openNpcProfile(npc.id)}>{npc.name}</button>
-                <strong>Lv. {npc.level} · Gear {npc.gearScore}</strong>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      {tab === 'players' && <LocationNpcList />}
 
       {tab === 'overview' && questGivers.length > 0 && (
         <section className="panel">

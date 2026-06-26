@@ -1,0 +1,250 @@
+import type { GuildWar, GuildWarKillRecord, GuildWarTopKiller, GuildWarVote, Id, ServerState } from '../types/game';
+import type { Rng } from '../engine/rng';
+import { uid } from '../engine/rng';
+import { addNews } from '../engine/news';
+import { initializeGuildRelations, getGuildRelationValue, updateGuildRelations, changeGuildRelation } from './guildRelationSystem';
+import { rebalanceGuildRoster } from './guildRosterSystem';
+import { assignInitialNpcLocations, moveNpcPlayers, handleWarNpcEncountersAfterNpcMovement, canPlayerAttackWarNpc } from './npcLocationSystem';
+import { growNpcAfterDuel, makeKillRecord, resolveNpcDuel, resolvePlayerNpcDuel } from './pvpSimulationSystem';
+
+const clampDuration = (days: number) => Math.max(7, Math.min(30, Math.round(days)));
+const totalMinute = (day: number, minute: number) => (day - 1) * 1440 + minute;
+const reached = (server: ServerState, day: number, minute: number) => totalMinute(server.serverDay, server.currentMinute) >= totalMinute(day, minute);
+
+const activeCount = (server: ServerState, guildId: Id) => (server.guildWars ?? []).filter((war) => (war.status === 'active' || war.status === 'scheduled' || war.status === 'pending_votes') && (war.attackerGuildId === guildId || war.defenderGuildId === guildId)).length;
+export const getGuildActiveWars = (server: ServerState, guildId: Id) => (server.guildWars ?? []).filter((war) => war.status === 'active' && (war.attackerGuildId === guildId || war.defenderGuildId === guildId));
+export const getGuildWarEnemies = (server: ServerState, guildId: Id) => getGuildActiveWars(server, guildId).map((war) => war.attackerGuildId === guildId ? war.defenderGuildId : war.attackerGuildId);
+export const areGuildsAtWar = (server: ServerState, guildAId: Id, guildBId: Id) => (server.guildWars ?? []).some((war) => war.status === 'active' && ((war.attackerGuildId === guildAId && war.defenderGuildId === guildBId) || (war.attackerGuildId === guildBId && war.defenderGuildId === guildAId)));
+
+const voteYesChance = (server: ServerState, vote: GuildWarVote, npcId: Id) => {
+  const npc = server.npcs.find((entry) => entry.id === npcId);
+  const guild = server.guilds.find((entry) => entry.id === vote.guildId);
+  const target = server.guilds.find((entry) => entry.id === vote.targetGuildId);
+  const relation = getGuildRelationValue(server, vote.guildId, vote.targetGuildId);
+  let chance = 0.42 + Math.max(-0.35, Math.min(0.35, -relation / 180));
+  if (guild?.guildFocus === 'pvp') chance += 0.22;
+  if (guild?.guildFocus === 'pve') chance -= 0.18;
+  if (target?.guildFocus === 'pve' && guild?.guildFocus === 'pvp') chance -= 0.08;
+  if (npc?.playstyle === 'pvp') chance += 0.14;
+  if (npc?.playstyle === 'pve') chance -= 0.12;
+  if (activeCount(server, vote.guildId) >= 2) chance -= 0.45;
+  return Math.max(0.05, Math.min(0.95, chance));
+};
+
+const processNpcVotes = (server: ServerState, vote: GuildWarVote, rng: Rng): GuildWarVote => {
+  const guild = server.guilds.find((entry) => entry.id === vote.guildId);
+  if (!guild || vote.status !== 'active') return vote;
+  const yes = new Set(vote.yesNpcIds ?? []);
+  const no = new Set(vote.noNpcIds ?? []);
+  guild.memberIds.filter((id) => id !== server.player.id).slice(0, 120).forEach((id) => {
+    if (yes.has(id) || no.has(id)) return;
+    if (rng.chance(voteYesChance(server, vote, id))) yes.add(id); else no.add(id);
+  });
+  return { ...vote, yesNpcIds: [...yes], noNpcIds: [...no] };
+};
+
+const createVote = (server: ServerState, rng: Rng, kind: GuildWarVote['kind'], proposerGuildId: Id, targetGuildId: Id, guildId: Id, duration: number, warId?: Id): GuildWarVote => ({
+  id: uid(`guild_war_vote_${kind}`, rng),
+  kind,
+  proposerGuildId,
+  targetGuildId,
+  guildId,
+  warId,
+  proposedDurationDays: clampDuration(duration),
+  status: 'active',
+  createdDay: server.serverDay,
+  createdMinute: server.currentMinute,
+  endsDay: server.serverDay + 1,
+  endsMinute: server.currentMinute,
+  yesNpcIds: [],
+  noNpcIds: [],
+});
+
+export const createGuildWarDeclareVote = (server: ServerState, proposerGuildId: Id, targetGuildId: Id, rng: Rng, duration = 7): ServerState => {
+  if (proposerGuildId === targetGuildId) return server;
+  if (activeCount(server, proposerGuildId) >= 2 || activeCount(server, targetGuildId) >= 2) return server;
+  if ((server.guildWarVotes ?? []).some((vote) => vote.status === 'active' && vote.proposerGuildId === proposerGuildId && vote.targetGuildId === targetGuildId)) return server;
+  const vote = createVote(server, rng, 'declare', proposerGuildId, targetGuildId, proposerGuildId, duration);
+  return { ...server, guildWarVotes: [...(server.guildWarVotes ?? []), vote] };
+};
+
+export const castGuildWarVote = (server: ServerState, voteId: Id, playerVote: 'yes' | 'no'): ServerState => ({
+  ...server,
+  guildWarVotes: (server.guildWarVotes ?? []).map((vote) => vote.id === voteId && vote.status === 'active' ? { ...vote, playerVote } : vote),
+});
+
+const startWarFromAcceptVote = (server: ServerState, vote: GuildWarVote, rng: Rng): ServerState => {
+  const war: GuildWar = {
+    id: uid('guild_war', rng),
+    attackerGuildId: vote.proposerGuildId,
+    defenderGuildId: vote.targetGuildId,
+    status: 'active',
+    declaredDay: server.serverDay,
+    declaredMinute: server.currentMinute,
+    startsDay: server.serverDay,
+    startsMinute: server.currentMinute,
+    endsDay: server.serverDay + clampDuration(vote.proposedDurationDays),
+    endsMinute: server.currentMinute,
+    durationDays: clampDuration(vote.proposedDurationDays),
+    extensionCount: 0,
+    attackerKills: 0,
+    defenderKills: 0,
+    killRecords: [],
+    attackerTopKillers: [],
+    defenderTopKillers: [],
+    lastSimulatedDay: server.serverDay,
+    lastSimulatedMinute: server.currentMinute,
+  };
+  return addNews({ ...server, guildWars: [...(server.guildWars ?? []), war] }, rng, 'guild', 'Война объявлена.', true);
+};
+
+export const resolveGuildWarVotes = (server: ServerState, rng: Rng): ServerState => {
+  let next = server;
+  let votes = (server.guildWarVotes ?? []).map((vote) => processNpcVotes(next, vote, rng));
+  const additions: GuildWarVote[] = [];
+  votes = votes.map((vote) => {
+    if (vote.status !== 'active' || !reached(next, vote.endsDay, vote.endsMinute)) return vote;
+    const yes = vote.yesNpcIds.length + (vote.playerVote === 'yes' ? 1 : 0);
+    const no = vote.noNpcIds.length + (vote.playerVote === 'no' ? 1 : 0);
+    const passed = yes > no;
+    if (!passed) {
+      next = changeGuildRelation(next, vote.proposerGuildId, vote.targetGuildId, -6);
+      return { ...vote, status: 'failed', resultText: 'Голосование провалено.' };
+    }
+    if (vote.kind === 'declare') {
+      additions.push(createVote(next, rng, 'accept', vote.proposerGuildId, vote.targetGuildId, vote.targetGuildId, vote.proposedDurationDays));
+    }
+    if (vote.kind === 'accept') {
+      next = startWarFromAcceptVote(next, vote, rng);
+    }
+    if (vote.kind === 'extend' && vote.warId) {
+      const paired = votes.find((entry) => entry.id !== vote.id && entry.warId === vote.warId && entry.kind === 'extend' && entry.status === 'passed');
+      if (paired) {
+        next = { ...next, guildWars: (next.guildWars ?? []).map((war) => war.id === vote.warId ? { ...war, endsDay: Math.min(war.endsDay + vote.proposedDurationDays, war.declaredDay + 60), extensionCount: war.extensionCount + 1 } : war) };
+      }
+    }
+    return { ...vote, status: 'passed', resultText: 'Голосование принято.' };
+  });
+  return { ...next, guildWarVotes: [...votes, ...additions] };
+};
+
+export const maybeCreateGuildWarVotes = (server: ServerState, rng: Rng): ServerState => {
+  let next = server;
+  if (!rng.chance(0.08)) return next;
+  const candidates = [...server.guilds].sort((a, b) => (a.id + server.serverDay).localeCompare(b.id + server.serverDay));
+  for (const guild of candidates) {
+    if (activeCount(next, guild.id) >= 2) continue;
+    const aggression = guild.guildFocus === 'pvp' ? 0.8 : guild.guildFocus === 'pve' ? 0.2 : 0.5;
+    if (!rng.chance(aggression)) continue;
+    const targets = server.guilds.filter((target) => target.id !== guild.id && (target.tier ?? 'low') === (guild.tier ?? 'low') && activeCount(next, target.id) < 2).sort((a, b) => getGuildRelationValue(server, guild.id, a.id) - getGuildRelationValue(server, guild.id, b.id));
+    const target = targets[0];
+    if (!target) continue;
+    const relation = getGuildRelationValue(server, guild.id, target.id);
+    if (relation > (guild.guildFocus === 'pvp' ? 10 : -25)) continue;
+    next = createGuildWarDeclareVote(next, guild.id, target.id, rng, rng.int(7, 14));
+    break;
+  }
+  return next;
+};
+
+const topKillers = (records: GuildWarKillRecord[], guildId: Id): GuildWarTopKiller[] => {
+  const counts = new Map<Id, number>();
+  records.filter((record) => record.killerGuildId === guildId).forEach((record) => counts.set(record.killerId, (counts.get(record.killerId) ?? 0) + 1));
+  return [...counts.entries()].map(([characterId, kills]) => ({ characterId, guildId, kills })).sort((a, b) => b.kills - a.kills).slice(0, 5);
+};
+
+export const recordGuildWarKill = (server: ServerState, warId: Id, record: GuildWarKillRecord): ServerState => ({
+  ...server,
+  guildWars: (server.guildWars ?? []).map((war) => {
+    if (war.id !== warId) return war;
+    const killRecords = [...war.killRecords, record].slice(-400);
+    const attackerKills = war.attackerKills + (record.killerGuildId === war.attackerGuildId ? 1 : 0);
+    const defenderKills = war.defenderKills + (record.killerGuildId === war.defenderGuildId ? 1 : 0);
+    return { ...war, attackerKills, defenderKills, killRecords, attackerTopKillers: topKillers(killRecords, war.attackerGuildId), defenderTopKillers: topKillers(killRecords, war.defenderGuildId), lastSimulatedDay: server.serverDay, lastSimulatedMinute: server.currentMinute };
+  }),
+});
+
+export const simulateActiveGuildWars = (server: ServerState, rng: Rng): ServerState => {
+  let next = server;
+  for (const war of server.guildWars ?? []) {
+    if (war.status !== 'active') continue;
+    const last = totalMinute(war.lastSimulatedDay ?? war.declaredDay, war.lastSimulatedMinute ?? war.declaredMinute);
+    const now = totalMinute(server.serverDay, server.currentMinute);
+    if (now - last < 30) continue;
+    const a = next.npcs.filter((npc) => npc.guildId === war.attackerGuildId);
+    const b = next.npcs.filter((npc) => npc.guildId === war.defenderGuildId);
+    if (a.length === 0 || b.length === 0) continue;
+    const guild = next.guilds.find((entry) => entry.id === war.attackerGuildId);
+    const fighterA = rng.pick(a);
+    const fighterB = rng.pick(b);
+    const duel = resolveNpcDuel(fighterA, fighterB, guild?.tier ?? 'low', rng);
+    const record = makeKillRecord(next, duel.winner.id, duel.winner.guildId!, duel.loser.id, duel.loser.guildId!, 'simulated');
+    next = { ...next, npcs: next.npcs.map((npc) => npc.id === duel.winner.id ? growNpcAfterDuel(npc, true, rng) : npc.id === duel.loser.id ? growNpcAfterDuel(npc, false, rng) : npc) };
+    next = recordGuildWarKill(next, war.id, record);
+  }
+  return next;
+};
+
+export const finishExpiredGuildWars = (server: ServerState, rng: Rng): ServerState => {
+  let changed = false;
+  const wars = (server.guildWars ?? []).map((war) => {
+    if (war.status === 'active' && reached(server, war.endsDay, war.endsMinute)) { changed = true; return { ...war, status: 'finished' as const }; }
+    return war;
+  });
+  return changed ? addNews({ ...server, guildWars: wars }, rng, 'guild', 'Война завершена.', false) : server;
+};
+
+export const maybeCreateWarExtensionVotes = (server: ServerState, rng: Rng): ServerState => {
+  if (!rng.chance(0.015)) return server;
+  const war = (server.guildWars ?? []).find((entry) => entry.status === 'active' && entry.extensionCount < 2 && entry.endsDay - server.serverDay <= 2);
+  if (!war) return server;
+  const voteA = createVote(server, rng, 'extend', war.attackerGuildId, war.defenderGuildId, war.attackerGuildId, 7, war.id);
+  const voteB = createVote(server, rng, 'extend', war.attackerGuildId, war.defenderGuildId, war.defenderGuildId, 7, war.id);
+  return { ...server, guildWarVotes: [...(server.guildWarVotes ?? []), voteA, voteB] };
+};
+
+export const resolveGuildWarExtensionVotes = resolveGuildWarVotes;
+
+export const attackWarEnemyNpc = (server: ServerState, npcId: Id, rng: Rng): ServerState => {
+  if (!canPlayerAttackWarNpc(server, npcId) || !server.player.guildId) return server;
+  const npc = server.npcs.find((entry) => entry.id === npcId);
+  if (!npc?.guildId) return server;
+  const war = (server.guildWars ?? []).find((entry) => entry.status === 'active' && ((entry.attackerGuildId === server.player.guildId && entry.defenderGuildId === npc.guildId) || (entry.defenderGuildId === server.player.guildId && entry.attackerGuildId === npc.guildId)));
+  if (!war) return server;
+  const duel = resolvePlayerNpcDuel(server, npc, rng);
+  const record = duel.playerWon
+    ? makeKillRecord(server, server.player.id, server.player.guildId, npc.id, npc.guildId, 'player_attack')
+    : makeKillRecord(server, npc.id, npc.guildId, server.player.id, server.player.guildId, 'npc_attack_player');
+  let next = { ...server, npcs: server.npcs.map((entry) => entry.id === npc.id ? growNpcAfterDuel(entry, !duel.playerWon, rng) : entry) };
+  next = recordGuildWarKill(next, war.id, record);
+  return { ...next, notifications: [...(next.notifications ?? []), { id: `war_player_attack_${server.serverDay}_${server.currentMinute}_${npcId}`, type: 'pvp', title: duel.playerWon ? 'Победа в войне' : 'Поражение в войне', text: npc.name, lines: [`Счёт обновлён.`, `Шанс победы: ${Math.round(duel.playerChance * 100)}%`] }] };
+};
+
+export const initializeGuildWarsCore = (server: ServerState, rng: Rng): ServerState => {
+  let next = rebalanceGuildRoster(server, rng);
+  next = initializeGuildRelations(next, rng);
+  next = assignInitialNpcLocations(next, rng);
+  return { ...next, guildWars: next.guildWars ?? [], guildWarVotes: next.guildWarVotes ?? [] };
+};
+
+export const normalizeGuildWarsCore = (server: ServerState, rng: Rng): ServerState => {
+  let next = { ...server, guildRelations: server.guildRelations ?? [], guildWars: server.guildWars ?? [], guildWarVotes: server.guildWarVotes ?? [] };
+  next = rebalanceGuildRoster(next, rng);
+  next = initializeGuildRelations(next, rng);
+  next = assignInitialNpcLocations(next, rng);
+  return next;
+};
+
+export const tickGuildWars = (server: ServerState, rng: Rng, minutes = 0): ServerState => {
+  let next = moveNpcPlayers(server, rng, minutes);
+  next = handleWarNpcEncountersAfterNpcMovement(next, rng);
+  if (minutes >= 30 || next.currentMinute % 30 === 0) {
+    next = updateGuildRelations(next, rng);
+    next = maybeCreateGuildWarVotes(next, rng);
+    next = resolveGuildWarVotes(next, rng);
+    next = maybeCreateWarExtensionVotes(next, rng);
+    next = simulateActiveGuildWars(next, rng);
+    next = finishExpiredGuildWars(next, rng);
+  }
+  return next;
+};

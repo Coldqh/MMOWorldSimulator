@@ -226,3 +226,29 @@ npm run smoke
 ```
 
 If `npm run version:check` exists, run it too.
+
+
+## Guild Wars Core
+
+Guild war state is owned by systems, not UI.
+
+Files:
+
+```txt
+src/systems/guildWarSystem.ts
+src/systems/guildRelationSystem.ts
+src/systems/guildRosterSystem.ts
+src/systems/npcSkillSystem.ts
+src/systems/npcLocationSystem.ts
+src/systems/pvpSimulationSystem.ts
+```
+
+Rules:
+
+- guild relations are directed;
+- guild wars start only after declare/accept votes;
+- active/scheduled wars per guild are capped at 2;
+- NPC skill is 1..10 and affects PvP power;
+- NPC location is runtime state;
+- player attacks are allowed only outside city against active-war enemy guild NPCs in the same location;
+- market/save/PWA do not own guild war behavior.

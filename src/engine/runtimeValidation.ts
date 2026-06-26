@@ -8,6 +8,7 @@ export interface RuntimeIssue {
 import { SAVE_VERSION } from './saveLoad';
 import { getMarketDiagnostics, repairMarketIfBroken } from '../systems/marketSystem';
 import { createRng } from './rng';
+import { normalizeGuildWarsCore } from '../systems/guildWarSystem';
 
 export const validateServerRuntime = (server: ServerState): RuntimeIssue[] => {
   const issues: RuntimeIssue[] = [];
@@ -19,6 +20,8 @@ export const validateServerRuntime = (server: ServerState): RuntimeIssue[] => {
   if (!Array.isArray(server.partyFinderListings)) issues.push({ severity: 'warning', code: 'party_finder_invalid', message: 'Party Finder list is invalid' });
   if (!server.questStates || typeof server.questStates !== 'object') issues.push({ severity: 'warning', code: 'quest_states_invalid', message: 'Quest states are invalid' });
   if (!Array.isArray(server.contracts)) issues.push({ severity: 'warning', code: 'contracts_invalid', message: 'Contracts are invalid' });
+  if (!Array.isArray(server.guildRelations) || !Array.isArray(server.guildWars) || !Array.isArray(server.guildWarVotes)) issues.push({ severity: 'warning', code: 'guild_wars_missing', message: 'Guild war fields are missing' });
+  if ((server.npcs ?? []).some((npc) => !npc.skill || npc.skill < 1 || npc.skill > 10 || !npc.playstyle || !npc.locationMode)) issues.push({ severity: 'warning', code: 'npc_war_fields_missing', message: 'NPC war fields are missing' });
 
   const market = getMarketDiagnostics(server);
   if (market.brokenReasons.length > 0) {
@@ -31,17 +34,18 @@ export const validateServerRuntime = (server: ServerState): RuntimeIssue[] => {
 export const repairServerRuntime = (server: ServerState): ServerState => {
   const rng = createRng(server.seed + server.serverDay * 7100 + server.currentMinute);
   const marketReady = repairMarketIfBroken(server, rng, 'runtime_validation');
+  const guildWarReady = normalizeGuildWarsCore(marketReady, rng);
   return {
-    ...marketReady,
+    ...guildWarReady,
     version: SAVE_VERSION,
     player: {
-      ...marketReady.player,
-      level: Math.max(1, marketReady.player.level),
+      ...guildWarReady.player,
+      level: Math.max(1, guildWarReady.player.level),
     },
-    questStates: marketReady.questStates ?? {},
-    contracts: marketReady.contracts ?? [],
-    notifications: marketReady.notifications ?? [],
-    partyFinderListings: marketReady.partyFinderListings ?? [],
-    currentDungeonRun: marketReady.currentDungeonRun?.status === 'completed' ? undefined : marketReady.currentDungeonRun,
+    questStates: guildWarReady.questStates ?? {},
+    contracts: guildWarReady.contracts ?? [],
+    notifications: guildWarReady.notifications ?? [],
+    partyFinderListings: guildWarReady.partyFinderListings ?? [],
+    currentDungeonRun: guildWarReady.currentDungeonRun?.status === 'completed' ? undefined : guildWarReady.currentDungeonRun,
   };
 };
