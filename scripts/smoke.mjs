@@ -5,14 +5,22 @@ const fail = [];
 const ok = [];
 const assert = (cond, msg) => cond ? ok.push(msg) : fail.push(msg);
 
-const gameStore = read('src/state/gameStore.ts');
 const pkg = read('package.json');
+const saveLoad = read('src/engine/saveLoad.ts');
+const locationNpcList = read('src/ui/components/LocationNpcList.tsx');
+const guildScreen = read('src/ui/screens/GuildScreen.tsx');
+const guildWarSeed = read('src/systems/guildWarSeedSystem.ts');
+const gameStore = read('src/state/gameStore.ts');
 
-assert(pkg.includes('"version": "0.7.8"'), 'version bumped to 0.7.8');
-assert(!gameStore.includes('},}));'), 'bad duplicated store tail removed');
-assert(gameStore.trimEnd().endsWith('}));'), 'store closes cleanly');
-assert(gameStore.includes('openGuildProfile'), 'guild profile action preserved');
-assert(gameStore.includes('openGuildRoster'), 'guild roster action preserved');
+assert(pkg.includes('"version": "0.7.9"'), 'version bumped');
+assert(saveLoad.includes("SAVE_VERSION = '0.7.0'"), 'save compatibility untouched');
+assert(locationNpcList.includes('PAGE_SIZE = 10'), 'npc location pagination enabled');
+assert(locationNpcList.includes('return bEnemy - aEnemy'), 'enemy guild NPCs sorted first');
+assert(guildScreen.includes('Профиль'), 'guild profile tab title exists');
+assert(guildScreen.includes('Отношения'), 'guild relations tab exists');
+assert(guildScreen.includes('Войны'), 'guild wars tab exists');
+assert(guildWarSeed.includes('existingActive.length > 0'), 'war seeding does not duplicate active wars');
+assert(gameStore.includes('openGuildRelations'), 'guild relations modal action exists');
 
 if (fail.length) {
   console.error('Smoke failed:');

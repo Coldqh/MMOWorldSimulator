@@ -167,6 +167,7 @@ interface GameStore {
   openNpcProfile: (npcId: string) => void;
   openGuildProfile: (guildId: string) => void;
   openGuildRoster: (guildId: string) => void;
+  openGuildRelations: (guildId: string) => void;
   acceptQuest: (questId: string) => void;
   turnInQuest: (questId: string) => void;
   talkToQuestGiver: (giverId: string) => void;
@@ -284,7 +285,7 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
     questStates: server.questStates ?? {},
     contracts: server.contracts ?? [],
   };
-  const baseWithProgress = normalizeGuildAndNpcIdentities(addCollectionProgress(baseServer));
+  const baseWithProgress = seedInitialGuildWarsIfNeeded(normalizeGuildAndNpcIdentities(addCollectionProgress(baseServer)));
 
   if (mode === "light" && !needsMigration) {
     const repairedLight = repairMarketIfBroken(baseWithProgress, marketRng, "light");
@@ -307,7 +308,7 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
 const safeNormalizeServer = (server: ServerState | null | undefined, mode: "full" | "light" = "full"): ServerState => {
   try {
     const normalized = normalizeServer(server ?? createEmptyServer(), mode);
-    const repaired = repairServerRuntime(normalized);
+    const repaired = seedInitialGuildWarsIfNeeded(repairServerRuntime(normalized));
     const issues = validateServerRuntime(repaired);
     if (import.meta.env.DEV && issues.some((issue) => issue.severity === 'critical')) console.warn('[MMOWS] runtime issues', issues);
     return refreshContracts(repaired, createRng((server?.seed ?? Date.now()) + (server?.serverDay ?? 1) * 9010 + (server?.currentMinute ?? 0)));
@@ -327,7 +328,7 @@ const commit = (
   combat?: CombatState | null,
   modal?: GameModal | null,
 ) => {
-  let normalized = refreshContracts(repairServerRuntime(normalizeQuestStates(safeNormalizeServer(server, "light"))), createRng((server.seed ?? Date.now()) + server.serverDay * 9020 + server.currentMinute));
+  let normalized = refreshContracts(seedInitialGuildWarsIfNeeded(repairServerRuntime(normalizeQuestStates(safeNormalizeServer(server, "light")))), createRng((server.seed ?? Date.now()) + server.serverDay * 9020 + server.currentMinute));
   let nextModal = modal;
 
   if (nextModal === undefined && normalized.notifications.length > 0) {
@@ -1338,6 +1339,29 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ modal });
   },
 
+  openGuildRelations: (guildId) => {
+    const { server } = get();
+    const guild = server.guilds.find((entry) => entry.id === guildId);
+    if (!guild) return;
+    const rows = server.guilds
+      .filter((entry) => entry.id !== guild.id)
+      .map((other) => {
+        const outgoing = server.guildRelations.find((rel) => rel.fromGuildId === guild.id && rel.toGuildId === other.id)?.value ?? 0;
+        const incoming = server.guildRelations.find((rel) => rel.fromGuildId === other.id && rel.toGuildId === guild.id)?.value ?? 0;
+        const line = `${other.name}: мы → ${outgoing} / они → ${incoming}`;
+        return `ACTION_GUILD_RELATION:${other.id}:${outgoing}:${incoming}:${line}`;
+      });
+    set({
+      modal: {
+        id: `modal_guild_relations_${guild.id}`,
+        type: 'guild',
+        title: `${guild.name}: отношения`,
+        text: 'Отношения показываются в обе стороны.',
+        lines: rows,
+      },
+    });
+  },
+
   openGuildRoster: (guildId) => {
     const { server } = get();
     const guild = server.guilds.find((entry) => entry.id === guildId);
@@ -1367,37 +1391,33 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { server } = get();
     const guild = server.guilds.find((entry) => entry.id === guildId);
     if (!guild) return;
-    const members = guild.memberIds.map((id) => server.npcs.find((npc) => npc.id === id)).filter(Boolean);
     const leader = server.npcs.find((npc) => npc.id === guild.leaderId);
     const deputy = server.npcs.find((npc) => npc.id === guild.deputyId);
     const officers = (guild.officerIds ?? []).map((id) => server.npcs.find((npc) => npc.id === id)).filter(Boolean) as any[];
-    const relations = server.guilds
-      .filter((entry) => entry.id !== guild.id)
-      .slice(0, 10)
-      .map((other) => {
-        const outgoing = server.guildRelations.find((rel) => rel.fromGuildId === guild.id && rel.toGuildId === other.id)?.value ?? 0;
-        const incoming = server.guildRelations.find((rel) => rel.fromGuildId === other.id && rel.toGuildId === guild.id)?.value ?? 0;
-        return `${other.name}: ${outgoing} / ${incoming}`;
-      });
+    const activeWars = (server.guildWars ?? []).filter((war: any) => war.status === 'active' && (war.attackerGuildId === guild.id || war.defenderGuildId === guild.id));
     set({
       modal: {
         id: `modal_guild_${guild.id}`,
         type: 'guild',
-        title: guild.name,
-        text: `${guildFocusLabel(guild.guildFocus)} · ${guild.tier ?? 'low'} · ${members.length} игроков`,
+        title: `${guild.name}: профиль`,
+        text: `${guildFocusLabel(guild.guildFocus)} · ${guild.tier ?? 'low'} · ${guild.memberIds.length} игроков`,
         lines: [
-          `Уровень: ${guild.level}`,
           `Тип: ${guildFocusLabel(guild.guildFocus)}`,
-          `Вход: ${guild.minLevel ?? 1}+`,
+          `Уровень: ${guild.level}`,
+          `Требование: ${guild.minLevel ?? 1}+ уровень`,
+          `Участников: ${guild.memberIds.length}`,
+          `Репутация: ${guild.reputation}`,
+          `PvP рейтинг: ${guild.pvpRating}`,
+          `Активные войны: ${activeWars.length}`,
           leader ? `ACTION_NPC_PROFILE:${leader.id}:ГМ: ${leader.name}` : 'ГМ: нет',
           deputy ? `ACTION_NPC_PROFILE:${deputy.id}:Зам: ${deputy.name}` : 'Зам: нет',
           ...officers.slice(0, 4).map((npc) => `ACTION_NPC_PROFILE:${npc.id}:Офицер: ${npc.name}`),
-          `PvP: ${guild.pvpRating}`,
-          `Репутация: ${guild.reputation}`,
-          `Отношения: ${relations.join(' · ') || 'нет'}`,
           `ACTION_GUILD_ROSTER:${guild.id}`,
+          `ACTION_GUILD_RELATIONS:${guild.id}`,
         ],
       },
     });
+  },
+}));
   },
 }));

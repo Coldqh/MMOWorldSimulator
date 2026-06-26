@@ -55,6 +55,7 @@ export const ResultModal = () => {
   const socketCard = useGameStore((state) => state.socketCard);
   const openGuildProfile = useGameStore((state) => state.openGuildProfile);
   const openGuildRoster = useGameStore((state) => state.openGuildRoster);
+  const openGuildRelations = useGameStore((state) => state.openGuildRelations);
   const openNpcProfile = useGameStore((state) => state.openNpcProfile);
   const pendingLoot = server.pendingLootRoll;
 
@@ -112,6 +113,8 @@ export const ResultModal = () => {
   const npcItemActions = actionLines.filter((line) => line.startsWith('ACTION_NPC_ITEM|'));
   const guildAction = actionLines.find((line) => line.startsWith('ACTION_GUILD_PROFILE:'));
   const guildRosterAction = actionLines.find((line) => line.startsWith('ACTION_GUILD_ROSTER:'));
+  const guildRelationsAction = actionLines.find((line) => line.startsWith('ACTION_GUILD_RELATIONS:'));
+  const guildRelationLines = actionLines.filter((line) => line.startsWith('ACTION_GUILD_RELATION:'));
   const npcProfileActions = actionLines.filter((line) => line.startsWith('ACTION_NPC_PROFILE:'));
   const profileMode = modal.type === 'item' || modal.type === 'npc' || modal.type === 'loot';
 
@@ -175,6 +178,31 @@ export const ResultModal = () => {
           const [, guildId] = guildRosterAction.split(':');
           return <button className="wide-button" onClick={() => openGuildRoster(guildId)}>Ростер</button>;
         })()}
+
+        {guildRelationsAction && (() => {
+          const [, guildId] = guildRelationsAction.split(':');
+          return <button className="wide-button" onClick={() => openGuildRelations(guildId)}>Отношения</button>;
+        })()}
+
+        {guildRelationLines.length > 0 && (
+          <div className="modal-section">
+            <div className="section-title">Отношения</div>
+            <div className="list-lines">
+              {guildRelationLines.map((line) => {
+                const [, guildId, outgoingRaw, incomingRaw, ...labelParts] = line.split(':');
+                const outgoing = Number(outgoingRaw);
+                const incoming = Number(incomingRaw);
+                const label = labelParts.join(':') || guildId;
+                return (
+                  <div key={line} className="list-line">
+                    <button className="text-button" onClick={() => openGuildProfile(guildId)}>{label}</button>
+                    <strong>{outgoing}/{incoming}</strong>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {npcProfileActions.length > 0 && (
           <div className="modal-section">
