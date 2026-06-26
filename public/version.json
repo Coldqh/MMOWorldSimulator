@@ -1,6 +1,6 @@
 {
-  "version": "0.7.14",
+  "version": "0.7.15",
   "channel": "stable",
-  "build": "2026-06-26-v0714-guild-runtime-fix",
+  "build": "2026-06-26-v0715-duplicate-simulator-fix",
   "buildTime": "2026-06-25T00:00:00.000Z"
 }

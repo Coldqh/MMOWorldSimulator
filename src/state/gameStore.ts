@@ -396,10 +396,6 @@ const makeDeathModal = (combat: CombatState, rngSeed: number): GameModal => ({
   lines: combat.defeatLines ?? ["Возврат в город."],
 });
 
-const simulateServerForMinutes = (server: ServerState, minutes: number, _rng?: unknown): ServerState => {
-  const rng = _rng && typeof (_rng as any).next === "function" ? _rng as ReturnType<typeof createRng> : createRng(server.seed + server.serverDay * 9100 + server.currentMinute + minutes);
-  return tickGuildWars(advanceServerClock(server, minutes), rng, minutes);
-};
 
 const addMinutesToClock = (day: number, minute: number, add: number) => {
   const total = (day - 1) * 1440 + minute + add;
