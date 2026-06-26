@@ -10,6 +10,7 @@ const rarityRank: Record<ItemDefinition['rarity'], number> = {
   epic: 4,
   legendary: 5,
   unique: 6,
+  mythic: 7,
 };
 
 const equipmentDropChance = (item: ItemDefinition) => {

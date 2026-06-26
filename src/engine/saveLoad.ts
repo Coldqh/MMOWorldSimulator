@@ -115,7 +115,7 @@ export const loadGame = (): ServerState | null => {
     const parsed = JSON.parse(raw);
     if (!isValidV070Shape(parsed)) {
       const parsedVersion = isRecord(parsed) && typeof parsed.version === 'string'
-        ? parsed.version.replaceAll('.', '_')
+        ? parsed.version.split('.').join('_')
         : 'invalid_shape';
       backupBrokenSave(raw, parsedVersion);
       return null;

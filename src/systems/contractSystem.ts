@@ -3,7 +3,6 @@ import { createRng, type Rng } from '../engine/rng';
 import type { ContractDefinition, ContractObjective, ContractReward, ContractStatus, Id, ServerNotification, ServerState } from '../types/game';
 import { advanceObjectiveProgress, isObjectiveProgressComplete } from './objectiveSystem';
 import { applyRewardToPlayer, formatRewardLines } from './rewardSystem';
-import { advanceObjectiveProgress, isObjectiveProgressComplete } from './objectiveSystem';
 
 const WEEKDAYS = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
 

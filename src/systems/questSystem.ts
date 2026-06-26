@@ -13,7 +13,6 @@ import type {
 } from '../types/game';
 import { advanceObjectiveProgress, haveObjectivesChanged, isObjectiveProgressComplete } from './objectiveSystem';
 import { applyRewardToPlayer, formatRewardLines } from './rewardSystem';
-import { advanceObjectiveProgress, haveObjectivesChanged, isObjectiveProgressComplete } from './objectiveSystem';
 
 const cloneObjective = (objective: QuestObjective): QuestObjective => ({
   ...objective,

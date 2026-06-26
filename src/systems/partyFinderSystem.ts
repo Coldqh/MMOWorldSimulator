@@ -26,6 +26,7 @@ import {
   totalPartyRequired as totalPartyRequiredForRoles,
 } from './partyRoleSystem';
 
+export { getClassPartyRole } from './partyRoleSystem';
 const ACTIVE_STATUSES: PartyListingStatus[] = ['forming', 'ready'];
 
 const nowTotalMinutes = (server: Pick<ServerState, 'serverDay' | 'currentMinute'>) =>

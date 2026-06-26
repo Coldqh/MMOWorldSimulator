@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import { getClassById } from "../content/classes";
+import { getRaceById } from "../content/races";
 import { ITEMS, getItemById, normalizeLegacyItemId } from "../content/items";
 import { getDungeonById, getSpotById, getZoneById } from "../content/world";
 
@@ -348,7 +349,7 @@ const makeDeathModal = (combat: CombatState, rngSeed: number): GameModal => ({
   lines: combat.defeatLines ?? ["Возврат в город."],
 });
 
-const simulateServerForMinutes = (server: ServerState, minutes: number): ServerState =>
+const simulateServerForMinutes = (server: ServerState, minutes: number, _rng?: unknown): ServerState =>
   advanceServerClock(server, minutes);
 
 const addMinutesToClock = (day: number, minute: number, add: number) => {
