@@ -1,56 +1,9 @@
-import { create } from "zustand";
-import { createEmptyServer, createNewGame, ensureServerRoster } from "../engine/createNewGame";
-import { createRng, uid } from "../engine/rng";
-import {
-  SAVE_VERSION,
-  clearSave,
-  loadGame,
-  saveGame,
-  flushSaveGame,
-  backupRescueSave,
-} from "../engine/saveLoad";
-import { DUNGEONS, LOOT_TABLES, MOBS, RAIDS, SPOTS, ZONES, getDungeonById, getSpotById, getZoneById } from "../content/world";
-import { getClassById } from "../content/classes";
-import { ITEMS, getItemById, normalizeLegacyItemId, rarityLabel } from "../content/items";
-import { getRaceById } from "../content/races";
-import type {
-  CombatState,
-  GameModal,
-  LootChoice,
-  ScreenId,
-  ServerNotification,
-  ServerState,
-} from "../types/game";
-import {
-  createPlayerCombatant,
-  startSpotCombat,
-  resolveCombatAction,
-} from "../systems/combatSystem";
-import {
-  completeDungeonFloor,
-  createDungeonRun,
-  restInDungeon,
-  resolveDungeonEventFloor,
-  startDungeonFloorCombat,
-} from "../systems/dungeonSystem";
-import { simulateServerForMinutes } from "../systems/npcSystem";
-import {
-  cancelPartyListing as cancelPartyFinderListing,
-  acceptPartyApplicant as acceptPartyFinderApplicant,
-  rejectPartyApplicant as rejectPartyFinderApplicant,
-  createPlayerPartyListing,
-  joinPartyListing as joinPartyFinderListing,
-  leavePartyListing as leavePartyFinderListing,
-  refreshPartyFinderListings,
-  startPartyFromListing,
-  waitPartyListing as waitPartyFinderListing,
-} from "../systems/partyFinderSystem";
-import { enhanceItem, type EnhanceTarget } from "../systems/enhancementSystem";
 import {
   buyListing,
   sellInventoryItem,
   normalizeMarketListings,
   generateMarketListings,
+  generateFullMarket,
   repairMarketIfBroken,
 } from "../systems/marketSystem";
 import {
@@ -67,6 +20,7 @@ import {
 } from "../systems/itemSystem";
 import { arenaRankIcon, arenaRankName, estimateArenaRatingValue, updateRankings } from "../systems/progressionSystem";
 import { addNews } from "../engine/news";
+import { repairServerRuntime, validateServerRuntime } from "../engine/runtimeValidation";
 import {
   acceptQuest as acceptQuestState,
   normalizeQuestStates,
@@ -268,7 +222,7 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
 
   const rosterReady = ensureServerRoster(baseWithProgress);
   const marketReadyBase = needsMigration
-    ? { ...rosterReady, market: generateMarketListings({ seed: rosterReady.seed, serverDay: rosterReady.serverDay, npcs: rosterReady.npcs }, marketRng) }
+    ? { ...rosterReady, market: generateFullMarket(rosterReady, marketRng) }
     : normalizeMarketListings(rosterReady, marketRng);
   const marketReady = repairMarketIfBroken(marketReadyBase, marketRng, needsMigration ? "migration" : "normalize");
   const partyReady = refreshPartyFinderListings(marketReady, createRng((marketReady.seed ?? Date.now()) + 1900 + (marketReady.serverDay ?? 1)));
@@ -277,7 +231,11 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
 
 const safeNormalizeServer = (server: ServerState | null | undefined, mode: "full" | "light" = "full"): ServerState => {
   try {
-    return refreshContracts(normalizeServer(server ?? createEmptyServer(), mode), createRng((server?.seed ?? Date.now()) + (server?.serverDay ?? 1) * 9010 + (server?.currentMinute ?? 0)));
+    const normalized = normalizeServer(server ?? createEmptyServer(), mode);
+    const repaired = repairServerRuntime(normalized);
+    const issues = validateServerRuntime(repaired);
+    if (import.meta.env.DEV && issues.some((issue) => issue.severity === 'critical')) console.warn('[MMOWS] runtime issues', issues);
+    return refreshContracts(repaired, createRng((server?.seed ?? Date.now()) + (server?.serverDay ?? 1) * 9010 + (server?.currentMinute ?? 0)));
   } catch (error) {
     console.error("[MMOWS] save normalize failed", error);
     backupRescueSave(server, "normalize_failed");
@@ -294,7 +252,7 @@ const commit = (
   combat?: CombatState | null,
   modal?: GameModal | null,
 ) => {
-  let normalized = refreshContracts(normalizeQuestStates(safeNormalizeServer(server, "light")), createRng((server.seed ?? Date.now()) + server.serverDay * 9020 + server.currentMinute));
+  let normalized = refreshContracts(repairServerRuntime(normalizeQuestStates(safeNormalizeServer(server, "light"))), createRng((server.seed ?? Date.now()) + server.serverDay * 9020 + server.currentMinute));
   let nextModal = modal;
 
   if (nextModal === undefined && normalized.notifications.length > 0) {

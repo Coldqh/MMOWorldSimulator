@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mmows-v0.6.12';
+const CACHE_NAME = 'mmows-v0.7.0';
 const APP_SHELL = [
   './',
   './index.html',
@@ -25,7 +25,7 @@ self.addEventListener('activate', (event) => {
     caches.keys()
       .then((keys) => Promise.all(
         keys
-          .filter((key) => key.startsWith('mmows-') && key !== CACHE_NAME)
+          .filter((key) => (key.startsWith('mmows-') || key.startsWith('mmoworldsimulator-')) && key !== CACHE_NAME)
           .map((key) => caches.delete(key))
       ))
       .then(() => self.clients.claim())
@@ -48,6 +48,19 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
+
+  if (url.pathname.endsWith('/version.json')) {
+    event.respondWith(
+      fetch(request, { cache: 'no-store' })
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          return response;
+        })
+        .catch(() => caches.match(request))
     );
     return;
   }

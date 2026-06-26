@@ -2,13 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { CLASSES } from "../../content/classes";
 import { getItemById, rarityScore } from "../../content/items";
 import { useGameStore } from "../../state/gameStore";
-import { estimateItemPrice, getMarketDiagnostics, getSellPrice } from "../../systems/marketSystem";
+import { estimateItemPrice, getMarketDiagnostics, getSellPrice, isSystemMarketSeller } from "../../systems/marketSystem";
 import type { EquipmentSlot } from "../../types/game";
 import { ItemLine } from "../components/ItemLine";
 
 const priceMark = (percent: number) =>
   percent === 0 ? "0%" : percent > 0 ? `+${percent}%` : `${percent}%`;
+
 const slots: Array<EquipmentSlot> = ["weapon", "head", "chest", "legs", "boots", "ring", "amulet"];
+
 const slotLabel: Record<string, string> = {
   weapon: "оружие",
   head: "голова",
@@ -19,10 +21,14 @@ const slotLabel: Record<string, string> = {
   amulet: "амулет",
 };
 
-const categoryLabel = {
-  equipment: "Снаряжение",
-  consumable: "Предметы",
-} as const;
+const systemSellerLabel: Record<string, string> = {
+  system_market_general: "Системный рынок",
+  system_market_equipment: "Снаряжение",
+  system_market_materials: "Материалы",
+  system_market_cards: "Карточный рынок",
+};
+
+type MarketCategory = "all" | "equipment" | "consumable" | "material" | "card";
 
 type ListingGroup = {
   key: string;
@@ -39,6 +45,14 @@ const marketLevelSort = (playerLevel: number, levelA: number, levelB: number) =>
   return levelA - levelB;
 };
 
+const categoryLabel: Record<MarketCategory, string> = {
+  all: "Все",
+  equipment: "Снаряжение",
+  consumable: "Расходники",
+  material: "Материалы",
+  card: "Карты",
+};
+
 export const MarketScreen = () => {
   const server = useGameStore((state) => state.server);
   const buy = useGameStore((state) => state.buyMarketListing);
@@ -48,34 +62,29 @@ export const MarketScreen = () => {
   const openNpcProfile = useGameStore((state) => state.openNpcProfile);
   const openItemProfile = useGameStore((state) => state.openItemProfile);
   const [mode, setMode] = useState<"buy" | "sell">("buy");
-  const [category, setCategory] = useState<"equipment" | "consumable" | "">("");
-  const [consumableType, setConsumableType] = useState<"potion" | "material" | "card" | "">("");
-  const [classFilter, setClassFilter] = useState("");
+  const [category, setCategory] = useState<MarketCategory>("all");
+  const [classFilter, setClassFilter] = useState("all");
   const [slotFilter, setSlotFilter] = useState<EquipmentSlot | "">("");
-  const [searched, setSearched] = useState(false);
   const inCity = server.location.mode === "city";
-  const marketDiagnostics = useMemo(() => getMarketDiagnostics(server), [server]);
 
   useEffect(() => {
     if (inCity) repairMarket();
   }, [inCity, repairMarket]);
 
-  const canSearch = category === "equipment"
-    ? Boolean(classFilter && slotFilter)
-    : category === "consumable"
-      ? Boolean(consumableType)
-      : false;
-
   const listingGroups = useMemo<ListingGroup[]>(() => {
-    if (!searched || !canSearch) return [];
     const filtered = server.market.filter((listing) => {
       if (listing.sellerId === server.player.id) return false;
       const item = getItemById(listing.itemId);
       if (!item) return false;
 
+      if (category === "all") return true;
+      if (category === "consumable") return item.type === "consumable";
+      if (category === "material") return item.type === "material";
+      if (category === "card") return item.type === "card";
+
       if (category === "equipment") {
         if (!item.slot || !["weapon", "armor", "accessory"].includes(item.type)) return false;
-        if (item.slot !== slotFilter) return false;
+        if (slotFilter && item.slot !== slotFilter) return false;
         if (classFilter !== "all") {
           if (item.slot === "weapon" && !item.classTags.includes(classFilter)) return false;
           if (item.slot !== "weapon" && item.classTags.length > 0 && !item.classTags.includes(classFilter)) return false;
@@ -83,14 +92,7 @@ export const MarketScreen = () => {
         return true;
       }
 
-      if (category === "consumable") {
-        if (consumableType === "potion") return item.type === "consumable";
-        if (consumableType === "material") return item.type === "material";
-        if (consumableType === "card") return item.type === "card";
-        return false;
-      }
-
-      return false;
+      return true;
     });
 
     const grouped = new Map<string, ListingGroup>();
@@ -101,7 +103,8 @@ export const MarketScreen = () => {
       else grouped.set(key, { key, itemId: listing.itemId, enhancement: listing.enhancement ?? 0, listings: [listing] });
     });
 
-    return [...grouped.values()].map((group) => ({ ...group, listings: [...group.listings].sort((a, b) => a.price - b.price) }))
+    return [...grouped.values()]
+      .map((group) => ({ ...group, listings: [...group.listings].sort((a, b) => a.price - b.price) }))
       .sort((a, b) => {
         const itemA = getItemById(a.itemId);
         const itemB = getItemById(b.itemId);
@@ -111,15 +114,12 @@ export const MarketScreen = () => {
         if (raritySort !== 0) return raritySort;
         return a.listings[0].price - b.listings[0].price;
       });
-  }, [server.market, server.player.id, server.player.level, category, consumableType, classFilter, slotFilter, searched, canSearch]);
+  }, [server.market, server.player.id, server.player.level, category, classFilter, slotFilter]);
 
-  const changeCategory = (next: typeof category) => {
-    setCategory(next);
-    setSearched(false);
-    setConsumableType("");
-    setClassFilter("");
-    setSlotFilter("");
-  };
+  const marketDiagnostics = useMemo(() => ({
+    ...getMarketDiagnostics(server),
+    visibleGroups: listingGroups.length,
+  }), [server, listingGroups.length]);
 
   if (!inCity) {
     return (
@@ -151,11 +151,13 @@ export const MarketScreen = () => {
           <div className="list-lines">
             <div className="list-line"><span>listings</span><strong>{marketDiagnostics.listings}</strong></div>
             <div className="list-line"><span>valid listings</span><strong>{marketDiagnostics.validListings}</strong></div>
-            <div className="list-line"><span>item groups</span><strong>{marketDiagnostics.itemGroups}</strong></div>
+            <div className="list-line"><span>groups</span><strong>{marketDiagnostics.itemGroups}</strong></div>
+            <div className="list-line"><span>visibleGroups</span><strong>{marketDiagnostics.visibleGroups}</strong></div>
             <div className="list-line"><span>equipment</span><strong>{marketDiagnostics.equipment}</strong></div>
             <div className="list-line"><span>materials</span><strong>{marketDiagnostics.consumableMaterial}</strong></div>
             <div className="list-line"><span>cards</span><strong>{marketDiagnostics.cards}</strong></div>
-            <div className="list-line"><span>current filter</span><strong>{category || "none"} / {consumableType || classFilter || "none"} / {slotFilter || "none"}</strong></div>
+            <div className="list-line"><span>playerLevelListings</span><strong>{marketDiagnostics.playerLevelListings}</strong></div>
+            <div className="list-line"><span>filter</span><strong>{category} / {classFilter} / {slotFilter || "all"}</strong></div>
             <div className="list-line"><span>broken</span><strong>{marketDiagnostics.brokenReasons.join(", ") || "no"}</strong></div>
           </div>
         </section>
@@ -166,45 +168,32 @@ export const MarketScreen = () => {
           <section className="panel filter-panel">
             <div className="section-title">Фильтры</div>
             <div className="chip-row">
-              {(["equipment", "consumable"] as const).map((id) => (
-                <button key={id} className={category === id ? "active" : ""} onClick={() => changeCategory(id)}>{categoryLabel[id]}</button>
+              {(["all", "equipment", "consumable", "material", "card"] as const).map((id) => (
+                <button key={id} className={category === id ? "active" : ""} onClick={() => setCategory(id)}>{categoryLabel[id]}</button>
               ))}
             </div>
-
-            {category === "consumable" && (
-              <div className="chip-row">
-                {(["potion", "material", "card"] as const).map((id) => (
-                  <button key={id} className={consumableType === id ? "active" : ""} onClick={() => { setConsumableType(id); setSearched(false); }}>
-                    {id === "potion" ? "зелья" : id === "material" ? "материалы" : "карты"}
-                  </button>
-                ))}
-              </div>
-            )}
 
             {category === "equipment" && (
               <>
                 <div className="chip-row">
-                  <button className={classFilter === "all" ? "active" : ""} onClick={() => { setClassFilter("all"); setSearched(false); }}>любой класс</button>
+                  <button className={classFilter === "all" ? "active" : ""} onClick={() => setClassFilter("all")}>любой класс</button>
                   {CLASSES.map((cls) => (
-                    <button key={cls.id} className={classFilter === cls.id ? "active" : ""} onClick={() => { setClassFilter(cls.id); setSearched(false); }}>{cls.name}</button>
+                    <button key={cls.id} className={classFilter === cls.id ? "active" : ""} onClick={() => setClassFilter(cls.id)}>{cls.name}</button>
                   ))}
                 </div>
                 <div className="chip-row">
+                  <button className={slotFilter === "" ? "active" : ""} onClick={() => setSlotFilter("")}>любой слот</button>
                   {slots.map((slot) => (
-                    <button key={slot} className={slotFilter === slot ? "active" : ""} onClick={() => { setSlotFilter(slot); setSearched(false); }}>{slotLabel[slot]}</button>
+                    <button key={slot} className={slotFilter === slot ? "active" : ""} onClick={() => setSlotFilter(slot)}>{slotLabel[slot]}</button>
                   ))}
                 </div>
               </>
             )}
-
-            <button disabled={!canSearch} onClick={() => setSearched(true)}>Поиск</button>
-            {!canSearch && <p className="muted">Выбери тип и все фильтры.</p>}
           </section>
 
           <section className="panel">
-            <div className="section-title">Товары · {searched ? listingGroups.length : 0}</div>
-            {!searched && <p className="muted">Лоты появятся после поиска.</p>}
-            {searched && listingGroups.length === 0 && <p className="muted">Ничего не найдено.</p>}
+            <div className="section-title">Товары · {listingGroups.length}</div>
+            {listingGroups.length === 0 && <p className="muted">Ничего не найдено.</p>}
             <div className="list-lines">
               {listingGroups.map((group) => {
                 const item = getItemById(group.itemId);
@@ -222,7 +211,11 @@ export const MarketScreen = () => {
                       {group.listings.slice(0, 3).map((listing) => (
                         <div key={listing.id} className="seller-row">
                           <span>
-                            <button className="text-button inline-button" onClick={() => openNpcProfile(listing.sellerId)}>{server.npcs.find((npc) => npc.id === listing.sellerId)?.name ?? listing.sellerId}</button>
+                            {isSystemMarketSeller(listing.sellerId) ? (
+                              <strong>{systemSellerLabel[listing.sellerId] ?? listing.sellerId}</strong>
+                            ) : (
+                              <button className="text-button inline-button" onClick={() => openNpcProfile(listing.sellerId)}>{server.npcs.find((npc) => npc.id === listing.sellerId)?.name ?? listing.sellerId}</button>
+                            )}
                             <small> · {priceMark(listing.pricePercent ?? 0)} · ×{listing.amount}</small>
                           </span>
                           <button onClick={() => buy(listing.id)} disabled={server.player.gold < listing.price || !item}>Купить {listing.price}g</button>

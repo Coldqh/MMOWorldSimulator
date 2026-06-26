@@ -5,7 +5,7 @@ import type { Guild, GuildType, NpcPlayer, Player, RoleFocus, ServerState } from
 import { SAVE_VERSION } from './saveLoad';
 import { createRng } from './rng';
 import { estimateArenaRatingValue, estimateWealthValue, updateRankings } from '../systems/progressionSystem';
-import { repairMarketIfBroken } from '../systems/marketSystem';
+import { generateFullMarket, repairMarketIfBroken } from '../systems/marketSystem';
 import { refreshPartyFinderListings } from '../systems/partyFinderSystem';
 import { generateEquipmentForClassLevel, generateEliteEquipmentForClassLevel, generateScaledEquipmentForClassLevel, getGearScore, normalizeNpcEquipmentAndGear } from '../systems/itemSystem';
 
@@ -531,7 +531,8 @@ export const createNewGame = (
 
   const finalRoster = ensureServerRoster(server);
   const marketRng = createRng(seed + 777001);
-  const finalMarket = repairMarketIfBroken({ ...finalRoster, market: [] }, marketRng, "createNewGame");
+  const fullMarket = { ...finalRoster, market: generateFullMarket(finalRoster, marketRng) };
+  const finalMarket = repairMarketIfBroken(fullMarket, marketRng, "createNewGame");
   const partyReady = refreshPartyFinderListings(finalMarket, createRng(seed + 880001));
   return updateRankings(partyReady);
 };
