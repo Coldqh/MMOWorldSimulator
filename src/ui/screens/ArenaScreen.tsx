@@ -22,6 +22,8 @@ export const ArenaScreen = () => {
   const combat = useGameStore((state) => state.combat);
   const startArena = useGameStore((state) => state.startArena);
   const startArena3v3 = useGameStore((state) => state.startArena3v3);
+  const startArena5v5 = useGameStore((state) => state.startArena5v5);
+  const startArena10v10 = useGameStore((state) => state.startArena10v10);
   const setScreen = useGameStore((state) => state.setScreen);
   const openNpcProfile = useGameStore((state) => state.openNpcProfile);
   const [bracketId, setBracketId] = useState<ArenaBracketId>(getArenaBracketIdForPlayer(server));
@@ -69,6 +71,8 @@ export const ArenaScreen = () => {
         <div className="action-grid combat-actions">
           <button className="primary-button" onClick={startArena} disabled={Boolean(combat) || !playerInActiveBracket}>Найти бой 1v1</button>
           <button className="primary-button" onClick={startArena3v3} disabled={Boolean(combat) || !playerInActiveBracket}>Найти бой 3v3</button>
+          <button className="primary-button" onClick={startArena5v5} disabled={Boolean(combat) || !playerInActiveBracket}>Найти бой 5v5</button>
+          <button className="primary-button" onClick={startArena10v10} disabled={Boolean(combat) || !playerInActiveBracket}>Найти бой 10v10</button>
         </div>
         {!playerInActiveBracket && <p className="muted">Твой персонаж не относится к выбранному брекету. Бои доступны только в своём брекете.</p>}
       </section>

@@ -852,7 +852,7 @@ export interface CombatState {
   enemyMobIds?: Id[];
   enemyNpcIds?: Id[];
   allyNpcIds?: Id[];
-  arenaMode?: "1v1" | "3v3";
+  arenaMode?: "1v1" | "3v3" | "5v5" | "10v10" | "team";
   teamA?: CombatTeamV2;
   teamB?: CombatTeamV2;
   activeCombatantId?: Id;

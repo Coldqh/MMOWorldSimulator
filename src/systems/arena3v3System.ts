@@ -16,6 +16,9 @@ import type {
 import { getGearScore, getPlayerStats } from './itemSystem';
 import { addPlayerXp } from './progressionSystem';
 import { finishGuildWarDefeatV2, finishGuildWarVictoryV2 } from './guildWarCombatResultSystem';
+import { getNpcEffectiveGearScore, getNpcPlayerEquivalentStats } from './pvpStatSystem';
+
+export type ArenaTeamSize = 3 | 5 | 10;
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, Math.round(value)));
 
@@ -109,38 +112,11 @@ const makePlayerCombatant = (server: ServerState): CombatantV2 => {
   };
 };
 
-const npcStats = (npc: NpcPlayer) => {
-  const level = npc.level;
-  const gear = npc.gearScore ?? 25;
-  const classId = npc.classId;
-  const role = roleFromClass(classId);
-  let maxHp = 95 + level * 16 + Math.floor(gear / 4);
-  let maxMana = classId === 'mage' || classId === 'priest' ? 80 + level * 7 : 45 + level * 3;
-  let attack = 8 + level * 2 + Math.floor(gear / 17);
-  let magic = 7 + level * 2 + Math.floor(gear / 19);
-  let defense = 5 + Math.floor(level * 1.45) + Math.floor(gear / 28);
-  const speed = 6 + Math.floor(level / 3) + Math.floor((npc.skill ?? 5) / 2);
-
-  if (role === 'tank') {
-    maxHp = Math.round(maxHp * 1.12);
-    defense = Math.round(defense * 1.18);
-    attack = Math.round(attack * 0.9);
-  }
-  if (role === 'healer') {
-    maxHp = Math.round(maxHp * 0.98);
-    magic = Math.round(magic * 1.12);
-    defense = Math.round(defense * 0.94);
-  }
-  if (role === 'magicDps') magic = Math.round(magic * 1.12);
-  if (role === 'physicalDps') attack = Math.round(attack * 1.1);
-
-  return { maxHp, maxMana, attack, magic, defense, speed, role };
-};
-
 const makeNpcCombatant = (npc: NpcPlayer, teamId: CombatTeamId, index: number): CombatantV2 => {
-  const stats = npcStats(npc);
+  const stats = getNpcPlayerEquivalentStats(npc);
+  const role = roleFromClass(npc.classId);
   const pvp = ['PVP_PLAYER', 'HARDCORE', 'GUILD_PLAYER', 'LEADER'].includes(npc.roleFocus) || npc.playstyle === 'pvp';
-  const aggression = aggressionFromRole(stats.role, pvp);
+  const aggression = aggressionFromRole(role, pvp);
   return {
     id: `${teamId}_${npc.id}_${index}`,
     sourceId: npc.id,
@@ -150,20 +126,20 @@ const makeNpcCombatant = (npc: NpcPlayer, teamId: CombatTeamId, index: number): 
     teamId,
     level: npc.level,
     classId: npc.classId,
-    role: stats.role,
-    maxHp: stats.maxHp,
-    hp: stats.maxHp,
-    maxMana: stats.maxMana,
-    mana: stats.maxMana,
+    role,
+    maxHp: stats.hp,
+    hp: stats.hp,
+    maxMana: stats.mana,
+    mana: stats.mana,
     attack: stats.attack,
     magic: stats.magic,
     defense: stats.defense,
     speed: stats.speed,
     shield: 0,
-    gearScore: npc.gearScore,
+    gearScore: getNpcEffectiveGearScore(npc),
     skill: npc.skill ?? 5,
     aggression,
-    targetPriority: targetPriorityFromRole(stats.role),
+    targetPriority: targetPriorityFromRole(role),
     threat: {},
     cooldowns: {},
     defending: false,
@@ -194,7 +170,7 @@ export const calculateTeamPower = (team: CombatTeamV2) =>
 const chooseByClass = (pool: NpcPlayer[], classId: string, used: Set<string>) =>
   pool.find((npc) => npc.classId === classId && !used.has(npc.id));
 
-const pickArenaAllies = (server: ServerState, rng: Rng) => {
+const pickArenaAllies = (server: ServerState, rng: Rng, count: number) => {
   const used = new Set<string>();
   const basePool = [...server.npcs]
     .filter((npc) => Math.abs(npc.level - server.player.level) <= 5)
@@ -202,7 +178,7 @@ const pickArenaAllies = (server: ServerState, rng: Rng) => {
     .sort((a, b) =>
       Math.abs(a.level - server.player.level) - Math.abs(b.level - server.player.level) ||
       Math.abs(a.arenaRating - server.player.arenaRating) - Math.abs(b.arenaRating - server.player.arenaRating) ||
-      (b.gearScore ?? 0) - (a.gearScore ?? 0),
+      getNpcEffectiveGearScore(b) - getNpcEffectiveGearScore(a),
     );
 
   const fallback = [...server.npcs].sort((a, b) =>
@@ -210,10 +186,10 @@ const pickArenaAllies = (server: ServerState, rng: Rng) => {
     Math.abs(a.arenaRating - server.player.arenaRating) - Math.abs(b.arenaRating - server.player.arenaRating),
   );
 
-  const pool = basePool.length >= 2 ? basePool : fallback;
+  const pool = basePool.length >= count ? basePool : fallback;
   const picks: NpcPlayer[] = [];
 
-  if (server.player.classId !== 'priest') {
+  if (count > 0 && server.player.classId !== 'priest') {
     const healer = chooseByClass(pool, 'priest', used);
     if (healer) {
       picks.push(healer);
@@ -221,7 +197,7 @@ const pickArenaAllies = (server: ServerState, rng: Rng) => {
     }
   }
 
-  if (server.player.classId !== 'warrior') {
+  if (picks.length < count && server.player.classId !== 'warrior') {
     const tank = chooseByClass(pool, 'warrior', used);
     if (tank) {
       picks.push(tank);
@@ -230,23 +206,23 @@ const pickArenaAllies = (server: ServerState, rng: Rng) => {
   }
 
   for (const npc of pool) {
-    if (picks.length >= 2) break;
+    if (picks.length >= count) break;
     if (used.has(npc.id)) continue;
     picks.push(npc);
     used.add(npc.id);
   }
 
-  while (picks.length < 2 && fallback.length > 0) {
+  while (picks.length < count && fallback.length > 0) {
     const npc = rng.pick(fallback.filter((entry) => !used.has(entry.id)));
     if (!npc) break;
     picks.push(npc);
     used.add(npc.id);
   }
 
-  return picks.slice(0, 2);
+  return picks.slice(0, count);
 };
 
-const pickArenaEnemies = (server: ServerState, allies: NpcPlayer[], teamPower: number, rng: Rng) => {
+const pickArenaEnemies = (server: ServerState, allies: NpcPlayer[], count: number, teamPower: number, rng: Rng) => {
   const blocked = new Set(allies.map((npc) => npc.id));
   const pvpPool = [...server.npcs]
     .filter((npc) => !blocked.has(npc.id))
@@ -260,31 +236,31 @@ const pickArenaEnemies = (server: ServerState, allies: NpcPlayer[], teamPower: n
     .filter((npc) => !blocked.has(npc.id))
     .sort((a, b) => Math.abs(a.level - server.player.level) - Math.abs(b.level - server.player.level));
 
-  const pool = pvpPool.length >= 3 ? pvpPool : fallback;
+  const pool = pvpPool.length >= count ? pvpPool : fallback;
   const selected: NpcPlayer[] = [];
   const used = new Set<string>();
 
   for (const npc of pool) {
-    if (selected.length >= 3) break;
+    if (selected.length >= count) break;
     if (used.has(npc.id)) continue;
     selected.push(npc);
     used.add(npc.id);
   }
 
-  while (selected.length < 3 && fallback.length > 0) {
+  while (selected.length < count && fallback.length > 0) {
     const npc = rng.pick(fallback.filter((entry) => !used.has(entry.id)));
     if (!npc) break;
     selected.push(npc);
     used.add(npc.id);
   }
 
-  const sorted = selected.sort((a, b) => {
-    const ap = calculateCombatantPower(makeNpcCombatant(a, 'teamB', 0));
-    const bp = calculateCombatantPower(makeNpcCombatant(b, 'teamB', 0));
-    return Math.abs(ap * 3 - teamPower) - Math.abs(bp * 3 - teamPower);
-  });
-
-  return sorted.slice(0, 3);
+  return selected
+    .sort((a, b) => {
+      const ap = calculateCombatantPower(makeNpcCombatant(a, 'teamB', 0));
+      const bp = calculateCombatantPower(makeNpcCombatant(b, 'teamB', 0));
+      return Math.abs(ap * count - teamPower) - Math.abs(bp * count - teamPower);
+    })
+    .slice(0, count);
 };
 
 const syncLegacyCombat = (combat: CombatState): CombatState => {
@@ -300,8 +276,8 @@ const syncLegacyCombat = (combat: CombatState): CombatState => {
     ...combat,
     player: createLegacyCombatant(playerUnit),
     enemy: {
-      id: 'arena_3v3_enemy_team',
-      name: enemyAlive.length > 0 ? `Команда соперника · ${enemyAlive.length}/3` : 'Команда соперника',
+      id: 'arena_team_enemy',
+      name: enemyAlive.length > 0 ? `${combat.teamB.name} · ${enemyAlive.length}/${combat.teamB.members.length}` : combat.teamB.name,
       level: Math.round(combat.teamB.members.reduce((sum, member) => sum + member.level, 0) / Math.max(1, combat.teamB.members.length)),
       maxHp: Math.max(1, enemyMaxHp),
       hp: Math.max(0, enemyHp),
@@ -316,7 +292,7 @@ const syncLegacyCombat = (combat: CombatState): CombatState => {
       defending: false,
     },
     partyMembers: combat.teamA.members.map((member) => ({
-      id: member.id,
+      id: member.sourceId,
       name: member.name,
       classId: member.classId ?? 'ranger',
       role: member.role ?? roleFromClass(member.classId),
@@ -331,49 +307,53 @@ const syncLegacyCombat = (combat: CombatState): CombatState => {
   };
 };
 
-export const startArena3v3Combat = (server: ServerState, rng: Rng): CombatState | null => {
-  if (server.npcs.length < 5) return null;
+export const startArenaTeamCombat = (server: ServerState, teamSize: ArenaTeamSize, rng: Rng): CombatState | null => {
+  const allyCount = teamSize - 1;
+  const enemyCount = teamSize;
+  if (server.npcs.length < allyCount + enemyCount) return null;
+
   const player = makePlayerCombatant(server);
-  const allies = pickArenaAllies(server, rng);
-  if (allies.length < 2) return null;
+  const allies = pickArenaAllies(server, rng, allyCount);
+  if (allies.length < allyCount) return null;
+
   const teamA: CombatTeamV2 = {
     id: 'teamA',
-    name: 'Твоя команда',
+    name: teamSize === 3 ? 'Твоя команда 3v3' : teamSize === 5 ? 'Твоя команда 5v5' : 'Твоя команда 10v10',
     faction: 'arena',
     guildId: server.player.guildId,
     members: [player, ...allies.map((npc, index) => makeNpcCombatant(npc, 'teamA', index))],
   };
 
-  const enemies = pickArenaEnemies(server, allies, calculateTeamPower(teamA), rng);
-  if (enemies.length < 3) return null;
+  const enemies = pickArenaEnemies(server, allies, enemyCount, calculateTeamPower(teamA), rng);
+  if (enemies.length < enemyCount) return null;
   const teamB: CombatTeamV2 = {
     id: 'teamB',
-    name: 'Команда соперника',
+    name: teamSize === 3 ? 'Соперники 3v3' : teamSize === 5 ? 'Соперники 5v5' : 'Соперники 10v10',
     faction: 'arena',
     members: enemies.map((npc, index) => makeNpcCombatant(npc, 'teamB', index)),
   };
 
   const combat: CombatState = {
-    id: uid('arena3v3', rng),
+    id: uid(`arena${teamSize}v${teamSize}`, rng),
     source: 'arena',
-    sourceId: 'arena_3v3',
+    sourceId: `arena_${teamSize}v${teamSize}`,
     enemyNpcId: enemies[0].id,
     enemyNpcIds: enemies.map((npc) => npc.id),
     allyNpcIds: allies.map((npc) => npc.id),
-    arenaMode: '3v3',
+    arenaMode: teamSize === 3 ? '3v3' : teamSize === 5 ? '5v5' : '10v10',
     player: createLegacyCombatant(player),
     enemy: {
-      id: 'arena_3v3_enemy_team',
-      name: 'Команда соперника',
-      level: Math.round(enemies.reduce((sum, npc) => sum + npc.level, 0) / 3),
+      id: 'arena_team_enemy',
+      name: teamB.name,
+      level: Math.round(enemies.reduce((sum, npc) => sum + npc.level, 0) / enemyCount),
       maxHp: teamB.members.reduce((sum, member) => sum + member.maxHp, 0),
       hp: teamB.members.reduce((sum, member) => sum + member.hp, 0),
       maxMana: 0,
       mana: 0,
-      attack: Math.round(teamB.members.reduce((sum, member) => sum + member.attack, 0) / 3),
-      magic: Math.round(teamB.members.reduce((sum, member) => sum + member.magic, 0) / 3),
-      defense: Math.round(teamB.members.reduce((sum, member) => sum + member.defense, 0) / 3),
-      speed: Math.round(teamB.members.reduce((sum, member) => sum + member.speed, 0) / 3),
+      attack: Math.round(teamB.members.reduce((sum, member) => sum + member.attack, 0) / enemyCount),
+      magic: Math.round(teamB.members.reduce((sum, member) => sum + member.magic, 0) / enemyCount),
+      defense: Math.round(teamB.members.reduce((sum, member) => sum + member.defense, 0) / enemyCount),
+      speed: Math.round(teamB.members.reduce((sum, member) => sum + member.speed, 0) / enemyCount),
       shield: 0,
       cooldowns: {},
       defending: false,
@@ -388,7 +368,7 @@ export const startArena3v3Combat = (server: ServerState, rng: Rng): CombatState 
     round: 1,
     turn: 1,
     log: [
-      `Арена 3v3. Союзники: ${allies.map((npc) => npc.name).join(', ')}.`,
+      `Арена ${teamSize}v${teamSize}. Союзники: ${allies.map((npc) => npc.name).join(', ')}.`,
       `Противники: ${enemies.map((npc) => npc.name).join(', ')}.`,
       `Power: ${calculateTeamPower(teamA)} vs ${calculateTeamPower(teamB)}.`,
     ],
@@ -397,6 +377,10 @@ export const startArena3v3Combat = (server: ServerState, rng: Rng): CombatState 
 
   return syncLegacyCombat(combat);
 };
+
+export const startArena3v3Combat = (server: ServerState, rng: Rng): CombatState | null => startArenaTeamCombat(server, 3, rng);
+export const startArena5v5Combat = (server: ServerState, rng: Rng): CombatState | null => startArenaTeamCombat(server, 5, rng);
+export const startArena10v10Combat = (server: ServerState, rng: Rng): CombatState | null => startArenaTeamCombat(server, 10, rng);
 
 const alive = (team: CombatTeamV2) => team.members.filter((member) => member.alive && member.hp > 0);
 
@@ -410,12 +394,8 @@ const chooseTarget = (enemies: CombatantV2[], actor: CombatantV2, rng: Rng) => {
   if (actor.targetPriority === 'lowestHp' || actor.aggression === 'aggressive' || actor.aggression === 'reckless') {
     return [...aliveEnemies].sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
   }
-  if (actor.targetPriority === 'enemyHealer') {
-    return aliveEnemies.find((enemy) => enemy.role === 'healer') ?? rng.pick(aliveEnemies);
-  }
-  if (actor.targetPriority === 'enemyTank') {
-    return aliveEnemies.find((enemy) => enemy.role === 'tank') ?? rng.pick(aliveEnemies);
-  }
+  if (actor.targetPriority === 'enemyHealer') return aliveEnemies.find((enemy) => enemy.role === 'healer') ?? rng.pick(aliveEnemies);
+  if (actor.targetPriority === 'enemyTank') return aliveEnemies.find((enemy) => enemy.role === 'tank') ?? rng.pick(aliveEnemies);
   return rng.pick(aliveEnemies);
 };
 
@@ -514,10 +494,7 @@ const resolveActor = (
   const crit = rng.chance(critChance);
   const damageMod = aggressionDamageMod(currentActor.aggression);
   const defenseMod = aggressionDefenseMod(target.aggression);
-  const damage = Math.max(
-    1,
-    Math.round((raw * damageMod + rng.int(-3, 5)) * (crit ? 1.45 : 1) - target.defense * defenseMod * 0.48),
-  );
+  const damage = Math.max(1, Math.round((raw * damageMod + rng.int(-3, 5)) * (crit ? 1.45 : 1) - target.defense * defenseMod * 0.48));
 
   const result = applyDamageToTeam(enemy, target.id, damage, currentActor.id);
   enemy = result.team;
@@ -540,6 +517,7 @@ const finishIfNeeded = (server: ServerState, combat: CombatState, rng: Rng): { s
 
   const playerWon = aAlive && !bAlive;
   if (combat.source === 'guild_war') return playerWon ? finishGuildWarVictoryV2(server, combat, rng) : finishGuildWarDefeatV2(server, combat, rng);
+
   const enemyNpcIds = combat.enemyNpcIds ?? [];
   const allyNpcIds = combat.allyNpcIds ?? [];
   const enemyAvgRating = enemyNpcIds.length
@@ -576,7 +554,7 @@ const finishIfNeeded = (server: ServerState, combat: CombatState, rng: Rng): { s
     gold,
     items: [],
     lines: [
-      playerWon ? 'Арена 3v3: победа.' : 'Арена 3v3: поражение.',
+      playerWon ? 'Командная арена: победа.' : 'Командная арена: поражение.',
       `Рейтинг: ${ratingDelta > 0 ? '+' : ''}${ratingDelta}.`,
       `Текущий рейтинг: ${player.arenaRating}.`,
       `XP: +${xp}.`,
@@ -593,15 +571,13 @@ const finishIfNeeded = (server: ServerState, combat: CombatState, rng: Rng): { s
       winnerTeamId: playerWon ? 'teamA' : 'teamB',
       reward: playerWon ? reward : undefined,
       player: { ...combat.player, hp: player.hp, mana: player.mana, level: player.level },
-      log: [...combat.log, playerWon ? `Победа 3v3. Рейтинг +${ratingDelta}.` : `Поражение 3v3. Рейтинг ${ratingDelta}.`].slice(-80),
+      log: [...combat.log, playerWon ? `Победа. Рейтинг +${ratingDelta}.` : `Поражение. Рейтинг ${ratingDelta}.`].slice(-80),
     }),
   };
 };
 
-export const resolveArena3v3Round = (server: ServerState, combat: CombatState, actionId: string, rng: Rng): { server: ServerState; combat: CombatState } => {
-  if (combat.status !== 'active' || combat.arenaMode !== '3v3' || !combat.teamA || !combat.teamB) {
-    return { server, combat };
-  }
+export const resolveArenaTeamRound = (server: ServerState, combat: CombatState, actionId: string, rng: Rng): { server: ServerState; combat: CombatState } => {
+  if (combat.status !== 'active' || !combat.teamA || !combat.teamB) return { server, combat };
 
   let teamA: CombatTeamV2 = {
     ...combat.teamA,
@@ -647,3 +623,5 @@ export const resolveArena3v3Round = (server: ServerState, combat: CombatState, a
 
   return finishIfNeeded(server, nextCombat, rng);
 };
+
+export const resolveArena3v3Round = resolveArenaTeamRound;

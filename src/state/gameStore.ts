@@ -115,7 +115,12 @@ import {
   seedActiveGuildWarsIfEmpty,
   simulateGuildWarsEveryHalfHour,
 } from "../systems/guildRuntimeSystem";
-import { resolveArena3v3Round, startArena3v3Combat } from "../systems/arena3v3System";
+import {
+  resolveArenaTeamRound,
+  startArena3v3Combat,
+  startArena5v5Combat,
+  startArena10v10Combat,
+} from "../systems/arena3v3System";
 import {
   markWarAttackCooldown,
   maybeAddWarDuelReinforcements,
@@ -172,6 +177,8 @@ interface GameStore {
   leaveDungeonRun: () => void;
   startArena: () => void;
   startArena3v3: () => void;
+  startArena5v5: () => void;
+  startArena10v10: () => void;
   combatAction: (actionId: string) => void;
   recoverFullHp: () => void;
   enhanceTarget: (target: EnhanceTarget) => void;
@@ -759,19 +766,48 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
     const arenaCombat = startArena3v3Combat(server, rng);
     if (!arenaCombat) {
-      set({
-        modal: {
-          id: `modal_arena_3v3_failed_${server.serverDay}_${server.currentMinute}`,
-          type: "system",
-          title: "3v3 недоступно",
-          text: "Не хватает NPC для матча.",
-          lines: ["Нужно минимум пять NPC рядом по уровню или рейтингу."],
-        },
-      });
+      set({ modal: { id: `modal_arena_3v3_failed_${server.serverDay}_${server.currentMinute}`, type: "system", title: "3v3 недоступно", text: "Не хватает NPC для матча.", lines: ["Нужно минимум пять NPC рядом по уровню или рейтингу."] } });
       return;
     }
     commit(set, server, arenaCombat, null);
   },
+
+  startArena5v5: () => {
+    const { server, combat } = get();
+    if (combat || !server.characterCreated || server.currentDungeonRun) return;
+    const rng = createRng(server.seed + server.serverDay * 5050 + server.currentMinute);
+    if (server.location.mode !== "city") {
+      const next = addNews(server, rng, "pvp", "Арена доступна в городе.", false);
+      commit(set, next, null);
+      set({ activeScreen: "world" });
+      return;
+    }
+    const arenaCombat = startArena5v5Combat(server, rng);
+    if (!arenaCombat) {
+      set({ modal: { id: `modal_arena_5v5_failed_${server.serverDay}_${server.currentMinute}`, type: "system", title: "5v5 недоступно", text: "Не хватает NPC для матча.", lines: ["Нужно минимум девять NPC для режима 5v5."] } });
+      return;
+    }
+    commit(set, server, arenaCombat, null);
+  },
+
+  startArena10v10: () => {
+    const { server, combat } = get();
+    if (combat || !server.characterCreated || server.currentDungeonRun) return;
+    const rng = createRng(server.seed + server.serverDay * 10050 + server.currentMinute);
+    if (server.location.mode !== "city") {
+      const next = addNews(server, rng, "pvp", "Арена доступна в городе.", false);
+      commit(set, next, null);
+      set({ activeScreen: "world" });
+      return;
+    }
+    const arenaCombat = startArena10v10Combat(server, rng);
+    if (!arenaCombat) {
+      set({ modal: { id: `modal_arena_10v10_failed_${server.serverDay}_${server.currentMinute}`, type: "system", title: "10v10 недоступно", text: "Не хватает NPC для матча.", lines: ["Нужно минимум девятнадцать NPC для режима 10v10."] } });
+      return;
+    }
+    commit(set, server, arenaCombat, null);
+  },
+
 
   combatAction: (actionId) => {
     const { server, combat } = get();
@@ -783,7 +819,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         combat.turn * 17,
     );
     const result = combat.arenaMode === '3v3'
-      ? resolveArena3v3Round(server, combat, actionId, rng)
+      ? resolveArenaTeamRound(server, combat, actionId, rng)
       : resolveCombatAction(server, combat, actionId, rng);
     let nextServer = result.server;
     let nextCombat: CombatState | null = result.combat;
@@ -833,9 +869,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
           : result.combat.enemyMobId
             ? [result.combat.enemyMobId]
             : [];
-        const obtained = result.combat.reward?.items?.map((entry) => entry.itemId) ?? [];
-        defeated.forEach((mobId) => { nextServer = updateQuestProgressOnMobKill(nextServer, mobId); nextServer = updateContractsOnMobKill(nextServer, mobId); });
-        result.combat.reward?.items?.forEach((entry) => { nextServer = updateQuestProgressOnItemGain(nextServer, entry.itemId, entry.amount); });
+        const obtained = result.combat.reward?.items?.map((entry: { itemId: string }) => entry.itemId) ?? [];
+        defeated.forEach((mobId: string) => { nextServer = updateQuestProgressOnMobKill(nextServer, mobId); nextServer = updateContractsOnMobKill(nextServer, mobId); });
+        result.combat.reward?.items?.forEach((entry: { itemId: string; amount: number }) => { nextServer = updateQuestProgressOnItemGain(nextServer, entry.itemId, entry.amount); });
         nextServer = addCollectionProgress(nextServer, obtained, defeated);
       }
 
