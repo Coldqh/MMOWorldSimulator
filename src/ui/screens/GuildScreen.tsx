@@ -65,17 +65,26 @@ export const GuildScreen = () => {
   };
 
   if (mainTab === "wars") {
+    const showServerWars = !playerGuild || showAllGuilds;
     return (
       <div className="screen-stack">
         <section className="panel hero-panel">
           <div className="section-title">Гильдии</div>
+          <div className="title-row">
+            <h1>{showServerWars ? "Войны сервера" : "Войны твоей гильдии"}</h1>
+            {playerGuild && <button onClick={() => setShowAllGuilds(!showAllGuilds)}>{showAllGuilds ? "Твоя гильдия" : "Все гильдии"}</button>}
+          </div>
           <div className="tab-row">
             <button onClick={() => setMainTab("guilds")}>Гильдии</button>
             <button className="active" onClick={() => setMainTab("wars")}>Войны</button>
           </div>
+          <p className="muted">
+            {showServerWars
+              ? "Активные и завершённые войны всех гильдий."
+              : "Показываются только войны твоей гильдии."}
+          </p>
         </section>
-        {playerGuild && <GuildWarPanel />}
-        <ServerGuildWarList />
+        {showServerWars ? <ServerGuildWarList /> : <GuildWarPanel />}
       </div>
     );
   }
@@ -221,7 +230,10 @@ export const GuildScreen = () => {
           <button className="active" onClick={() => setMainTab("guilds")}>Гильдии</button>
           <button onClick={() => setMainTab("wars")}>Войны</button>
         </div>
-        <div className="title-row"><h1>Список гильдий</h1>{playerGuild && <button onClick={() => setShowAllGuilds(false)}>Назад</button>}</div>
+        <div className="title-row">
+          <h1>Список гильдий</h1>
+          {playerGuild && <button onClick={() => setShowAllGuilds(false)}>Твоя гильдия</button>}
+        </div>
         <div className="chip-row">{(["all", "high", "mid", "low"] as const).map((tier) => <button key={tier} className={tierFilter === tier ? "active" : ""} onClick={() => setTierFilter(tier)}>{tierLabel[tier]}</button>)}</div>
       </section>
 

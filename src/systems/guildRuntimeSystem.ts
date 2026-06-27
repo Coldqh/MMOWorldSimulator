@@ -25,7 +25,6 @@ const tierTargets: Array<{ tier: 'low' | 'mid' | 'high'; count: number; min: num
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, Math.round(value)));
 const totalMinute = (day: number, minute: number) => (Math.max(1, day) - 1) * 1440 + Math.max(0, minute);
-
 const npcPower = (npc: NpcPlayer) => Math.max(1, (npc.gearScore ?? 1) * (0.55 + clamp(npc.skill ?? 5, 1, 10) * 0.11));
 
 const soloName = (tier: 'low' | 'mid' | 'high', index: number) => {
@@ -35,6 +34,36 @@ const soloName = (tier: 'low' | 'mid' | 'high', index: number) => {
   const surnames = ['Вейн', 'Кроу', 'Рив', 'Нокс', 'Флинт', 'Рук', 'Восс', 'Грей', 'Фрост', 'Кейн', 'Блэйд', 'Холл'];
   const pool = tier === 'low' ? low : tier === 'mid' ? mid : high;
   return `${pool[index % pool.length]} ${surnames[(index * 3) % surnames.length]} ${index + 1}`;
+};
+
+const timeText = (day?: number, minute?: number) => {
+  const value = minute ?? 0;
+  return `День ${day ?? '?'} · ${Math.floor(value / 60).toString().padStart(2, '0')}:${(value % 60).toString().padStart(2, '0')}`;
+};
+
+export const buildGuildWarProfileLines = (server: ServerState, war: GuildWar): string[] => {
+  const guildName = (id: string) => server.guilds.find((guild) => guild.id === id)?.name ?? id;
+  const npcName = (id: string) => server.npcs.find((npc) => npc.id === id)?.name ?? id;
+  const topList = (guildId: string) => {
+    const map = new Map<string, number>();
+    war.killRecords
+      .filter((record) => record.killerGuildId === guildId)
+      .forEach((record) => map.set(record.killerId, (map.get(record.killerId) ?? 0) + 1));
+    return [...map.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 5);
+  };
+  const attackerTop = topList(war.attackerGuildId);
+  const defenderTop = topList(war.defenderGuildId);
+  return [
+    `Война: ${guildName(war.attackerGuildId)} vs ${guildName(war.defenderGuildId)}`,
+    `Статус: ${war.status}`,
+    `Счёт: ${war.attackerKills}:${war.defenderKills}`,
+    `Начало: ${timeText(war.startsDay ?? war.declaredDay, war.startsMinute ?? war.declaredMinute)}`,
+    `Завершение: ${timeText(war.endsDay, war.endsMinute)}`,
+    `${guildName(war.attackerGuildId)} · топ-5`,
+    ...(attackerTop.length ? attackerTop.map(([id, kills], index) => `ACTION_NPC_PROFILE:${id}:#${index + 1} ${npcName(id)} — ${kills}`) : ['Убийств нет.']),
+    `${guildName(war.defenderGuildId)} · топ-5`,
+    ...(defenderTop.length ? defenderTop.map(([id, kills], index) => `ACTION_NPC_PROFILE:${id}:#${index + 1} ${npcName(id)} — ${kills}`) : ['Убийств нет.']),
+  ];
 };
 
 const normalizeWar = (server: ServerState, war: Partial<GuildWar> & Record<string, any>): GuildWar | null => {
@@ -79,10 +108,46 @@ export const normalizeGuildWarsRuntime = (server: ServerState): ServerState => (
 const isExpired = (server: ServerState, war: GuildWar) =>
   war.status === 'active' && totalMinute(server.serverDay, server.currentMinute) >= totalMinute(war.endsDay, war.endsMinute);
 
-const finishExpiredWars = (server: ServerState): ServerState => ({
-  ...server,
-  guildWars: (server.guildWars ?? []).map((war) => isExpired(server, war) ? { ...war, status: 'finished' as const } : war),
-});
+const finishExpiredWars = (server: ServerState): ServerState => {
+  const finished: GuildWar[] = [];
+  const guildWars = (server.guildWars ?? []).map((war) => {
+    if (!isExpired(server, war)) return war;
+    const nextWar = { ...war, status: 'finished' as const };
+    finished.push(nextWar);
+    return nextWar;
+  });
+  if (finished.length === 0) return { ...server, guildWars };
+
+  const notifications = finished.map((war) => {
+    const guildName = (id: string) => server.guilds.find((guild) => guild.id === id)?.name ?? id;
+    return {
+      id: `war_finished_${war.id}_${server.serverDay}_${server.currentMinute}`,
+      type: 'guild' as const,
+      title: 'Война завершена',
+      text: `${guildName(war.attackerGuildId)} vs ${guildName(war.defenderGuildId)} · ${war.attackerKills}:${war.defenderKills}`,
+      lines: buildGuildWarProfileLines(server, war),
+    };
+  });
+
+  const news = finished.map((war) => {
+    const guildName = (id: string) => server.guilds.find((guild) => guild.id === id)?.name ?? id;
+    return {
+      id: `news_war_finished_${war.id}_${server.serverDay}_${server.currentMinute}`,
+      day: server.serverDay,
+      minute: server.currentMinute,
+      type: 'guild' as const,
+      text: `Война завершена: ${guildName(war.attackerGuildId)} vs ${guildName(war.defenderGuildId)} · ${war.attackerKills}:${war.defenderKills}`,
+      important: true,
+    };
+  });
+
+  return {
+    ...server,
+    guildWars,
+    notifications: [...(server.notifications ?? []), ...notifications],
+    worldNews: [...news, ...server.worldNews].slice(0, 80),
+  };
+};
 
 const activeWarExists = (server: ServerState, a: string, b: string) =>
   (server.guildWars ?? []).some((war) =>
@@ -229,8 +294,8 @@ export const simulateGuildWarsEveryHalfHour = (server: ServerState, rng: Rng, mi
 };
 
 const makeSoloNpc = (index: number, level: number, tier: 'low' | 'mid' | 'high', rng: Rng): NpcPlayer => {
-  const classId = classIds[index % classIds.length];
-  const raceId = raceIds[index % raceIds.length];
+  const classId = ['warrior', 'ranger', 'mage', 'priest'][index % 4];
+  const raceId = ['human', 'elf', 'dwarf', 'beastkin'][index % 4];
   return {
     id: `${SOLO_PREFIX}${index.toString().padStart(3, '0')}`,
     name: soloName(tier, index),

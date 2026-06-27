@@ -102,6 +102,7 @@ import {
 import { handleWarNpcEncountersOnPlayerLocationEnter } from "../systems/npcLocationSystem";
 import {
   acceptPlayerGuildApplication,
+  buildGuildWarProfileLines,
   createPlayerGuildRuntime,
   declareWarDirectRuntime,
   ensureSoloNpcPool,
@@ -181,6 +182,7 @@ interface GameStore {
   openGuildProfile: (guildId: string) => void;
   openGuildRoster: (guildId: string) => void;
   openGuildRelations: (guildId: string) => void;
+  openGuildWarProfile: (warId: string) => void;
   createPlayerGuild: (name: string, focus: GuildFocus, level: number) => void;
   acceptGuildApplicant: (applicationId: string) => void;
   rejectGuildApplicant: (applicationId: string) => void;
@@ -1416,6 +1418,22 @@ export const useGameStore = create<GameStore>((set, get) => ({
       ],
     };
     set({ modal });
+  },
+
+  openGuildWarProfile: (warId) => {
+    const { server } = get();
+    const war = server.guildWars.find((entry) => entry.id === warId);
+    if (!war) return;
+    const guildName = (guildId: string) => server.guilds.find((guild) => guild.id === guildId)?.name ?? guildId;
+    set({
+      modal: {
+        id: `modal_guild_war_${war.id}`,
+        type: 'guild',
+        title: 'Профиль войны',
+        text: `${guildName(war.attackerGuildId)} vs ${guildName(war.defenderGuildId)} · ${war.attackerKills}:${war.defenderKills}`,
+        lines: buildGuildWarProfileLines(server, war),
+      },
+    });
   },
 
   openGuildRelations: (guildId) => {

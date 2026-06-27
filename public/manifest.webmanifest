@@ -2,7 +2,7 @@
   "name": "MMO World Simulator",
   "short_name": "MMOWS",
   "description": "Offline MMO world simulator.",
-  "version": "0.7.16",
+  "version": "0.7.18",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

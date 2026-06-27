@@ -1,6 +1,6 @@
 {
-  "version": "0.7.16",
+  "version": "0.7.18",
   "channel": "stable",
-  "build": "2026-06-27-v0716-guild-wars-expansion",
+  "build": "2026-06-27-v0718-import-header-hard-repair",
   "buildTime": "2026-06-25T00:00:00.000Z"
 }
