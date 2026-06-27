@@ -353,7 +353,7 @@ export interface PendingLootRoll {
 
 export interface PartyRoleMap {
   tankId: Id;
-  healerId: Id;
+  healerId?: Id;
   dpsIds: Id[];
 }
 

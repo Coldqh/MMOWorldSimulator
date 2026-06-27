@@ -49,6 +49,10 @@ import {
   updateRankings,
 } from "../systems/progressionSystem";
 import {
+  getArenaBracketIdForPlayer,
+  getArenaBracketOpponentPool,
+} from "../systems/arenaBracketSystem";
+import {
   acceptQuest as acceptQuestState,
   normalizeQuestStates,
   talkToQuestGiver as talkToQuestGiverState,
@@ -100,9 +104,6 @@ import {
   tickGuildWars,
 } from "../systems/guildWarSystem";
 import { handleWarNpcEncountersOnPlayerLocationEnter } from "../systems/npcLocationSystem";
-import { startWarNpcDuelCombat } from "../systems/pvpDuelSystem";
-import { canPlayerAttackWarNpc, getWarAttackCooldownMinutes } from "../systems/npcLocationSystem";
-import { resolveArena3v3Round, startArena3v3Combat } from "../systems/arena3v3System";
 import {
   acceptPlayerGuildApplication,
   buildGuildWarProfileLines,
@@ -114,6 +115,13 @@ import {
   seedActiveGuildWarsIfEmpty,
   simulateGuildWarsEveryHalfHour,
 } from "../systems/guildRuntimeSystem";
+import { resolveArena3v3Round, startArena3v3Combat } from "../systems/arena3v3System";
+import {
+  markWarAttackCooldown,
+  maybeAddWarDuelReinforcements,
+  startWarNpcAmbushCombat,
+  startWarNpcDuelCombat,
+} from "../systems/pvpDuelSystem";
 
 import type {
   CombatState,
@@ -482,6 +490,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     };
     let next = handleWarNpcEncountersOnPlayerLocationEnter(simulateServerForMinutes(moved, 20, rng), rng);
     if (zoneId === 'greenfield') next = updateQuestProgressOnSystemAction(next, 'visit_greenfield');
+    const ambush = startWarNpcAmbushCombat(next, rng);
+    if (ambush) {
+      commit(set, markWarAttackCooldown(next), ambush, null);
+      set({ activeScreen: "world" });
+      return;
+    }
     commit(set, next, null);
     set({ activeScreen: "world" });
   },
@@ -500,7 +514,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
       currentDungeonRun: undefined,
       currentPartyListingId: undefined,
     };
-    const next = handleWarNpcEncountersOnPlayerLocationEnter(simulateServerForMinutes(moved, 5, rng), rng);
+    let next = handleWarNpcEncountersOnPlayerLocationEnter(simulateServerForMinutes(moved, 5, rng), rng);
+    const ambush = startWarNpcAmbushCombat(next, rng);
+    if (ambush) {
+      commit(set, markWarAttackCooldown(next), ambush, null);
+      set({ activeScreen: "world" });
+      return;
+    }
     commit(set, next, null);
     set({ activeScreen: "world" });
   },
@@ -650,17 +670,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
 
-    const ratingPool = server.npcs
-      .filter((npc) => ['PVP_PLAYER', 'HARDCORE', 'GUILD_PLAYER', 'LEADER'].includes(npc.roleFocus))
-      .filter((npc) => Math.abs(npc.arenaRating - server.player.arenaRating) <= 50)
-      .sort((a, b) => Math.abs(a.arenaRating - server.player.arenaRating) - Math.abs(b.arenaRating - server.player.arenaRating));
-
-    const fallbackPool = server.npcs
-      .filter((npc) => ['PVP_PLAYER', 'HARDCORE', 'GUILD_PLAYER', 'LEADER'].includes(npc.roleFocus))
-      .sort((a, b) => Math.abs(a.arenaRating - server.player.arenaRating) - Math.abs(b.arenaRating - server.player.arenaRating));
-
-    const pool = ratingPool.length > 0 ? ratingPool.slice(0, 18) : fallbackPool.slice(0, 18);
-    const opponent = rng.pick(pool.length > 0 ? pool : server.npcs);
+    const bracketId = getArenaBracketIdForPlayer(server);
+    const bracketPool = getArenaBracketOpponentPool(server, bracketId).filter((npc) => ['PVP_PLAYER', 'HARDCORE', 'GUILD_PLAYER', 'LEADER'].includes(npc.roleFocus));
+    const ratingPool = bracketPool.filter((npc) => Math.abs(npc.arenaRating - server.player.arenaRating) <= 50);
+    const pool = ratingPool.length > 0 ? ratingPool.slice(0, 18) : bracketPool.slice(0, 18);
+    const bracketFallback = getArenaBracketOpponentPool(server, bracketId);
+    const opponent = rng.pick(pool.length > 0 ? pool : bracketFallback.length > 0 ? bracketFallback : server.npcs);
     const playerGear = getGearScore(server.player.equipment);
     const opponentStats = getPlayerStats({ ...server.player, id: opponent.id, name: opponent.name, raceId: opponent.raceId, classId: opponent.classId, level: opponent.level, xp: 0, gold: opponent.gold, inventory: opponent.inventory, equipment: opponent.equipment, guildId: opponent.guildId, reputation: opponent.reputation, arenaRating: opponent.arenaRating });
     const buildArenaFighter = (base: ReturnType<typeof createPlayerCombatant>, gearScore: number) => {
@@ -853,10 +868,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       0,
       stats.mana - Math.min(server.player.mana, stats.mana),
     );
-    const minutes = Math.max(
-      5,
-      Math.ceil(missingHp / 4) + Math.ceil(missingMana / 8),
-    );
+    const missingHpPercent = missingHp / Math.max(1, stats.hp);
+    const missingManaPercent = missingMana / Math.max(1, stats.mana);
+    const minutes = Math.max(5, Math.ceil(Math.max(missingHpPercent, missingManaPercent) * 120));
     const rng = createRng(
       server.seed + server.serverDay * 5000 + server.currentMinute,
     );
@@ -1375,42 +1389,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
   attackWarEnemyNpc: (npcId) => {
     const { server, combat } = get();
     if (combat) return;
-    const cooldown = getWarAttackCooldownMinutes(server);
-    if (cooldown > 0 || !canPlayerAttackWarNpc(server, npcId)) {
-      set({
-        modal: {
-          id: `modal_war_attack_cd_${server.serverDay}_${server.currentMinute}_${npcId}`,
-          type: 'guild',
-          title: 'Нападение недоступно',
-          text: cooldown > 0 ? `КД: ${cooldown} мин.` : 'Цель недоступна.',
-          lines: cooldown > 0 ? [`Кнопка восстановится через ${cooldown} мин.`] : ['Цель ушла, не является врагом или находится в городе.'],
-        },
-      });
-      return;
-    }
     const rng = createRng(server.seed + server.serverDay * 7300 + server.currentMinute);
     const duel = startWarNpcDuelCombat(server, npcId, rng);
-    if (!duel) {
-      set({
-        modal: {
-          id: `modal_war_attack_failed_${server.serverDay}_${server.currentMinute}_${npcId}`,
-          type: 'guild',
-          title: 'Дуэль не началась',
-          text: 'Цель недоступна.',
-          lines: ['Проверь локацию, войну и cooldown.'],
-        },
-      });
-      return;
-    }
-    const next: ServerState = {
-      ...server,
-      player: {
-        ...server.player,
-        lastWarAttackDay: server.serverDay,
-        lastWarAttackMinute: server.currentMinute,
-      },
-    };
-    commit(set, next, duel, null);
+    if (!duel) return;
+    commit(set, markWarAttackCooldown(server), duel, null);
   },
 
   createPlayerGuild: (name, focus, level) => {

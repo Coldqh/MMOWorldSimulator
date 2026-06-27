@@ -1,6 +1,7 @@
 import type { MobDefinition, Player, ServerState } from '../types/game';
 import { calculateNpcArenaRating, calculateNpcWealth, calculateXpForNextLevel, calculateXpRewardForMob, MAX_LEVEL } from '../balance';
 import { getGearScore } from './itemSystem';
+import { arenaRankIcon, arenaRankName, arenaRankOrder, getArenaLadder, getGuildPvpRankIcon, getGuildPvpRankName } from './arenaBracketSystem';
 
 export const xpForNextLevel = (level: number) => calculateXpForNextLevel(level);
 
@@ -29,29 +30,11 @@ export const estimateArenaRatingValue = (level: number, gearScore: number, focus
 export const estimateWealthValue = (level: number, gearScore: number, focus?: string) =>
   calculateNpcWealth(level, gearScore, focus);
 
-export const arenaRankName = (rating: number) => {
-  if (rating >= 2200) return 'Mythic';
-  if (rating >= 1750) return 'Diamond';
-  if (rating >= 1325) return 'Gold';
-  if (rating >= 1050) return 'Silver';
-  return 'Bronze';
-};
-
-export const arenaRankIcon = (rating: number) => {
-  if (rating >= 2200) return '🔮';
-  if (rating >= 1750) return '💎';
-  if (rating >= 1325) return '🥇';
-  if (rating >= 1050) return '🥈';
-  return '🥉';
-};
+export { arenaRankIcon, arenaRankName, getGuildPvpRankIcon, getGuildPvpRankName };
 
 export const getPlayerArenaRank = (server: ServerState) => {
-  const allRatings = [
-    { id: server.player.id, rating: server.player.arenaRating, focus: 'PLAYER' },
-    ...server.npcs.map((npc) => ({ id: npc.id, rating: npc.arenaRating, focus: npc.roleFocus }))
-  ].sort((a, b) => b.rating - a.rating);
-
-  return allRatings.findIndex((entry) => entry.id === server.player.id) + 1;
+  const bracket = server.player.level <= 8 ? 'low' : server.player.level <= 16 ? 'mid' : 'high';
+  return getArenaLadder(server, bracket).findIndex((entry) => entry.id === server.player.id) + 1;
 };
 
 export const updateGuildDerivedStats = (server: ServerState): ServerState => {
@@ -61,7 +44,10 @@ export const updateGuildDerivedStats = (server: ServerState): ServerState => {
   const getMemberPvp = (id: string) => id === server.player.id ? server.player.arenaRating : (npcsById.get(id)?.arenaRating ?? 0);
   const guilds = server.guilds.map((guild) => {
     const reputation = guild.memberIds.reduce((sum, id) => sum + getMemberGear(id), 0);
-    const pvpRating = guild.memberIds.reduce((sum, id) => sum + getMemberPvp(id), 0);
+    const memberRatings = guild.memberIds.map(getMemberPvp).filter((rating) => rating > 0);
+    const pvpRating = memberRatings.length > 0
+      ? Math.round(memberRatings.reduce((sum, rating) => sum + rating, 0) / memberRatings.length)
+      : 1000;
     const level = Math.max(1, Math.min(20, Math.floor(reputation / 6500) + 1));
     return { ...guild, reputation, pvpRating, level };
   });
@@ -70,7 +56,7 @@ export const updateGuildDerivedStats = (server: ServerState): ServerState => {
 
 export const updateRankings = (server: ServerState): ServerState => {
   const npcsByGear = [...server.npcs].sort((a, b) => b.gearScore - a.gearScore);
-  const npcsByArena = [...server.npcs].sort((a, b) => b.arenaRating - a.arenaRating);
+  const npcsByArena = [...server.npcs].sort((a, b) => b.arenaRating - a.arenaRating || arenaRankOrder(b.arenaRating) - arenaRankOrder(a.arenaRating));
   const npcsByGold = [...server.npcs].sort((a, b) => b.gold - a.gold);
   const ranked = updateGuildDerivedStats({ ...server });
   return {
@@ -80,7 +66,10 @@ export const updateRankings = (server: ServerState): ServerState => {
       raidRaceTop: [...server.npcs].sort((a, b) => b.gearScore + b.level * 100 - (a.gearScore + a.level * 100)).slice(0, 20).map((npc) => npc.id),
       wealthTop: npcsByGold.slice(0, 30).map((npc) => npc.id),
       gearTop: npcsByGear.slice(0, 30).map((npc) => npc.id),
-      guildPvpTop: [...ranked.guilds].sort((a, b) => b.pvpRating - a.pvpRating).slice(0, 20).map((guild) => guild.id),
+      guildPvpTop: [...ranked.guilds]
+        .sort((a, b) => b.pvpRating - a.pvpRating || arenaRankOrder(b.pvpRating) - arenaRankOrder(a.pvpRating))
+        .slice(0, 20)
+        .map((guild) => guild.id),
       guildReputationTop: [...ranked.guilds].sort((a, b) => b.reputation - a.reputation).slice(0, 20).map((guild) => guild.id),
     }
   };

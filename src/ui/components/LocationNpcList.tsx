@@ -5,6 +5,7 @@ import {
   formatWarAttackCooldown,
   getNpcPlayersInLocation,
   getWarAttackCooldownMinutes,
+  isGuildmateNpcInLocation,
   isWarEnemyNpcInLocation,
 } from '../../systems/npcLocationSystem';
 
@@ -26,6 +27,9 @@ export const LocationNpcList = () => {
       const aEnemy = isWarEnemyNpcInLocation(server, a.id) ? 1 : 0;
       const bEnemy = isWarEnemyNpcInLocation(server, b.id) ? 1 : 0;
       if (aEnemy !== bEnemy) return bEnemy - aEnemy;
+      const aMate = isGuildmateNpcInLocation(server, a.id) ? 1 : 0;
+      const bMate = isGuildmateNpcInLocation(server, b.id) ? 1 : 0;
+      if (aMate !== bMate) return bMate - aMate;
       return b.level - a.level || (b.gearScore ?? 0) - (a.gearScore ?? 0) || a.name.localeCompare(b.name);
     });
   }, [server]);
@@ -47,13 +51,17 @@ export const LocationNpcList = () => {
 
         {players.map((npc) => {
           const enemy = isWarEnemyNpcInLocation(server, npc.id);
+          const guildmate = isGuildmateNpcInLocation(server, npc.id);
           const canAttack = canPlayerAttackWarNpc(server, npc.id) && !combat;
           return (
-            <div key={npc.id} className={`list-line ${enemy ? 'danger-line' : ''}`}>
-              <button className={`text-button ${enemy ? 'danger-text' : ''}`} onClick={() => openNpcProfile(npc.id)}>
+            <div key={npc.id} className={`list-line ${enemy ? 'danger-line' : guildmate ? 'ready-line' : ''}`}>
+              <button
+                className={`text-button ${enemy ? 'danger-text' : guildmate ? 'success-text ally-name' : ''}`}
+                onClick={() => openNpcProfile(npc.id)}
+              >
                 {npc.name}
               </button>
-              <span>{enemy ? 'враг' : 'игрок'} · Lv. {npc.level}</span>
+              <span>{enemy ? 'враг' : guildmate ? 'согильдиец' : 'игрок'} · Lv. {npc.level}</span>
               {enemy && server.location.mode !== 'city' && (
                 <button className="danger-button" disabled={!canAttack} onClick={() => attackWarEnemyNpc(npc.id)}>
                   {canAttack ? 'Напасть' : `КД ${cooldownText}`}

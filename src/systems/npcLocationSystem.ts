@@ -111,6 +111,17 @@ export const getEnemyWarNpcsInPlayerLocation = (server: ServerState) => {
   return getNpcPlayersInLocation(server).filter((npc) => npc.guildId && enemyGuildIds.has(npc.guildId));
 };
 
+export const getGuildmateNpcsInPlayerLocation = (server: ServerState) => {
+  if (!server.player.guildId || server.location.mode === 'city') return [];
+  return getNpcPlayersInLocation(server).filter((npc) => npc.guildId === server.player.guildId);
+};
+
+export const isGuildmateNpcInLocation = (server: ServerState, npcId: string): boolean => {
+  if (!server.player.guildId) return false;
+  const npc = server.npcs.find((entry) => entry.id === npcId);
+  return Boolean(npc?.guildId === server.player.guildId && sameLocation(npc, server.location));
+};
+
 export const isWarEnemyNpcInLocation = (server: ServerState, npcId: string): boolean => {
   if (server.location.mode === 'city' || !server.player.guildId) return false;
   const npc = server.npcs.find((entry) => entry.id === npcId);
@@ -140,7 +151,7 @@ export const handleWarNpcEncountersOnPlayerLocationEnter = (server: ServerState,
     const base = npc.playstyle === 'pvp' || guild?.guildFocus === 'pvp' ? 0.35 : guild?.guildFocus === 'hybrid' || npc.playstyle === 'solo' ? 0.18 : 0.08;
     const diff = (npc.gearScore ?? 0) - playerGs;
     const attackChance = Math.max(0.02, Math.min(0.7, base + Math.max(-0.25, Math.min(0.25, diff / 4000))));
-    if (rng.chance(attackChance)) { lines.push(`${npc.name} готовится к нападению.`); return; }
+    if (rng.chance(attackChance)) { lines.push(`${npc.name} ищет момент для нападения.`); return; }
     const fleeChance = diff < -800 ? 0.65 : diff < -300 ? 0.35 : diff > 300 ? 0.06 : 0.15;
     if (rng.chance(fleeChance)) {
       npcs = npcs.map((entry) => entry.id === npc.id ? { ...entry, locationMode: 'city', currentZoneId: undefined, currentSpotId: undefined } : entry);

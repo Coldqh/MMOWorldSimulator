@@ -17,6 +17,7 @@ import type {
 import { addInventoryItem, getPlayerStats, removeInventoryItem } from './itemSystem';
 import { rollLoot } from './lootSystem';
 import { addPlayerXp, xpForNextLevel, xpRewardForMob } from './progressionSystem';
+import { finishGuildWarDefeatV2, finishGuildWarVictoryV2 } from './guildWarCombatResultSystem';
 
 
 const bestPotionStack = (inventory: InventoryStack[], playerLevel: number, kind: 'hp' | 'mana') => {
@@ -497,7 +498,7 @@ const pickBossPartyDrop = (combat: CombatState, mobIds: string[], rng: Rng, forc
 
 const finishVictory = (server: ServerState, combat: CombatState, rng: Rng): { server: ServerState; combat: CombatState } => {
   if (combat.source === 'arena') return finishArenaVictory(server, combat, rng);
-  if (combat.source === 'guild_war') return finishGuildWarVictory(server, combat, rng);
+  if (combat.source === 'guild_war') return finishGuildWarVictoryV2(server, combat, rng);
 
   const mobIds = combat.enemyMobIds && combat.enemyMobIds.length > 0 ? combat.enemyMobIds : combat.enemyMobId ? [combat.enemyMobId] : [];
   const mobs = mobIds.map((id) => getMobById(id)).filter(Boolean);
@@ -575,7 +576,7 @@ const finishVictory = (server: ServerState, combat: CombatState, rng: Rng): { se
 };
 
 const finishDefeat = (server: ServerState, combat: CombatState, rng: Rng): { server: ServerState; combat: CombatState } => {
-  if (combat.source === 'guild_war') return finishGuildWarDefeat(server, combat, rng);
+  if (combat.source === 'guild_war') return finishGuildWarDefeatV2(server, combat, rng);
   const ratingLoss = combat.source === 'arena' ? rng.int(14, 26) : 0;
   const stats = getPlayerStats(server.player);
   const isGroupInstance = combat.source === 'dungeon' || combat.source === 'raid';

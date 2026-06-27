@@ -1,26 +1,27 @@
 import fs from 'node:fs';
-
 const read = (path) => fs.readFileSync(path, 'utf8');
 const fail = [];
 const ok = [];
 const assert = (cond, msg) => cond ? ok.push(msg) : fail.push(msg);
-
 const pkg = read('package.json');
-const types = read('src/types/game.ts');
-const arena3v3 = read('src/systems/arena3v3System.ts');
-const combat = read('src/systems/combatSystem.ts');
-const location = read('src/systems/npcLocationSystem.ts');
 const store = read('src/state/gameStore.ts');
+const header = store.slice(0, store.indexOf('interface GameStore {'));
+const arena = read('src/ui/screens/ArenaScreen.tsx');
+const pvpDuel = read('src/systems/pvpDuelSystem.ts');
+const combat = read('src/systems/combatSystem.ts');
+const brackets = read('src/systems/arenaBracketSystem.ts');
 
-assert(pkg.includes('"version": "0.7.20"'), 'version bumped');
-assert(types.includes('"guild_war"'), 'guild war combat source exists');
-assert(types.includes('lastWarAttackDay?: number;'), 'cooldown persists on player');
-assert(arena3v3.includes("role === 'tank'") && arena3v3.includes("'reckless'"), 'tank aggression fixed');
-assert(combat.includes('finishGuildWarVictory') && combat.includes('finishGuildWarDefeat'), 'duel finish handlers exist');
-assert(location.includes('getWarAttackCooldownMinutes'), 'cooldown helper exists');
-assert(location.includes('npc.level >= zone.levelRange[0]') && location.includes('npc.level >= spot.levelRange[0]'), 'strict npc location min level');
-assert(store.includes('startWarNpcDuelCombat(server, npcId, rng)'), 'attack button starts real combat');
-assert(!store.includes('type: "pvp"') && !store.includes("type: 'pvp'"), 'invalid modal type gone');
+assert(pkg.includes('"version": "0.7.21"'), 'version remains 0.7.21');
+assert(store.startsWith('import { create } from "zustand";'), 'clean import header');
+assert(!header.includes('SAVE_VERSION,\n  arenaRankName'), 'corrupted import header absent');
+assert(brackets.includes('levelRange: [1, 9]') && brackets.includes('levelRange: [10, 19]') && brackets.includes('levelRange: [20, 20]'), 'arena bracket ranges fixed');
+assert(arena.includes('Лоу арена') && arena.includes('Мид арена') && arena.includes('Хай арена'), 'three arenas visible');
+assert(store.includes('getArenaBracketOpponentPool'), '1v1 uses bracket pool');
+assert(store.includes('startWarNpcAmbushCombat'), 'npc ambush starts combat');
+assert(store.includes('maybeAddWarDuelReinforcements'), 'turn reinforcement hook exists');
+assert(pvpDuel.includes('partyRoles') && pvpDuel.includes('enemyNpcIds'), 'group duel supports allies/enemies');
+assert(combat.includes('finishGuildWarVictoryV2'), 'guild war victory routed');
+assert(!store.includes('type: "pvp"') && !store.includes("type: 'pvp'"), 'invalid modal type absent');
 assert(store.trimEnd().endsWith('}));'), 'gameStore closes cleanly');
 
 if (fail.length) {
@@ -28,6 +29,5 @@ if (fail.length) {
   fail.forEach((msg) => console.error(`- ${msg}`));
   process.exit(1);
 }
-
 console.log('Smoke passed:');
 ok.forEach((msg) => console.log(`- ${msg}`));

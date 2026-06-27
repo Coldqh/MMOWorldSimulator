@@ -1,64 +1,63 @@
 import fs from 'node:fs';
-
 const read = (path) => fs.existsSync(path) ? fs.readFileSync(path, 'utf8') : '';
 const files = {
   pkg: read('package.json'),
   version: read('src/engine/version.ts'),
   types: read('src/types/game.ts'),
-  arena3v3: read('src/systems/arena3v3System.ts'),
-  combat: read('src/systems/combatSystem.ts'),
+  store: read('src/state/gameStore.ts'),
+  progression: read('src/systems/progressionSystem.ts'),
+  arenaBracket: read('src/systems/arenaBracketSystem.ts'),
+  arenaScreen: read('src/ui/screens/ArenaScreen.tsx'),
   npcLocation: read('src/systems/npcLocationSystem.ts'),
   pvpDuel: read('src/systems/pvpDuelSystem.ts'),
+  guildWarResult: read('src/systems/guildWarCombatResultSystem.ts'),
   locationNpcList: read('src/ui/components/LocationNpcList.tsx'),
-  gameStore: read('src/state/gameStore.ts'),
+  combat: read('src/systems/combatSystem.ts'),
+  arena3v3: read('src/systems/arena3v3System.ts'),
 };
-
 const fail = [];
 const ok = [];
 const assert = (cond, msg) => cond ? ok.push(msg) : fail.push(msg);
+const header = files.store.slice(0, files.store.indexOf('interface GameStore {'));
+const zustandImport = header.match(/import\s+\{([\s\S]*?)\}\s+from\s+["']zustand["'];/)?.[1]?.trim();
 
-assert(files.pkg.includes('"version": "0.7.20"'), 'package version 0.7.20');
-assert(files.version.includes("APP_VERSION = '0.7.20'"), 'APP_VERSION 0.7.20');
+assert(files.pkg.includes('"version": "0.7.21"'), 'package version 0.7.21');
+assert(files.version.includes("APP_VERSION = '0.7.21'"), 'APP_VERSION 0.7.21');
+assert(files.store.startsWith('import { create } from "zustand";'), 'gameStore starts with clean zustand import');
+assert(zustandImport === 'create', 'zustand imports only create');
+assert(!header.includes('SAVE_VERSION,\n  arenaRankName'), 'corrupted zustand import absent');
+assert(!header.includes('from "../content/world";\nimport { createRng'), 'merged world/rng import absent');
+assert(!header.includes('from "../systems/arena3v3System";\nimport {'), 'merged arena3v3 import absent');
+assert(!header.includes('from "../engine/runtimeValidation";\nimport { backupRescueSave'), 'merged runtimeValidation import absent');
+assert(header.includes('SAVE_VERSION') && header.includes('from "../engine/saveLoad";'), 'SAVE_VERSION imported from saveLoad');
+assert(header.includes('startWarNpcDuelCombat') && header.includes('from "../systems/pvpDuelSystem";'), 'pvp duel imports correct');
+assert(header.includes('getArenaBracketOpponentPool') && header.includes('from "../systems/arenaBracketSystem";'), 'arena bracket imports correct');
+assert((files.store.match(/const simulateServerForMinutes\s*=/g) ?? []).length === 1, 'one simulateServerForMinutes');
+
+assert(files.arenaBracket.includes("levelRange: [1, 9]") && files.arenaBracket.includes("levelRange: [10, 19]") && files.arenaBracket.includes("levelRange: [20, 20]"), 'arena brackets are low 1-9, mid 10-19, high 20');
+assert(files.arenaBracket.includes("Mythic") && files.arenaBracket.includes("Diamond") && files.arenaBracket.includes("Bronze"), 'arena ranks include mythic/diamond/bronze');
+assert(files.types.includes('lastWarAttackDay?: number;') && files.types.includes('lastWarAttackMinute?: number;'), 'war attack cooldown persisted');
+assert(files.types.includes('healerId?: Id;'), 'healerId optional');
 assert(files.types.includes('"guild_war"'), 'CombatSource has guild_war');
-assert(files.types.includes('lastWarAttackDay?: number;') && files.types.includes('lastWarAttackMinute?: number;'), 'player war attack cooldown fields exist');
-
+assert(files.pvpDuel.includes('startWarNpcAmbushCombat'), 'npc ambush combat exists');
+assert(files.pvpDuel.includes('maybeAddWarDuelReinforcements'), 'turn reinforcements exist');
+assert(files.pvpDuel.includes('...(healerCandidate ? { healerId: healerCandidate } : {})'), 'pvp role map omits missing healer');
+assert(files.guildWarResult.includes('finishGuildWarVictoryV2') && files.guildWarResult.includes('finishGuildWarDefeatV2'), 'guild war result handlers exist');
+assert(files.combat.includes('finishGuildWarVictoryV2') && files.combat.includes('finishGuildWarDefeatV2'), 'combat routes guild war results');
+assert(files.store.includes('maybeAddWarDuelReinforcements'), 'store applies per-turn reinforcements');
+assert(files.store.includes('startWarNpcAmbushCombat'), 'store starts npc ambush combat');
+assert(files.store.includes('markWarAttackCooldown'), 'store marks war attack cooldown');
+assert(files.npcLocation.includes('npc.level >= zone.levelRange[0]') && files.npcLocation.includes('npc.level >= spot.levelRange[0]'), 'strict NPC location min levels');
+assert(files.locationNpcList.includes('success-text ally-name'), 'guildmates colored green');
+assert(files.locationNpcList.includes('КД ${cooldownText}'), 'cooldown shown on attack button');
 assert(files.arena3v3.includes("if (role === 'tank') return pvp ? 'reckless' : 'aggressive';"), 'tank aggression highest');
-assert(files.arena3v3.includes("if (role === 'physicalDps' || role === 'magicDps') return pvp ? 'aggressive' : 'balanced';"), 'dps aggression middle');
-assert(files.arena3v3.includes("if (role === 'healer') return 'defensive';"), 'healer aggression lowest');
-assert(!files.arena3v3.includes("role !== 'healer'"), 'old narrowing bug removed');
-
-assert(files.pvpDuel.includes('startWarNpcDuelCombat'), 'war npc duel combat starter exists');
-assert(files.pvpDuel.includes("source: 'guild_war'"), 'war npc duel uses guild_war source');
-assert(files.combat.includes('finishGuildWarVictory'), 'combat has guild war victory finish');
-assert(files.combat.includes('finishGuildWarDefeat'), 'combat has guild war defeat finish');
-assert(files.combat.includes("if (combat.source === 'guild_war') return finishGuildWarVictory"), 'guild war victory routed');
-assert(files.combat.includes("if (combat.source === 'guild_war') return finishGuildWarDefeat"), 'guild war defeat routed');
-assert(files.combat.includes("location: { mode: 'city' }"), 'guild war defeat sends player to city');
-assert(files.combat.includes("locationMode: 'city'"), 'guild war victory sends npc to city');
-
-assert(files.npcLocation.includes('getWarAttackCooldownMinutes'), 'war attack cooldown helper exists');
-assert(files.npcLocation.includes('npc.level >= zone.levelRange[0]'), 'zone min level enforced');
-assert(files.npcLocation.includes('npc.level >= spot.levelRange[0]'), 'spot min level enforced');
-assert(!files.npcLocation.includes('zone.levelRange[0] - 2'), 'old zone underlevel tolerance removed');
-assert(!files.npcLocation.includes('spot.levelRange[0] - 2'), 'old spot underlevel tolerance removed');
-assert(files.npcLocation.includes('if (getWarAttackCooldownMinutes(server) > 0) return server;'), 'npc auto encounter blocked by cooldown');
-
-assert(files.locationNpcList.includes('КД ${cooldownText}') || files.locationNpcList.includes('КД '), 'button shows cooldown');
-assert(files.locationNpcList.includes('disabled={!canAttack}'), 'attack button disabled on cooldown');
-
-assert(files.gameStore.includes('startWarNpcDuelCombat'), 'store starts real duel combat');
-assert(files.gameStore.includes('lastWarAttackDay: server.serverDay'), 'store writes cooldown day');
-assert(files.gameStore.includes('lastWarAttackMinute: server.currentMinute'), 'store writes cooldown minute');
-assert(!files.gameStore.includes('resolveWarEnemyNpcAttack(server, npcId, rng)'), 'old instant simulated attack removed');
-assert(!files.gameStore.includes('type: "pvp"') && !files.gameStore.includes("type: 'pvp'"), 'invalid modal type pvp removed');
-assert((files.gameStore.match(/const simulateServerForMinutes\s*=/g) ?? []).length === 1, 'no duplicate simulateServerForMinutes');
-assert(!files.gameStore.includes('},}));'), 'gameStore malformed tail absent');
+assert(!files.store.includes('type: "pvp"') && !files.store.includes("type: 'pvp'"), 'invalid modal pvp type absent');
+assert(files.store.trimEnd().endsWith('}));'), 'gameStore closes cleanly');
 
 if (fail.length) {
   console.error('Sanity failed:');
   fail.forEach((msg) => console.error(`- ${msg}`));
   process.exit(1);
 }
-
 console.log('Sanity passed:');
 ok.forEach((msg) => console.log(`- ${msg}`));
