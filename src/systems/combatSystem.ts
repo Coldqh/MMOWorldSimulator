@@ -300,6 +300,122 @@ const addRewardItem = (items: InventoryStack[], itemId: string, amount = 1, enha
   return [...items, { itemId, amount, enhancement }];
 };
 
+
+const updateGuildWarTopKillersLocal = (list: any[] = [], characterId: string, guildId: string) => {
+  const map = new Map(list.map((entry) => [entry.characterId, { ...entry }]));
+  const current = map.get(characterId) ?? { characterId, guildId, kills: 0 };
+  current.kills += 1;
+  map.set(characterId, current);
+  return [...map.values()].sort((a, b) => b.kills - a.kills || a.characterId.localeCompare(b.characterId)).slice(0, 10);
+};
+
+const locationIdForGuildWarDuel = (server: ServerState) =>
+  server.location.mode === 'spot'
+    ? server.location.spotId
+    : server.location.mode === 'zone'
+      ? server.location.zoneId
+      : undefined;
+
+const applyGuildWarDuelKill = (
+  server: ServerState,
+  combat: CombatState,
+  killerGuildId: string | undefined,
+  victimGuildId: string | undefined,
+  killerId: string,
+  victimId: string,
+  source: 'player_attack' | 'npc_attack_player',
+): ServerState => {
+  if (!killerGuildId || !victimGuildId) return server;
+  const record = {
+    id: `war_kill_${server.serverDay}_${server.currentMinute}_${killerId}_${victimId}_${combat.turn}`,
+    day: server.serverDay,
+    minute: server.currentMinute,
+    killerId,
+    killerGuildId,
+    victimId,
+    victimGuildId,
+    locationId: locationIdForGuildWarDuel(server),
+    source,
+  };
+  return {
+    ...server,
+    guildWars: (server.guildWars ?? []).map((war) => {
+      const related = war.status === 'active' &&
+        ((war.attackerGuildId === killerGuildId && war.defenderGuildId === victimGuildId) ||
+          (war.defenderGuildId === killerGuildId && war.attackerGuildId === victimGuildId) ||
+          war.id === combat.sourceId);
+      if (!related) return war;
+      const attackerScored = war.attackerGuildId === killerGuildId;
+      return {
+        ...war,
+        attackerKills: war.attackerKills + (attackerScored ? 1 : 0),
+        defenderKills: war.defenderKills + (attackerScored ? 0 : 1),
+        killRecords: [...war.killRecords, record].slice(-250),
+        attackerTopKillers: attackerScored ? updateGuildWarTopKillersLocal(war.attackerTopKillers, killerId, killerGuildId) : war.attackerTopKillers,
+        defenderTopKillers: attackerScored ? war.defenderTopKillers : updateGuildWarTopKillersLocal(war.defenderTopKillers, killerId, killerGuildId),
+      };
+    }),
+  };
+};
+
+const finishGuildWarVictory = (server: ServerState, combat: CombatState, rng: Rng): { server: ServerState; combat: CombatState } => {
+  const npc = combat.enemyNpcId ? server.npcs.find((entry) => entry.id === combat.enemyNpcId) : undefined;
+  let nextServer: ServerState = {
+    ...server,
+    player: { ...server.player, hp: Math.max(1, combat.player.hp), mana: Math.max(0, combat.player.mana) },
+    npcs: npc
+      ? server.npcs.map((entry) => entry.id === npc.id ? { ...entry, locationMode: 'city', currentZoneId: undefined, currentSpotId: undefined } : entry)
+      : server.npcs,
+  };
+  nextServer = applyGuildWarDuelKill(nextServer, combat, server.player.guildId, npc?.guildId, server.player.id, npc?.id ?? combat.enemy.id, 'player_attack');
+  nextServer = addNews(nextServer, rng, 'pvp', `${server.player.name} победил ${npc?.name ?? combat.enemy.name} в дуэли войны.`, true);
+  const reward: RewardSummary = {
+    xp: 0,
+    gold: 0,
+    items: [],
+    lines: [
+      'Дуэль войны гильдий: победа.',
+      `${npc?.name ?? combat.enemy.name} отправлен в город.`,
+      `HP: ${Math.max(1, combat.player.hp)}/${combat.player.maxHp}.`,
+      `Mana: ${Math.max(0, combat.player.mana)}/${combat.player.maxMana}.`,
+    ],
+  };
+  return {
+    server: nextServer,
+    combat: {
+      ...combat,
+      status: 'victory',
+      reward,
+      log: [...combat.log, `Победа. ${npc?.name ?? combat.enemy.name} отправлен в город.`].slice(-40),
+    },
+  };
+};
+
+const finishGuildWarDefeat = (server: ServerState, combat: CombatState, rng: Rng): { server: ServerState; combat: CombatState } => {
+  const npc = combat.enemyNpcId ? server.npcs.find((entry) => entry.id === combat.enemyNpcId) : undefined;
+  let nextServer: ServerState = {
+    ...server,
+    location: { mode: 'city' },
+    player: { ...server.player, hp: 1, mana: 0 },
+  };
+  nextServer = applyGuildWarDuelKill(nextServer, combat, npc?.guildId, server.player.guildId, npc?.id ?? combat.enemy.id, server.player.id, 'npc_attack_player');
+  nextServer = addNews(nextServer, rng, 'pvp', `${server.player.name}: смерть в дуэли войны. Город.`, true);
+  return {
+    server: nextServer,
+    combat: {
+      ...combat,
+      status: 'defeat',
+      log: [...combat.log, `Поражение. ${server.player.name} умер и отправлен в город.`].slice(-40),
+      defeatLines: [
+        'Дуэль войны гильдий: поражение.',
+        'Ты умер и отправлен в город.',
+        'HP: 1.',
+        'Mana: 0.',
+      ],
+    },
+  };
+};
+
 const maybeAnnounceLoot = (server: ServerState, rng: Rng, item: ItemDefinition): ServerState => {
   if (!item.announceIfDropped) return server;
   return addNews(server, rng, 'drop', `${server.player.name} выбил ${item.name}.`, ['epic', 'legendary', 'mythic', 'unique'].includes(item.rarity));
@@ -381,6 +497,7 @@ const pickBossPartyDrop = (combat: CombatState, mobIds: string[], rng: Rng, forc
 
 const finishVictory = (server: ServerState, combat: CombatState, rng: Rng): { server: ServerState; combat: CombatState } => {
   if (combat.source === 'arena') return finishArenaVictory(server, combat, rng);
+  if (combat.source === 'guild_war') return finishGuildWarVictory(server, combat, rng);
 
   const mobIds = combat.enemyMobIds && combat.enemyMobIds.length > 0 ? combat.enemyMobIds : combat.enemyMobId ? [combat.enemyMobId] : [];
   const mobs = mobIds.map((id) => getMobById(id)).filter(Boolean);
@@ -458,6 +575,7 @@ const finishVictory = (server: ServerState, combat: CombatState, rng: Rng): { se
 };
 
 const finishDefeat = (server: ServerState, combat: CombatState, rng: Rng): { server: ServerState; combat: CombatState } => {
+  if (combat.source === 'guild_war') return finishGuildWarDefeat(server, combat, rng);
   const ratingLoss = combat.source === 'arena' ? rng.int(14, 26) : 0;
   const stats = getPlayerStats(server.player);
   const isGroupInstance = combat.source === 'dungeon' || combat.source === 'raid';

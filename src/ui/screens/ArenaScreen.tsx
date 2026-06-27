@@ -11,6 +11,7 @@ export const ArenaScreen = () => {
   const server = useGameStore((state) => state.server);
   const combat = useGameStore((state) => state.combat);
   const startArena = useGameStore((state) => state.startArena);
+  const startArena3v3 = useGameStore((state) => state.startArena3v3);
   const setScreen = useGameStore((state) => state.setScreen);
   const openNpcProfile = useGameStore((state) => state.openNpcProfile);
   const playerRank = getPlayerArenaRank(server);
@@ -43,14 +44,17 @@ export const ArenaScreen = () => {
     <div className="screen-stack arena-screen">
       {combat && <CombatPanel />}
       <section className="panel hero-panel arena-hero">
-        <div className="section-title">🏟️ Арена v1</div>
+        <div className="section-title">🏟️ Арена v2</div>
         <h1>{arenaRankIcon(server.player.arenaRating)} {arenaRankName(server.player.arenaRating)} · #{playerRank}</h1>
         <div className="arena-score-card">
           <span>Рейтинг</span><strong>{server.player.arenaRating}</strong>
           <span>Gear</span><strong>{playerGear}</strong>
           <span>Lv.</span><strong>{server.player.level}</strong>
         </div>
-        <button className="primary-button wide-button" onClick={startArena} disabled={Boolean(combat)}>Найти бой</button>
+        <div className="action-grid combat-actions">
+          <button className="primary-button" onClick={startArena} disabled={Boolean(combat)}>Найти бой 1v1</button>
+          <button className="primary-button" onClick={startArena3v3} disabled={Boolean(combat)}>Найти бой 3v3</button>
+        </div>
       </section>
 
       <section className="panel">

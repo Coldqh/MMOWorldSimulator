@@ -1,20 +1,30 @@
 import { useMemo, useState } from 'react';
 import { useGameStore } from '../../state/gameStore';
-import { getNpcPlayersInLocation, canPlayerAttackWarNpc } from '../../systems/npcLocationSystem';
+import {
+  canPlayerAttackWarNpc,
+  formatWarAttackCooldown,
+  getNpcPlayersInLocation,
+  getWarAttackCooldownMinutes,
+  isWarEnemyNpcInLocation,
+} from '../../systems/npcLocationSystem';
 
 const PAGE_SIZE = 10;
 
 export const LocationNpcList = () => {
   const server = useGameStore((state) => state.server);
+  const combat = useGameStore((state) => state.combat);
   const openNpcProfile = useGameStore((state) => state.openNpcProfile);
   const attackWarEnemyNpc = useGameStore((state) => state.attackWarEnemyNpc);
   const [page, setPage] = useState(0);
 
+  const cooldown = getWarAttackCooldownMinutes(server);
+  const cooldownText = formatWarAttackCooldown(cooldown);
+
   const sortedPlayers = useMemo(() => {
     const all = getNpcPlayersInLocation(server);
     return [...all].sort((a, b) => {
-      const aEnemy = canPlayerAttackWarNpc(server, a.id) ? 1 : 0;
-      const bEnemy = canPlayerAttackWarNpc(server, b.id) ? 1 : 0;
+      const aEnemy = isWarEnemyNpcInLocation(server, a.id) ? 1 : 0;
+      const bEnemy = isWarEnemyNpcInLocation(server, b.id) ? 1 : 0;
       if (aEnemy !== bEnemy) return bEnemy - aEnemy;
       return b.level - a.level || (b.gearScore ?? 0) - (a.gearScore ?? 0) || a.name.localeCompare(b.name);
     });
@@ -36,7 +46,8 @@ export const LocationNpcList = () => {
         {players.length === 0 && <span className="muted">Пусто.</span>}
 
         {players.map((npc) => {
-          const enemy = canPlayerAttackWarNpc(server, npc.id);
+          const enemy = isWarEnemyNpcInLocation(server, npc.id);
+          const canAttack = canPlayerAttackWarNpc(server, npc.id) && !combat;
           return (
             <div key={npc.id} className={`list-line ${enemy ? 'danger-line' : ''}`}>
               <button className={`text-button ${enemy ? 'danger-text' : ''}`} onClick={() => openNpcProfile(npc.id)}>
@@ -44,7 +55,9 @@ export const LocationNpcList = () => {
               </button>
               <span>{enemy ? 'враг' : 'игрок'} · Lv. {npc.level}</span>
               {enemy && server.location.mode !== 'city' && (
-                <button className="danger-button" onClick={() => attackWarEnemyNpc(npc.id)}>Напасть</button>
+                <button className="danger-button" disabled={!canAttack} onClick={() => attackWarEnemyNpc(npc.id)}>
+                  {canAttack ? 'Напасть' : `КД ${cooldownText}`}
+                </button>
               )}
             </div>
           );

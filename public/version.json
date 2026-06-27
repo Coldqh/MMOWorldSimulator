@@ -1,6 +1,6 @@
 {
-  "version": "0.7.18",
+  "version": "0.7.20",
   "channel": "stable",
-  "build": "2026-06-27-v0718-import-header-hard-repair",
+  "build": "2026-06-27-v0720-war-duel-cooldown",
   "buildTime": "2026-06-25T00:00:00.000Z"
 }

@@ -61,7 +61,7 @@ export type NewsType =
   | "system"
   | "enhance"
   | "dungeon";
-export type CombatSource = "spot" | "dungeon" | "raid" | "arena" | "boss";
+export type CombatSource = "spot" | "dungeon" | "raid" | "arena" | "boss" | "guild_war";
 export type ModalType =
   | "reward"
   | "death"
@@ -197,6 +197,8 @@ export interface Player {
   guildId?: Id;
   reputation: number;
   arenaRating: number;
+  lastWarAttackDay?: number;
+  lastWarAttackMinute?: number;
 }
 
 export interface NpcPlayer {
@@ -683,6 +685,127 @@ export interface ServerState {
   contracts: ContractDefinition[];
 }
 
+export type CombatTeamId = "teamA" | "teamB";
+
+export type CombatantController =
+  | "player"
+  | "npc"
+  | "mob"
+  | "system";
+
+export type CombatantKind =
+  | "player"
+  | "npcPlayer"
+  | "mob"
+  | "boss";
+
+export type CombatAggression =
+  | "defensive"
+  | "balanced"
+  | "aggressive"
+  | "reckless";
+
+export type CombatTargetPriority =
+  | "lowestHp"
+  | "highestThreat"
+  | "enemyHealer"
+  | "enemyDps"
+  | "enemyTank"
+  | "random"
+  | "focusedTarget"
+  | "player";
+
+export interface CombatantV2 {
+  id: Id;
+  sourceId: Id;
+  name: string;
+  kind: CombatantKind;
+  controller: CombatantController;
+  teamId: CombatTeamId;
+
+  level: number;
+  classId?: Id;
+  role?: PartyRole;
+
+  maxHp: number;
+  hp: number;
+  maxMana: number;
+  mana: number;
+
+  attack: number;
+  magic: number;
+  defense: number;
+  speed: number;
+  shield: number;
+
+  gearScore?: number;
+  skill?: number;
+
+  aggression: CombatAggression;
+  targetId?: Id;
+  targetPriority: CombatTargetPriority;
+
+  threat: Record<Id, number>;
+  cooldowns: Record<Id, number>;
+  defending: boolean;
+
+  alive: boolean;
+  damageDealt: number;
+  damageTaken: number;
+  healingDone: number;
+  kills: number;
+}
+
+export interface CombatTeamV2 {
+  id: CombatTeamId;
+  name: string;
+  faction?: "player" | "npc" | "mob" | "arena" | "guild";
+  guildId?: Id;
+  members: CombatantV2[];
+}
+
+export type CombatV2Source =
+  | "spot"
+  | "dungeon"
+  | "raid"
+  | "arena"
+  | "guild_war"
+  | "duel"
+  | "system_test";
+
+export interface CombatStateV2 {
+  id: Id;
+  version: 2;
+  source: CombatV2Source;
+  sourceId?: Id;
+
+  teamA: CombatTeamV2;
+  teamB: CombatTeamV2;
+
+  activeCombatantId?: Id;
+  turn: number;
+  round: number;
+
+  status: "active" | "finished" | "escaped" | "cancelled";
+  winnerTeamId?: CombatTeamId;
+
+  log: string[];
+  recentEvents: string[];
+
+  createdDay: number;
+  createdMinute: number;
+
+  rewardPending?: boolean;
+  metadata?: {
+    dungeonId?: Id;
+    raidId?: Id;
+    arenaMode?: "solo" | "3v3";
+    guildWarId?: Id;
+    allowLoot?: boolean;
+    isFinalDungeonEncounter?: boolean;
+  };
+}
+
 export interface Combatant {
   id: Id;
   name: string;
@@ -727,6 +850,15 @@ export interface CombatState {
   partyRoles?: PartyRoleMap;
   partyMembers?: PartyCombatMember[];
   enemyMobIds?: Id[];
+  enemyNpcIds?: Id[];
+  allyNpcIds?: Id[];
+  arenaMode?: "1v1" | "3v3";
+  teamA?: CombatTeamV2;
+  teamB?: CombatTeamV2;
+  activeCombatantId?: Id;
+  winnerTeamId?: CombatTeamId;
+  recentEvents?: string[];
+  round?: number;
   dungeonEncounterIndex?: number;
   dungeonFloorEnemyCount?: number;
   isFinalDungeonEncounter?: boolean;

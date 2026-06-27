@@ -3,7 +3,23 @@ import type { Rng } from '../engine/rng';
 import { SPOTS, ZONES } from '../content/world';
 import { getGearScore } from './itemSystem';
 
+const totalMinute = (day: number, minute: number) => (Math.max(1, day) - 1) * 1440 + Math.max(0, minute);
+
+const npcCanAccessLocation = (npc: NpcPlayer, location: WorldLocationState) => {
+  if (location.mode === 'city') return true;
+  if (location.mode === 'zone') {
+    const zone = ZONES.find((entry) => entry.id === location.zoneId);
+    return Boolean(zone && npc.level >= zone.levelRange[0]);
+  }
+  if (location.mode === 'spot') {
+    const spot = SPOTS.find((entry) => entry.id === location.spotId);
+    return Boolean(spot && npc.level >= spot.levelRange[0]);
+  }
+  return false;
+};
+
 const sameLocation = (npc: NpcPlayer, location: WorldLocationState) => {
+  if (!npcCanAccessLocation(npc, location)) return false;
   if ((npc.locationMode ?? 'city') !== location.mode) return false;
   if (location.mode === 'city') return true;
   if (location.mode === 'zone') return npc.currentZoneId === location.zoneId && !npc.currentSpotId;
@@ -13,29 +29,50 @@ const sameLocation = (npc: NpcPlayer, location: WorldLocationState) => {
 
 const pickNpcLocation = (npc: NpcPlayer, rng: Rng): Pick<NpcPlayer, 'locationMode' | 'currentZoneId' | 'currentSpotId'> => {
   if (rng.chance(0.26)) return { locationMode: 'city', currentZoneId: undefined, currentSpotId: undefined };
-  const zones = ZONES.filter((zone) => npc.level >= zone.levelRange[0] - 2 && npc.level <= zone.levelRange[1] + 4);
-  const zone = rng.pick(zones.length ? zones : ZONES);
+
+  const zones = ZONES.filter((zone) => npc.level >= zone.levelRange[0] && npc.level <= zone.levelRange[1] + 4);
+  const zone = rng.pick(zones.length ? zones : ZONES.filter((entry) => npc.level >= entry.levelRange[0]));
   if (!zone) return { locationMode: 'city', currentZoneId: undefined, currentSpotId: undefined };
+
   if (rng.chance(0.52)) {
-    const spots = SPOTS.filter((spot) => spot.zoneId === zone.id && npc.level >= spot.levelRange[0] - 2 && npc.level <= spot.levelRange[1] + 3);
+    const spots = SPOTS.filter((spot) => spot.zoneId === zone.id && npc.level >= spot.levelRange[0] && npc.level <= spot.levelRange[1] + 3);
     const spot = spots.length ? rng.pick(spots) : undefined;
     if (spot) return { locationMode: 'spot', currentZoneId: zone.id, currentSpotId: spot.id };
   }
+
   return { locationMode: 'zone', currentZoneId: zone.id, currentSpotId: undefined };
+};
+
+const repairNpcLocationIfIllegal = (npc: NpcPlayer, rng: Rng) => {
+  const location: WorldLocationState =
+    (npc.locationMode ?? 'city') === 'spot'
+      ? { mode: 'spot', zoneId: npc.currentZoneId, spotId: npc.currentSpotId }
+      : (npc.locationMode ?? 'city') === 'zone'
+        ? { mode: 'zone', zoneId: npc.currentZoneId }
+        : { mode: 'city' };
+
+  return npcCanAccessLocation(npc, location) ? npc : { ...npc, ...pickNpcLocation(npc, rng) };
 };
 
 export const assignInitialNpcLocations = (server: ServerState, rng: Rng): ServerState => ({
   ...server,
-  npcs: (server.npcs ?? []).map((npc) => npc.locationMode ? npc : { ...npc, ...pickNpcLocation(npc, rng), lastMovedDay: server.serverDay, lastMovedMinute: server.currentMinute }),
+  npcs: (server.npcs ?? []).map((npc) => {
+    const base = npc.locationMode ? repairNpcLocationIfIllegal(npc, rng) : { ...npc, ...pickNpcLocation(npc, rng) };
+    return { ...base, lastMovedDay: base.lastMovedDay ?? server.serverDay, lastMovedMinute: base.lastMovedMinute ?? server.currentMinute };
+  }),
 });
 
 export const moveNpcPlayers = (server: ServerState, rng: Rng, minutes: number): ServerState => {
   if (minutes <= 0) return server;
   const shouldMove = minutes >= 30 || server.currentMinute % 30 === 0;
   if (!shouldMove) return server;
+
   return {
     ...server,
     npcs: (server.npcs ?? []).map((npc) => {
+      const repaired = repairNpcLocationIfIllegal(npc, rng);
+      if (repaired !== npc) return { ...repaired, lastMovedDay: server.serverDay, lastMovedMinute: server.currentMinute };
+
       const lastTotal = ((npc.lastMovedDay ?? 1) - 1) * 1440 + (npc.lastMovedMinute ?? 0);
       const nowTotal = (server.serverDay - 1) * 1440 + server.currentMinute;
       if (nowTotal - lastTotal < 30 && rng.chance(0.9)) return npc;
@@ -45,7 +82,24 @@ export const moveNpcPlayers = (server: ServerState, rng: Rng, minutes: number): 
   };
 };
 
-export const getNpcPlayersInLocation = (server: ServerState, location: WorldLocationState = server.location) => (server.npcs ?? []).filter((npc) => sameLocation(npc, location));
+export const getWarAttackCooldownMinutes = (server: ServerState): number => {
+  const lastDay = server.player.lastWarAttackDay;
+  const lastMinute = server.player.lastWarAttackMinute;
+  if (typeof lastDay !== 'number' || typeof lastMinute !== 'number') return 0;
+  const elapsed = totalMinute(server.serverDay, server.currentMinute) - totalMinute(lastDay, lastMinute);
+  return Math.max(0, 60 - elapsed);
+};
+
+export const formatWarAttackCooldown = (minutes: number) => {
+  const safe = Math.max(0, Math.ceil(minutes));
+  if (safe <= 0) return 'готово';
+  const h = Math.floor(safe / 60);
+  const m = safe % 60;
+  return h > 0 ? `${h}ч ${m.toString().padStart(2, '0')}м` : `${m}м`;
+};
+
+export const getNpcPlayersInLocation = (server: ServerState, location: WorldLocationState = server.location) =>
+  (server.npcs ?? []).filter((npc) => sameLocation(npc, location));
 
 export const getEnemyWarNpcsInPlayerLocation = (server: ServerState) => {
   if (!server.player.guildId || server.location.mode === 'city') return [];
@@ -57,16 +111,25 @@ export const getEnemyWarNpcsInPlayerLocation = (server: ServerState) => {
   return getNpcPlayersInLocation(server).filter((npc) => npc.guildId && enemyGuildIds.has(npc.guildId));
 };
 
-export const canPlayerAttackWarNpc = (server: ServerState, npcId: string): boolean => {
+export const isWarEnemyNpcInLocation = (server: ServerState, npcId: string): boolean => {
   if (server.location.mode === 'city' || !server.player.guildId) return false;
   const npc = server.npcs.find((entry) => entry.id === npcId);
   if (!npc?.guildId || npc.guildId === server.player.guildId) return false;
   if (!sameLocation(npc, server.location)) return false;
-  return (server.guildWars ?? []).some((war) => war.status === 'active' && ((war.attackerGuildId === server.player.guildId && war.defenderGuildId === npc.guildId) || (war.defenderGuildId === server.player.guildId && war.attackerGuildId === npc.guildId)));
+  return (server.guildWars ?? []).some((war) =>
+    war.status === 'active' &&
+    ((war.attackerGuildId === server.player.guildId && war.defenderGuildId === npc.guildId) ||
+      (war.defenderGuildId === server.player.guildId && war.attackerGuildId === npc.guildId)),
+  );
 };
+
+export const canPlayerAttackWarNpc = (server: ServerState, npcId: string): boolean =>
+  isWarEnemyNpcInLocation(server, npcId) && getWarAttackCooldownMinutes(server) <= 0;
 
 export const handleWarNpcEncountersOnPlayerLocationEnter = (server: ServerState, rng: Rng): ServerState => {
   if (server.location.mode === 'city') return server;
+  if (getWarAttackCooldownMinutes(server) > 0) return server;
+
   const enemies = getEnemyWarNpcsInPlayerLocation(server);
   if (enemies.length === 0) return server;
   const playerGs = getGearScore(server.player.equipment);

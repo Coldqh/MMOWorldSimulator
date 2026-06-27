@@ -100,6 +100,9 @@ import {
   tickGuildWars,
 } from "../systems/guildWarSystem";
 import { handleWarNpcEncountersOnPlayerLocationEnter } from "../systems/npcLocationSystem";
+import { startWarNpcDuelCombat } from "../systems/pvpDuelSystem";
+import { canPlayerAttackWarNpc, getWarAttackCooldownMinutes } from "../systems/npcLocationSystem";
+import { resolveArena3v3Round, startArena3v3Combat } from "../systems/arena3v3System";
 import {
   acceptPlayerGuildApplication,
   buildGuildWarProfileLines,
@@ -160,6 +163,7 @@ interface GameStore {
   restDungeonParty: () => void;
   leaveDungeonRun: () => void;
   startArena: () => void;
+  startArena3v3: () => void;
   combatAction: (actionId: string) => void;
   recoverFullHp: () => void;
   enhanceTarget: (target: EnhanceTarget) => void;
@@ -728,6 +732,32 @@ export const useGameStore = create<GameStore>((set, get) => ({
     };
     commit(set, server, arenaCombat, null);
   },
+  startArena3v3: () => {
+    const { server, combat } = get();
+    if (combat || !server.characterCreated || server.currentDungeonRun) return;
+    const rng = createRng(server.seed + server.serverDay * 3050 + server.currentMinute);
+    if (server.location.mode !== "city") {
+      const next = addNews(server, rng, "pvp", "Арена доступна в городе.", false);
+      commit(set, next, null);
+      set({ activeScreen: "world" });
+      return;
+    }
+    const arenaCombat = startArena3v3Combat(server, rng);
+    if (!arenaCombat) {
+      set({
+        modal: {
+          id: `modal_arena_3v3_failed_${server.serverDay}_${server.currentMinute}`,
+          type: "system",
+          title: "3v3 недоступно",
+          text: "Не хватает NPC для матча.",
+          lines: ["Нужно минимум пять NPC рядом по уровню или рейтингу."],
+        },
+      });
+      return;
+    }
+    commit(set, server, arenaCombat, null);
+  },
+
   combatAction: (actionId) => {
     const { server, combat } = get();
     if (!combat) return;
@@ -737,7 +767,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
         server.currentMinute +
         combat.turn * 17,
     );
-    const result = resolveCombatAction(server, combat, actionId, rng);
+    const result = combat.arenaMode === '3v3'
+      ? resolveArena3v3Round(server, combat, actionId, rng)
+      : resolveCombatAction(server, combat, actionId, rng);
     let nextServer = result.server;
     let nextCombat: CombatState | null = result.combat;
     let modal: GameModal | null = null;
@@ -1343,9 +1375,42 @@ export const useGameStore = create<GameStore>((set, get) => ({
   attackWarEnemyNpc: (npcId) => {
     const { server, combat } = get();
     if (combat) return;
+    const cooldown = getWarAttackCooldownMinutes(server);
+    if (cooldown > 0 || !canPlayerAttackWarNpc(server, npcId)) {
+      set({
+        modal: {
+          id: `modal_war_attack_cd_${server.serverDay}_${server.currentMinute}_${npcId}`,
+          type: 'guild',
+          title: 'Нападение недоступно',
+          text: cooldown > 0 ? `КД: ${cooldown} мин.` : 'Цель недоступна.',
+          lines: cooldown > 0 ? [`Кнопка восстановится через ${cooldown} мин.`] : ['Цель ушла, не является врагом или находится в городе.'],
+        },
+      });
+      return;
+    }
     const rng = createRng(server.seed + server.serverDay * 7300 + server.currentMinute);
-    const next = resolveWarEnemyNpcAttack(server, npcId, rng);
-    commit(set, next, undefined);
+    const duel = startWarNpcDuelCombat(server, npcId, rng);
+    if (!duel) {
+      set({
+        modal: {
+          id: `modal_war_attack_failed_${server.serverDay}_${server.currentMinute}_${npcId}`,
+          type: 'guild',
+          title: 'Дуэль не началась',
+          text: 'Цель недоступна.',
+          lines: ['Проверь локацию, войну и cooldown.'],
+        },
+      });
+      return;
+    }
+    const next: ServerState = {
+      ...server,
+      player: {
+        ...server.player,
+        lastWarAttackDay: server.serverDay,
+        lastWarAttackMinute: server.currentMinute,
+      },
+    };
+    commit(set, next, duel, null);
   },
 
   createPlayerGuild: (name, focus, level) => {
