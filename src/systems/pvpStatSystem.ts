@@ -28,9 +28,6 @@ export const getNpcPlayerEquivalentStats = (npc: NpcPlayer): StatBlock => {
   const actualGear = getGearScore(npc.equipment ?? {});
   const displayedGear = npc.gearScore ?? actualGear;
 
-  // NPCs must use the same pipeline as the player: class + race + level + equipment stats.
-  // Old saves can contain a higher cached gearScore than the equipment snapshot. In that case
-  // we apply a small class-aware correction so PvP NPCs do not become paper targets.
   if (displayedGear <= actualGear + 25 || actualGear <= 0) return stats;
 
   const missingGear = Math.max(0, displayedGear - actualGear);

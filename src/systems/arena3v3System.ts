@@ -1,8 +1,14 @@
 import { getSkillById } from '../content/classes';
+import { getGearScore, getPlayerStats } from './itemSystem';
+import { addPlayerXp } from './progressionSystem';
+import { finishGuildWarDefeatV2, finishGuildWarVictoryV2 } from './guildWarCombatResultSystem';
+import { getNpcEffectiveGearScore, getNpcPlayerEquivalentStats } from './pvpStatSystem';
+
 import type { Rng } from '../engine/rng';
 import { uid } from '../engine/rng';
 import type {
   CombatAggression,
+  CombatFloatingEvent,
   CombatState,
   Combatant,
   CombatantV2,
@@ -13,11 +19,6 @@ import type {
   RewardSummary,
   ServerState,
 } from '../types/game';
-import { getGearScore, getPlayerStats } from './itemSystem';
-import { addPlayerXp } from './progressionSystem';
-import { finishGuildWarDefeatV2, finishGuildWarVictoryV2 } from './guildWarCombatResultSystem';
-import { getNpcEffectiveGearScore, getNpcPlayerEquivalentStats } from './pvpStatSystem';
-
 export type ArenaTeamSize = 3 | 5 | 10;
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, Math.round(value)));
@@ -509,6 +510,38 @@ const resolveActor = (
   return { own, enemy, actor: currentActor, lines };
 };
 
+const buildFloatingEventsFromLines = (combat: CombatState, lines: string[], turn: number): CombatFloatingEvent[] => {
+  const members = [...(combat.teamA?.members ?? []), ...(combat.teamB?.members ?? [])];
+  const findUnit = (name: string) => members.find((member) => member.name === name || name.includes(member.name) || member.name.includes(name));
+  return lines.flatMap<CombatFloatingEvent>((line, index) => {
+    const heal = line.match(/^(.+?): .*?\+(\d+)/);
+    if (heal) {
+      const target = findUnit(heal[1]);
+      return [{ id: `float_${turn}_${index}_heal`, turn, sourceId: target?.id ?? target?.sourceId, targetId: target?.id ?? target?.sourceId, type: 'heal', amount: Number(heal[2]), text: `+${heal[2]}` }];
+    }
+    const hit = line.match(/^(.+?): .*? по (.+?) — (\d+)/);
+    if (hit) {
+      const source = findUnit(hit[1]);
+      const target = findUnit(hit[2]);
+      const events: CombatFloatingEvent[] = [{ id: `float_${turn}_${index}_damage`, turn, sourceId: source?.id ?? source?.sourceId, targetId: target?.id ?? target?.sourceId, type: 'damage', amount: Number(hit[3]), text: `-${hit[3]}` }];
+      if (line.includes('крит')) events.push({ id: `float_${turn}_${index}_crit`, turn, sourceId: source?.id ?? source?.sourceId, targetId: target?.id ?? target?.sourceId, type: 'crit', amount: Number(hit[3]), text: 'КРИТ' });
+      return events;
+    }
+    const miss = line.match(/^(.+?): .*?промах по (.+?)\./);
+    if (miss) {
+      const source = findUnit(miss[1]);
+      const target = findUnit(miss[2]);
+      return [{ id: `float_${turn}_${index}_miss`, turn, sourceId: source?.id ?? source?.sourceId, targetId: target?.id ?? target?.sourceId, type: 'miss', text: 'MISS' }];
+    }
+    const death = line.match(/^(.+?) выбит\./);
+    if (death) {
+      const target = findUnit(death[1]);
+      return [{ id: `float_${turn}_${index}_death`, turn, targetId: target?.id ?? target?.sourceId, type: 'death', text: 'ВЫБИТ' }];
+    }
+    return [];
+  });
+};
+
 const finishIfNeeded = (server: ServerState, combat: CombatState, rng: Rng): { server: ServerState; combat: CombatState } => {
   if (!combat.teamA || !combat.teamB) return { server, combat };
   const aAlive = alive(combat.teamA).length > 0;
@@ -618,6 +651,7 @@ export const resolveArenaTeamRound = (server: ServerState, combat: CombatState, 
     round: (combat.round ?? combat.turn) + 1,
     turn: combat.turn + 1,
     recentEvents: lines.slice(-8),
+    floatingEvents: buildFloatingEventsFromLines({ ...combat, teamA, teamB }, lines, combat.turn),
     log: [...combat.log, `Раунд ${combat.turn}.`, ...lines].slice(-80),
   });
 

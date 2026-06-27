@@ -40,26 +40,44 @@ export const CombatPanel = () => {
 
   if (isTeamCombat) {
     const allMembers = [...combat.teamA!.members, ...combat.teamB!.members];
-    const targetName = (id?: string) => id ? allMembers.find((member) => member.id === id)?.name ?? '—' : '—';
+    const floatingEvents = combat.floatingEvents ?? [];
+    const eventByMember = (member: CombatantV2) => floatingEvents
+      .filter((event) => event.sourceId === member.id || event.sourceId === member.sourceId || event.targetId === member.id || event.targetId === member.sourceId)
+      .slice(-4);
+    const targetName = (id?: string) => id ? allMembers.find((member) => member.id === id || member.sourceId === id)?.name ?? '—' : '—';
+
     const renderTeam = (title: string, members: CombatantV2[], danger = false) => (
       <div className="party-combat-board">
         <div className="section-title">{title}</div>
-        {members.map((member) => (
-          <div key={member.id} className={`party-member-card ${member.controller === 'player' ? 'self-line' : ''} ${danger ? 'danger' : ''}`}>
-            <div className="party-member-top">
-              <strong>{member.name}{member.alive ? '' : ' · выбит'}</strong>
-              <span>{roleLabel(member)} · {aggressionLabel(member.aggression)}</span>
+        {members.map((member) => {
+          const events = eventByMember(member);
+          return (
+            <div key={`${member.id}_${member.hp}_${member.mana}_${member.alive}_${combat.turn}`} className={`party-member-card ${member.controller === 'player' ? 'self-line' : ''} ${danger ? 'danger' : ''} ${member.alive ? '' : 'defeated-card'}`}>
+              <div className="party-member-top">
+                <strong>{member.name}{member.alive ? '' : ' · выбит'}</strong>
+                <span>{roleLabel(member)} · {aggressionLabel(member.aggression)}</span>
+              </div>
+              <ResourceBar label="HP" value={member.hp} max={member.maxHp} kind="hp" />
+              <ResourceBar label="Mana" value={member.mana} max={member.maxMana} kind="mana" />
+              <div className="party-round-stats">
+                <span className="dps-stat">Цель: {targetName(member.targetId)}</span>
+                <span className="dps-stat">DMG {member.damageDealt}</span>
+                <span className="tank-stat">HIT {member.damageTaken}</span>
+                <span className="heal-stat">HEAL {member.healingDone}</span>
+                <span className="dps-stat">KILL {member.kills}</span>
+              </div>
+              {events.length > 0 && (
+                <div className="floating-event-stack">
+                  {events.map((event) => (
+                    <span key={event.id} className={`floating-event ${event.type}`}>
+                      {event.text}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
-            <ResourceBar label="HP" value={member.hp} max={member.maxHp} kind="hp" />
-            <ResourceBar label="Mana" value={member.mana} max={member.maxMana} kind="mana" />
-            <div className="party-round-stats">
-              <span className="dps-stat">Цель: {targetName(member.targetId)}</span>
-              <span className="dps-stat">DMG {member.damageDealt}</span>
-              <span className="tank-stat">HIT {member.damageTaken}</span>
-              <span className="heal-stat">HEAL {member.healingDone}</span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
 
@@ -68,11 +86,17 @@ export const CombatPanel = () => {
         <section className="panel combat-panel">
           <div className="combat-header">
             <div>
-              <div className="section-title">⚔️ {combat.source === 'guild_war' ? 'Дуэль войны' : 'Арена 3v3'} · Раунд {combat.turn}</div>
+              <div className="section-title">⚔️ {combat.source === 'guild_war' ? 'Дуэль войны' : 'Командная арена'} · Раунд {combat.turn}</div>
               <h1>{combat.teamA!.name} vs {combat.teamB!.name}</h1>
             </div>
-            <span className="combat-source">{combat.source === 'guild_war' ? 'WAR' : '3v3'}</span>
+            <span className="combat-source">{combat.source === 'guild_war' ? 'WAR' : combat.arenaMode ?? 'TEAM'}</span>
           </div>
+
+          {floatingEvents.length > 0 && (
+            <div className="round-event-strip">
+              {floatingEvents.slice(-10).map((event) => <span key={event.id} className={`floating-event ${event.type}`}>{event.text}</span>)}
+            </div>
+          )}
 
           <div className="grid-two">
             {renderTeam(combat.teamA!.name || 'Твоя команда', combat.teamA!.members)}

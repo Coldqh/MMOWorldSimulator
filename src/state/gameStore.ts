@@ -127,6 +127,7 @@ import {
   startWarNpcAmbushCombat,
   startWarNpcDuelCombat,
 } from "../systems/pvpDuelSystem";
+import { normalizeSiegeState, registerPlayerGuildForCastle, tickSieges, unregisterPlayerGuildFromCastle } from "../systems/siegeSystem";
 
 import type {
   CombatState,
@@ -214,6 +215,8 @@ interface GameStore {
   declareGuildWar: (targetGuildId: string) => void;
   voteGuildWar: (voteId: string, vote: "yes" | "no") => void;
   attackWarEnemyNpc: (npcId: string) => void;
+  registerSiegeRoster: (castleId: string) => void;
+  unregisterSiegeRoster: (castleId: string) => void;
 }
 
 const collectOwnedItemIds = (server: ServerState): string[] => {
@@ -263,6 +266,7 @@ const simulateServerForMinutes = (server: ServerState, minutes: number, rngInput
   next = tickGuildWars(next, rng, minutes);
   next = simulateGuildWarsEveryHalfHour(next, rng, minutes);
   next = maybeGeneratePlayerGuildApplication(next, rng);
+  next = tickSieges(next, rng, minutes);
   return next;
 };
 
@@ -334,8 +338,12 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
     collectionProgress: server.collectionProgress ?? { obtainedItemIds: [], defeatedMobIds: [] },
     questStates: server.questStates ?? {},
     contracts: server.contracts ?? [],
+    castles: server.castles ?? [],
+    siegeRosters: server.siegeRosters ?? [],
+    currentSiegeRun: server.currentSiegeRun,
+    siegeHistory: server.siegeHistory ?? [],
   };
-  const baseWithProgress = seedActiveGuildWarsIfEmpty(ensureSoloNpcPool(seedInitialGuildWarsIfNeeded(normalizeGuildAndNpcIdentities(addCollectionProgress(baseServer)))));
+  const baseWithProgress = normalizeSiegeState(seedActiveGuildWarsIfEmpty(ensureSoloNpcPool(seedInitialGuildWarsIfNeeded(normalizeGuildAndNpcIdentities(addCollectionProgress(baseServer))))));
 
   if (mode === "light" && !needsMigration) {
     const repairedLight = repairMarketIfBroken(baseWithProgress, marketRng, "light");
@@ -818,9 +826,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
         server.currentMinute +
         combat.turn * 17,
     );
-    const result = combat.arenaMode === '3v3'
-      ? resolveArenaTeamRound(server, combat, actionId, rng)
-      : resolveCombatAction(server, combat, actionId, rng);
+    const preparedCombat = combat.source === 'guild_war' ? maybeAddWarDuelReinforcements(server, combat, rng) : combat;
+    const result = Boolean(preparedCombat.teamA && preparedCombat.teamB)
+      ? resolveArenaTeamRound(server, preparedCombat, actionId, rng)
+      : resolveCombatAction(server, preparedCombat, actionId, rng);
     let nextServer = result.server;
     let nextCombat: CombatState | null = result.combat;
     let modal: GameModal | null = null;
@@ -1421,6 +1430,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const next = castGuildWarVote(server, voteId, vote);
     commit(set, next, undefined);
   },
+
+  registerSiegeRoster: (castleId) => {
+    const { server } = get();
+    const rng = createRng(server.seed + server.serverDay * 8800 + server.currentMinute);
+    const next = tickSieges(registerPlayerGuildForCastle(server, castleId), rng, 0);
+    commit(set, next, null);
+  },
+
+  unregisterSiegeRoster: (castleId) => {
+    const { server } = get();
+    commit(set, unregisterPlayerGuildFromCastle(server, castleId), null);
+  },
+
 
   attackWarEnemyNpc: (npcId) => {
     const { server, combat } = get();

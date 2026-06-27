@@ -1,56 +1,52 @@
 import fs from 'node:fs';
+
 const read = (path) => fs.existsSync(path) ? fs.readFileSync(path, 'utf8') : '';
 const files = {
   pkg: read('package.json'),
   version: read('src/engine/version.ts'),
   types: read('src/types/game.ts'),
   store: read('src/state/gameStore.ts'),
-  pvpStat: read('src/systems/pvpStatSystem.ts'),
-  pvpDuel: read('src/systems/pvpDuelSystem.ts'),
-  arena3v3: read('src/systems/arena3v3System.ts'),
-  guildWarResult: read('src/systems/guildWarCombatResultSystem.ts'),
-  arenaScreen: read('src/ui/screens/ArenaScreen.tsx'),
   combatPanel: read('src/ui/components/CombatPanel.tsx'),
+  arena3v3: read('src/systems/arena3v3System.ts'),
+  pvpDuel: read('src/systems/pvpDuelSystem.ts'),
+  castles: read('src/content/castles.ts'),
+  siege: read('src/systems/siegeSystem.ts'),
+  castlePanel: read('src/ui/components/CastlePanel.tsx'),
+  guildScreen: read('src/ui/screens/GuildScreen.tsx'),
+  styles: read('src/ui/styles.css'),
 };
 const fail = [];
 const ok = [];
 const assert = (cond, msg) => cond ? ok.push(msg) : fail.push(msg);
-const header = files.store.slice(0, files.store.indexOf('interface GameStore {'));
 
-assert(files.pkg.includes('"version": "0.7.23"'), 'package version 0.7.23');
-assert(files.version.includes("APP_VERSION = '0.7.23'"), 'APP_VERSION 0.7.23');
-assert(files.store.startsWith('import { create } from "zustand";'), 'zustand import is clean');
-assert(!header.includes('SAVE_VERSION,\n  arenaRankName'), 'corrupted merged import header absent');
-assert(!files.store.includes('type: "pvp"') && !files.store.includes("type: 'pvp'"), 'invalid modal pvp type absent');
-assert((files.store.match(/const simulateServerForMinutes\s*=/g) ?? []).length === 1, 'one simulateServerForMinutes');
-assert(files.store.trimEnd().endsWith('}));'), 'gameStore closes cleanly');
+assert(files.pkg.includes('"version": "0.7.24"'), 'package version 0.7.24');
+assert(files.version.includes("APP_VERSION = '0.7.24'"), 'APP_VERSION 0.7.24');
 
-assert(files.types.includes('arenaMode?: "1v1" | "3v3" | "5v5" | "10v10" | "team";'), 'arenaMode supports 5v5 10v10 team');
-assert(files.types.includes('healerId?: Id;'), 'PartyRoleMap healer optional');
-assert(files.types.includes('teamA?: CombatTeamV2;') && files.types.includes('teamB?: CombatTeamV2;'), 'CombatState has team fields');
+assert(files.types.includes('export interface CombatFloatingEvent'), 'CombatFloatingEvent type exists');
+assert(files.types.includes('floatingEvents?: CombatFloatingEvent[];'), 'CombatState has floatingEvents');
+assert(files.store.includes('Boolean(combat.teamA && combat.teamB)'), 'gameStore routes all team combat through team resolver');
+assert(!files.store.includes("combat.arenaMode === '3v3'"), 'old 3v3-only resolver condition removed');
+assert(files.arena3v3.includes('floatingEvents'), 'team resolver writes floatingEvents');
+assert(files.combatPanel.includes('floating-event-stack'), 'CombatPanel shows per-member floating events');
+assert(files.combatPanel.includes('eventByMember'), 'CombatPanel attaches events to members');
 
-assert(files.pvpStat.includes('getNpcPlayerEquivalentStats'), 'NPC PvP player-equivalent stat helper exists');
-assert(files.pvpStat.includes('getPlayerStats(playerLikeFromNpc(npc))'), 'NPC PvP stats use player stat pipeline');
-assert(files.pvpStat.includes('getNpcEffectiveGearScore'), 'NPC effective gearscore helper exists');
+assert(files.types.includes('export interface Castle'), 'Castle type exists');
+assert(files.types.includes('export interface SiegeRun'), 'SiegeRun type exists');
+assert(files.types.includes('castles?: Castle[];'), 'ServerState has castles');
+assert(files.types.includes('siegeRosters?: SiegeRoster[];'), 'ServerState has siege rosters');
+assert(files.castles.includes('Redstone Keep') && files.castles.includes('Virspire Citadel'), 'default castles exist');
+assert(files.castles.includes('width: 10') && files.castles.includes('height: 10'), 'siege maps are 10x10');
+assert(files.siege.includes('MAX_SIEGE_TURNS = 200'), 'siege turn cap exists');
+assert(files.siege.includes('tickSieges'), 'tickSieges exists');
+assert(files.siege.includes('registerPlayerGuildForCastle'), 'siege registration exists');
+assert(files.store.includes('tickSieges(next, rng, minutes)'), 'simulateServerForMinutes calls tickSieges');
+assert(files.store.includes('normalizeSiegeState'), 'store normalizes siege state');
+assert(files.guildScreen.includes('CastlePanel'), 'GuildScreen imports CastlePanel');
+assert(files.guildScreen.includes('setMainTab("castles")'), 'GuildScreen has castles tab');
+assert(files.castlePanel.includes('Зарегистрировать авто-состав'), 'CastlePanel registration button exists');
 
-assert(files.arena3v3.includes('startArena5v5Combat'), '5v5 arena starter exists');
-assert(files.arena3v3.includes('startArena10v10Combat'), '10v10 arena starter exists');
-assert(files.arena3v3.includes('resolveArenaTeamRound'), 'generic arena team round resolver exists');
-assert(files.arena3v3.includes('getNpcPlayerEquivalentStats(npc)'), 'arena NPC stats use player-equivalent stats');
-assert(files.arena3v3.includes("arenaMode: teamSize === 3 ? '3v3' : teamSize === 5 ? '5v5' : '10v10'"), 'arena modes are 3v3/5v5/10v10');
-
-assert(files.pvpDuel.includes('MAX_WAR_DUEL_PARTICIPANTS = 10'), 'guild war duel participant cap 10');
-assert(files.pvpDuel.includes('getNpcPlayerEquivalentStats(npc)'), 'war duel NPC stats use player-equivalent stats');
-assert(files.pvpDuel.includes("arenaMode: 'team'"), 'war duels route through team combat');
-assert(files.pvpDuel.includes('participantCount(combat) >= MAX_WAR_DUEL_PARTICIPANTS'), 'reinforcements obey participant cap');
-
-assert(files.guildWarResult.includes('allocateTeamKills'), 'team kills allocated by killer units');
-assert(files.guildWarResult.includes('unit.kills > 0'), 'last-hit/kill counter used for attribution');
-assert(!files.guildWarResult.includes("server.player.id, npc.id, 'player_attack'") || files.guildWarResult.includes('if (combat.teamA && combat.teamB)'), 'player-only fallback not used for team fights');
-
-assert(files.arenaScreen.includes('startArena5v5') && files.arenaScreen.includes('startArena10v10'), 'ArenaScreen exposes 5v5 and 10v10 actions');
-assert(files.arenaScreen.includes('Найти бой 5v5') && files.arenaScreen.includes('Найти бой 10v10'), 'ArenaScreen buttons visible');
-assert(files.combatPanel.includes('Boolean(combat.teamA && combat.teamB)'), 'CombatPanel displays team combat');
+assert(files.styles.includes('.siege-map'), 'siege map styles exist');
+assert(files.styles.includes('.floating-event'), 'floating event styles exist');
 
 if (fail.length) {
   console.error('Sanity failed:');
@@ -60,17 +56,38 @@ if (fail.length) {
 console.log('Sanity passed:');
 ok.forEach((msg) => console.log(`- ${msg}`));
 
-const storeSourceForV0723Hotfix = fs.readFileSync('src/state/gameStore.ts', 'utf8');
-if (storeSourceForV0723Hotfix.includes('resolveArena3v3Round(server,')) {
-  console.error('Sanity failed: old resolveArena3v3Round gameStore call still present');
+const arenaV0724Hotfix = fs.readFileSync('src/systems/arena3v3System.ts', 'utf8');
+if (!arenaV0724Hotfix.includes('CombatFloatingEvent')) {
+  console.error('Sanity failed: CombatFloatingEvent import/type missing in arena3v3System');
   process.exit(1);
 }
-if (!storeSourceForV0723Hotfix.includes('resolveArenaTeamRound(server,')) {
-  console.error('Sanity failed: resolveArenaTeamRound gameStore call missing');
+if (!arenaV0724Hotfix.includes('): CombatFloatingEvent[] =>')) {
+  console.error('Sanity failed: buildFloatingEventsFromLines return type missing');
   process.exit(1);
 }
-if (!storeSourceForV0723Hotfix.includes('entry: { itemId: string }') || !storeSourceForV0723Hotfix.includes('mobId: string') || !storeSourceForV0723Hotfix.includes('entry: { itemId: string; amount: number }')) {
-  console.error('Sanity failed: v0.7.23 type annotations missing');
+if (!arenaV0724Hotfix.includes('flatMap<CombatFloatingEvent>')) {
+  console.error('Sanity failed: flatMap generic missing');
   process.exit(1);
 }
-console.log('Sanity passed: v0.7.23 typecheck hotfix');
+if (!arenaV0724Hotfix.includes('const events: CombatFloatingEvent[]')) {
+  console.error('Sanity failed: events array annotation missing');
+  process.exit(1);
+}
+console.log('Sanity passed: v0.7.24 typecheck hotfix');
+
+const arenaV0724Hardfix = fs.readFileSync('src/systems/arena3v3System.ts', 'utf8');
+const rngTypeImportsV0724 = [...arenaV0724Hardfix.matchAll(/import\s+type\s+\{([\s\S]*?)\}\s+from\s+['"]\.\.\/engine\/rng['"];/g)];
+const gameTypeImportsV0724 = [...arenaV0724Hardfix.matchAll(/import\s+type\s+\{([\s\S]*?)\}\s+from\s+['"]\.\.\/types\/game['"];/g)];
+if (rngTypeImportsV0724.length !== 1 || rngTypeImportsV0724[0][1].includes('CombatFloatingEvent')) {
+  console.error('Sanity failed: CombatFloatingEvent import is still wrong in arena3v3System');
+  process.exit(1);
+}
+if (gameTypeImportsV0724.length !== 1 || !gameTypeImportsV0724[0][1].includes('CombatFloatingEvent')) {
+  console.error('Sanity failed: CombatFloatingEvent is missing from types/game import');
+  process.exit(1);
+}
+if (!arenaV0724Hardfix.includes('flatMap<CombatFloatingEvent>') || !arenaV0724Hardfix.includes('const events: CombatFloatingEvent[]')) {
+  console.error('Sanity failed: CombatFloatingEvent narrowing fix missing');
+  process.exit(1);
+}
+console.log('Sanity passed: v0.7.24 arena import hardfix');

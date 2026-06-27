@@ -724,3 +724,62 @@ button:hover:not(:disabled) { border-color: rgba(96,165,250,0.75); }
   flex-direction: column;
   gap: 3px;
 }
+
+
+.floating-event-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.round-event-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 12px;
+}
+.floating-event {
+  display: inline-flex;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  background: rgba(255,255,255,0.08);
+}
+.floating-event.damage { color: #ff7b7b; }
+.floating-event.heal { color: #5ee08d; }
+.floating-event.miss { color: #c7c7c7; }
+.floating-event.crit { color: #ffd166; }
+.floating-event.death { color: #ef5f63; }
+.defeated-card {
+  opacity: 0.55;
+  filter: grayscale(0.35);
+}
+.siege-map {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(18px, 1fr));
+  gap: 3px;
+  margin: 12px 0;
+}
+.siege-cell {
+  min-height: 28px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  font-size: 0.68rem;
+  font-weight: 900;
+  background: rgba(255,255,255,0.06);
+}
+.siege-cell.wall { background: rgba(255,255,255,0.16); }
+.siege-cell.gate { outline: 1px solid rgba(255, 209, 102, 0.8); }
+.siege-cell.tower { outline: 1px solid rgba(116, 185, 255, 0.8); }
+.siege-cell.center { background: rgba(255, 209, 102, 0.16); }
+.siege-cell.spawn { background: rgba(94, 224, 141, 0.12); }
+.siege-cell.unit { color: #fff; background: rgba(110, 168, 254, 0.72); }
+.siege-cell.unit.dead { color: #999; background: rgba(239, 95, 99, 0.3); }
+.siege-cell.guild-0 { background: rgba(110, 168, 254, 0.8); }
+.siege-cell.guild-1 { background: rgba(94, 224, 141, 0.78); }
+.siege-cell.guild-2 { background: rgba(255, 209, 102, 0.78); }
+.siege-cell.guild-3 { background: rgba(255, 123, 123, 0.78); }
+.siege-cell.guild-4 { background: rgba(190, 140, 255, 0.78); }
+.siege-cell.guild-5 { background: rgba(120, 220, 255, 0.78); }

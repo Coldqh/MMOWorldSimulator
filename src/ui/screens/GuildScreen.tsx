@@ -5,10 +5,11 @@ import { getGearScore } from "../../systems/itemSystem";
 import { getPlayerGuildPendingApplications } from "../../systems/guildRuntimeSystem";
 import { guildFocusLabel } from "../../systems/guildIdentitySystem";
 import { GuildWarPanel, ServerGuildWarList } from "../components/GuildWarPanel";
+import { CastlePanel } from "../components/CastlePanel";
 import type { Guild, GuildFocus } from "../../types/game";
 
-type MainGuildTab = "guilds" | "wars";
-type GuildTab = "profile" | "roster" | "applications" | "relations" | "events";
+type MainGuildTab = "guilds" | "wars" | "castles";
+type GuildTab = "profile" | "roster" | "applications" | "relations" | "events" | "castles";
 
 const getNpcName = (server: ReturnType<typeof useGameStore.getState>["server"], id?: string) => {
   if (!id) return "нет";
@@ -64,6 +65,10 @@ export const GuildScreen = () => {
     return <button className="text-button inline-button" onClick={() => openNpcProfile(id)}>{getNpcName(server, id)}</button>;
   };
 
+  if (mainTab === "castles") {
+    return <CastlePanel />;
+  }
+
   if (mainTab === "wars") {
     const showServerWars = !playerGuild || showAllGuilds;
     return (
@@ -77,6 +82,7 @@ export const GuildScreen = () => {
           <div className="tab-row">
             <button onClick={() => setMainTab("guilds")}>Гильдии</button>
             <button className="active" onClick={() => setMainTab("wars")}>Войны</button>
+            <button onClick={() => setMainTab("castles")}>Замки</button>
           </div>
           <p className="muted">
             {showServerWars
@@ -122,6 +128,7 @@ export const GuildScreen = () => {
           <div className="tab-row">
             <button className="active" onClick={() => setMainTab("guilds")}>Гильдии</button>
             <button onClick={() => setMainTab("wars")}>Войны</button>
+            <button onClick={() => setMainTab("castles")}>Замки</button>
           </div>
           <p className="muted">{guildFocusLabel(playerGuild.guildFocus)} · {playerGuild.tier ?? "low"} · Lv. {playerGuild.level} · сила {guildPower(playerGuild)}</p>
           <div className="tab-row">
@@ -130,6 +137,7 @@ export const GuildScreen = () => {
             {playerGuild.leaderId === server.player.id && <button className={tab === "applications" ? "active" : ""} onClick={() => setTab("applications")}>Заявки {applications.length}</button>}
             <button className={tab === "relations" ? "active" : ""} onClick={() => setTab("relations")}>Отношения</button>
             <button className={tab === "events" ? "active" : ""} onClick={() => setTab("events")}>События</button>
+            <button className={tab === "castles" ? "active" : ""} onClick={() => setTab("castles")}>Замки</button>
           </div>
         </section>
 
@@ -207,6 +215,8 @@ export const GuildScreen = () => {
           </section>
         )}
 
+        {tab === "castles" && <CastlePanel />}
+
         {tab === "events" && (
           <section className="panel">
             <div className="section-title">События</div>
@@ -229,6 +239,7 @@ export const GuildScreen = () => {
         <div className="tab-row">
           <button className="active" onClick={() => setMainTab("guilds")}>Гильдии</button>
           <button onClick={() => setMainTab("wars")}>Войны</button>
+            <button onClick={() => setMainTab("castles")}>Замки</button>
         </div>
         <div className="title-row">
           <h1>Список гильдий</h1>

@@ -249,6 +249,7 @@ export interface Guild {
   castleControl?: Id;
   raidProgress: number;
   pvpRating: number;
+  treasuryGold?: number;
   stability: number;
   recruitmentPolicy: "open" | "invite" | "strict";
 }
@@ -652,6 +653,102 @@ export interface CollectionProgress {
   defeatedMobIds: Id[];
 }
 
+
+export interface CombatFloatingEvent {
+  id: Id;
+  turn: number;
+  sourceId?: Id;
+  targetId?: Id;
+  type: "damage" | "heal" | "miss" | "crit" | "death";
+  amount?: number;
+  text: string;
+}
+
+export interface CastleHistoryEntry {
+  day: number;
+  minute: number;
+  winnerGuildId?: Id;
+  previousOwnerGuildId?: Id;
+  participatingGuildIds: Id[];
+  scoreSummary: string;
+  mvpId?: Id;
+}
+
+export interface Castle {
+  id: Id;
+  name: string;
+  tier: "mid" | "high";
+  ownerGuildId?: Id;
+  levelRange: [number, number];
+  nextSiegeDay: number;
+  nextSiegeMinute: number;
+  registeredGuildIds: Id[];
+  mapId: Id;
+  history: CastleHistoryEntry[];
+  lastSiegeRunId?: Id;
+  lastResolvedSiegeDay?: number;
+}
+
+export interface SiegeRoster {
+  castleId: Id;
+  guildId: Id;
+  memberIds: Id[];
+  registeredDay: number;
+  registeredMinute: number;
+}
+
+export interface SiegeCell {
+  x: number;
+  y: number;
+  type: "floor" | "wall" | "gate" | "tower" | "spawn" | "center";
+}
+
+export interface SiegeMap {
+  id: Id;
+  width: 10;
+  height: 10;
+  cells: SiegeCell[];
+}
+
+export interface SiegeUnit {
+  id: Id;
+  sourceId: Id;
+  guildId: Id;
+  name: string;
+  classId: Id;
+  role: PartyRole;
+  hp: number;
+  maxHp: number;
+  mana: number;
+  maxMana: number;
+  attack: number;
+  magic: number;
+  defense: number;
+  speed: number;
+  x: number;
+  y: number;
+  alive: boolean;
+  kills: number;
+  damageDealt: number;
+  healingDone: number;
+  lastHitById?: Id;
+}
+
+export interface SiegeRun {
+  id: Id;
+  castleId: Id;
+  mapId: Id;
+  day: number;
+  minute: number;
+  status: "active" | "finished";
+  participatingGuildIds: Id[];
+  units: SiegeUnit[];
+  turn: number;
+  log: string[];
+  winnerGuildId?: Id;
+}
+
+
 export interface ServerState {
   version: string;
   appVersion?: string;
@@ -683,6 +780,10 @@ export interface ServerState {
   collectionProgress?: CollectionProgress;
   questStates: Record<Id, QuestState>;
   contracts: ContractDefinition[];
+  castles?: Castle[];
+  siegeRosters?: SiegeRoster[];
+  currentSiegeRun?: SiegeRun;
+  siegeHistory?: CastleHistoryEntry[];
 }
 
 export type CombatTeamId = "teamA" | "teamB";
@@ -858,6 +959,7 @@ export interface CombatState {
   activeCombatantId?: Id;
   winnerTeamId?: CombatTeamId;
   recentEvents?: string[];
+  floatingEvents?: CombatFloatingEvent[];
   round?: number;
   dungeonEncounterIndex?: number;
   dungeonFloorEnemyCount?: number;

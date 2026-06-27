@@ -1,25 +1,25 @@
 import fs from 'node:fs';
-const read = (path) => fs.readFileSync(path, 'utf8');
+
+const read = (path) => fs.existsSync(path) ? fs.readFileSync(path, 'utf8') : '';
 const fail = [];
 const ok = [];
 const assert = (cond, msg) => cond ? ok.push(msg) : fail.push(msg);
-const pkg = read('package.json');
-const store = read('src/state/gameStore.ts');
-const pvpStat = read('src/systems/pvpStatSystem.ts');
-const pvpDuel = read('src/systems/pvpDuelSystem.ts');
-const arena = read('src/systems/arena3v3System.ts');
-const arenaScreen = read('src/ui/screens/ArenaScreen.tsx');
 
-assert(pkg.includes('"version": "0.7.23"'), 'version bumped');
-assert(store.startsWith('import { create } from "zustand";'), 'clean import header');
-assert(store.includes('startArena5v5: () => void;') && store.includes('startArena10v10: () => void;'), 'store exposes 5v5/10v10');
-assert(store.includes('resolveArenaTeamRound'), 'store routes team combat resolver');
-assert(pvpStat.includes('getPlayerStats(playerLikeFromNpc(npc))'), 'NPC PvP stats use player pipeline');
-assert(pvpDuel.includes('MAX_WAR_DUEL_PARTICIPANTS = 10'), 'war duel cap 10');
-assert(pvpDuel.includes('arenaMode: \'team\''), 'war duel uses team mode');
-assert(arena.includes('startArena5v5Combat') && arena.includes('startArena10v10Combat'), 'team arena starts exist');
-assert(arenaScreen.includes('Найти бой 5v5') && arenaScreen.includes('Найти бой 10v10'), 'team arena buttons exist');
-assert(store.trimEnd().endsWith('}));'), 'gameStore closes cleanly');
+const store = read('src/state/gameStore.ts');
+const types = read('src/types/game.ts');
+const siege = read('src/systems/siegeSystem.ts');
+const combatPanel = read('src/ui/components/CombatPanel.tsx');
+const arena3v3 = read('src/systems/arena3v3System.ts');
+
+assert(read('package.json').includes('"version": "0.7.24"'), 'version bumped');
+assert(store.includes('Boolean(combat.teamA && combat.teamB)'), 'all team combats use team resolver');
+assert(arena3v3.includes('floatingEvents'), 'team combat creates visual events');
+assert(combatPanel.includes('floating-event-stack'), 'CombatPanel renders visual events');
+assert(types.includes('CastleHistoryEntry') && types.includes('SiegeUnit'), 'siege types are present');
+assert(siege.includes('MAX_SIEGE_TURNS = 200'), 'siege cannot run forever');
+assert(siege.includes('winnerGuildId'), 'siege winner is stored');
+assert(siege.includes('mvpId'), 'siege mvp is stored');
+assert(store.includes('registerSiegeRoster') && store.includes('unregisterSiegeRoster'), 'store exposes castle roster actions');
 
 if (fail.length) {
   console.error('Smoke failed:');
@@ -29,13 +29,17 @@ if (fail.length) {
 console.log('Smoke passed:');
 ok.forEach((msg) => console.log(`- ${msg}`));
 
-const smokeStoreSourceForV0723Hotfix = fs.readFileSync('src/state/gameStore.ts', 'utf8');
-if (smokeStoreSourceForV0723Hotfix.includes('resolveArena3v3Round(server,')) {
-  console.error('Smoke failed: old resolveArena3v3Round gameStore call still present');
+const arenaV0724SmokeHotfix = fs.readFileSync('src/systems/arena3v3System.ts', 'utf8');
+if (!arenaV0724SmokeHotfix.includes('flatMap<CombatFloatingEvent>') || !arenaV0724SmokeHotfix.includes('const events: CombatFloatingEvent[]')) {
+  console.error('Smoke failed: v0.7.24 CombatFloatingEvent type narrowing fix missing');
   process.exit(1);
 }
-if (!smokeStoreSourceForV0723Hotfix.includes('resolveArenaTeamRound(server,')) {
-  console.error('Smoke failed: resolveArenaTeamRound gameStore call missing');
+console.log('Smoke passed: v0.7.24 typecheck hotfix');
+
+const arenaV0724SmokeHardfix = fs.readFileSync('src/systems/arena3v3System.ts', 'utf8');
+const rngImportV0724SmokeHardfix = [...arenaV0724SmokeHardfix.matchAll(/import\s+type\s+\{([\s\S]*?)\}\s+from\s+['"]\.\.\/engine\/rng['"];/g)];
+if (rngImportV0724SmokeHardfix.length !== 1 || rngImportV0724SmokeHardfix[0][1].includes('CombatFloatingEvent')) {
+  console.error('Smoke failed: CombatFloatingEvent imported from engine/rng');
   process.exit(1);
 }
-console.log('Smoke passed: v0.7.23 typecheck hotfix');
+console.log('Smoke passed: v0.7.24 arena import hardfix');
