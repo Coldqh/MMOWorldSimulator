@@ -1,6 +1,6 @@
 {
-  "version": "0.7.24",
+  "version": "0.7.25",
   "channel": "stable",
-  "build": "2026-06-27-v0724-siege-core-visual-sync",
+  "build": "2026-06-27-v0725-guild-creation-siege-schedule",
   "buildTime": "2026-06-25T00:00:00.000Z"
 }

@@ -252,6 +252,10 @@ export interface Guild {
   treasuryGold?: number;
   stability: number;
   recruitmentPolicy: "open" | "invite" | "strict";
+  createdByPlayer?: boolean;
+  founderPlayerId?: Id;
+  createdDay?: number;
+  createdMinute?: number;
 }
 
 export interface GuildRelation {

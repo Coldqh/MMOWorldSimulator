@@ -112,6 +112,7 @@ import {
   ensureSoloNpcPool,
   maybeGeneratePlayerGuildApplication,
   rejectPlayerGuildApplication,
+  repairFreshPlayerGuildLeadership,
   seedActiveGuildWarsIfEmpty,
   simulateGuildWarsEveryHalfHour,
 } from "../systems/guildRuntimeSystem";
@@ -265,6 +266,7 @@ const simulateServerForMinutes = (server: ServerState, minutes: number, rngInput
   next = seedActiveGuildWarsIfEmpty(next);
   next = tickGuildWars(next, rng, minutes);
   next = simulateGuildWarsEveryHalfHour(next, rng, minutes);
+  next = repairFreshPlayerGuildLeadership(next);
   next = maybeGeneratePlayerGuildApplication(next, rng);
   next = tickSieges(next, rng, minutes);
   return next;
@@ -366,7 +368,7 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
 const safeNormalizeServer = (server: ServerState | null | undefined, mode: "full" | "light" = "full"): ServerState => {
   try {
     const normalized = normalizeServer(server ?? createEmptyServer(), mode);
-    const repaired = seedActiveGuildWarsIfEmpty(ensureSoloNpcPool(seedInitialGuildWarsIfNeeded(repairServerRuntime(normalized))));
+    const repaired = seedActiveGuildWarsIfEmpty(ensureSoloNpcPool(seedInitialGuildWarsIfNeeded(repairFreshPlayerGuildLeadership(repairServerRuntime(normalized)))));
     const issues = validateServerRuntime(repaired);
     if (import.meta.env.DEV && issues.some((issue) => issue.severity === 'critical')) console.warn('[MMOWS] runtime issues', issues);
     return refreshContracts(repaired, createRng((server?.seed ?? Date.now()) + (server?.serverDay ?? 1) * 9010 + (server?.currentMinute ?? 0)));

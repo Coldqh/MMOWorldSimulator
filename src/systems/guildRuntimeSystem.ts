@@ -367,19 +367,25 @@ export const createPlayerGuildRuntime = (
     leaderId: server.player.id,
     deputyId: undefined,
     officerIds: [],
-    tier: guildLevel >= 17 ? 'high' : guildLevel >= 9 ? 'mid' : 'low',
+    tier: guildLevel >= 20 ? 'high' : guildLevel >= 10 ? 'mid' : 'low',
     minLevel: 1,
     focus,
+    castleControl: undefined,
     raidProgress: 0,
     pvpRating: focus === 'pvp' ? 1000 : 800,
+    treasuryGold: 0,
     stability: 100,
     recruitmentPolicy: 'open',
+    createdByPlayer: true,
+    founderPlayerId: server.player.id,
+    createdDay: server.serverDay,
+    createdMinute: server.currentMinute,
   };
 
   return {
     ok: true,
-    message: `${cleanName} создана.`,
-    server: ensureSoloNpcPool({
+    message: `${cleanName} создана. Ты ГМ. Участников: 1.`,
+    server: {
       ...server,
       player: { ...server.player, gold: server.player.gold - 50000, guildId: guild.id },
       guilds: [...server.guilds, guild],
@@ -390,9 +396,35 @@ export const createPlayerGuildRuntime = (
           { fromGuildId: other.id, toGuildId: guild.id, value: 0, lastChangedDay: server.serverDay, lastChangedMinute: server.currentMinute },
         ]),
       ],
-    }),
+    },
   };
 };
+
+export const repairFreshPlayerGuildLeadership = (server: ServerState): ServerState => {
+  const guildId = server.player.guildId;
+  if (!guildId) return server;
+  const guild = server.guilds.find((entry) => entry.id === guildId);
+  if (!guild || !guild.id.startsWith('guild_player_')) return server;
+  if (guild.leaderId === server.player.id && guild.memberIds.includes(server.player.id)) return server;
+
+  const previousMembers = new Set(guild.memberIds.filter((id) => id !== server.player.id));
+  return {
+    ...server,
+    guilds: server.guilds.map((entry) => entry.id === guild.id
+      ? {
+          ...entry,
+          memberIds: [server.player.id],
+          leaderId: server.player.id,
+          deputyId: undefined,
+          officerIds: [],
+          createdByPlayer: true,
+          founderPlayerId: server.player.id,
+        }
+      : entry),
+    npcs: server.npcs.map((npc) => previousMembers.has(npc.id) && npc.guildId === guild.id ? { ...npc, guildId: undefined, playstyle: 'solo' as const } : npc),
+  };
+};
+
 
 export const maybeGeneratePlayerGuildApplication = (server: ServerState, rng: Rng): ServerState => {
   const guildId = server.player.guildId;
