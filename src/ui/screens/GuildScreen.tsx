@@ -7,7 +7,8 @@ import { guildFocusLabel } from "../../systems/guildIdentitySystem";
 import { GuildWarPanel, ServerGuildWarList } from "../components/GuildWarPanel";
 import type { Guild, GuildFocus } from "../../types/game";
 
-type GuildTab = "profile" | "roster" | "applications" | "relations" | "wars" | "events";
+type MainGuildTab = "guilds" | "wars";
+type GuildTab = "profile" | "roster" | "applications" | "relations" | "events";
 
 const getNpcName = (server: ReturnType<typeof useGameStore.getState>["server"], id?: string) => {
   if (!id) return "нет";
@@ -16,6 +17,10 @@ const getNpcName = (server: ReturnType<typeof useGameStore.getState>["server"], 
 };
 
 const getClassName = (classId: string) => CLASSES.find((entry) => entry.id === classId)?.name ?? classId;
+const guildPower = (guild: Guild) => (guild.reputation ?? 0) + (guild.pvpRating ?? 0);
+const relationPercent = (value: number) => `${Math.max(0, Math.min(100, value + 100) / 2)}%`;
+const relationTone = (value: number) => value <= -40 ? "danger-line" : value >= 40 ? "ready-line" : "";
+const tierLabel: Record<string, string> = { all: "Все", high: "High", mid: "Mid", low: "Low" };
 
 const guildRole = (guild: Guild, id: string) => {
   if (guild.leaderId === id) return "ГМ";
@@ -23,18 +28,6 @@ const guildRole = (guild: Guild, id: string) => {
   if ((guild.officerIds ?? []).includes(id)) return "Офицер";
   return "Участник";
 };
-
-const guildRoleIcon = (guild: Guild, id: string) => {
-  if (guild.leaderId === id) return "👑";
-  if (guild.deputyId === id) return "🛡️";
-  if ((guild.officerIds ?? []).includes(id)) return "⚔️";
-  return "";
-};
-
-const tierLabel: Record<string, string> = { all: "Все", high: "High", mid: "Mid", low: "Low" };
-const guildPower = (guild: Guild) => (guild.reputation ?? 0) + (guild.pvpRating ?? 0);
-const relationPercent = (value: number) => `${Math.max(0, Math.min(100, value + 100) / 2)}%`;
-const relationTone = (value: number) => value <= -40 ? "danger-line" : value >= 40 ? "ready-line" : "";
 
 export const GuildScreen = () => {
   const server = useGameStore((state) => state.server);
@@ -46,6 +39,7 @@ export const GuildScreen = () => {
   const acceptGuildApplicant = useGameStore((state) => state.acceptGuildApplicant);
   const rejectGuildApplicant = useGameStore((state) => state.rejectGuildApplicant);
 
+  const [mainTab, setMainTab] = useState<MainGuildTab>("guilds");
   const [showAllGuilds, setShowAllGuilds] = useState(false);
   const [tierFilter, setTierFilter] = useState<"all" | "high" | "mid" | "low">("all");
   const [tab, setTab] = useState<GuildTab>("profile");
@@ -70,6 +64,22 @@ export const GuildScreen = () => {
     return <button className="text-button inline-button" onClick={() => openNpcProfile(id)}>{getNpcName(server, id)}</button>;
   };
 
+  if (mainTab === "wars") {
+    return (
+      <div className="screen-stack">
+        <section className="panel hero-panel">
+          <div className="section-title">Гильдии</div>
+          <div className="tab-row">
+            <button onClick={() => setMainTab("guilds")}>Гильдии</button>
+            <button className="active" onClick={() => setMainTab("wars")}>Войны</button>
+          </div>
+        </section>
+        {playerGuild && <GuildWarPanel />}
+        <ServerGuildWarList />
+      </div>
+    );
+  }
+
   if (playerGuild && !showAllGuilds) {
     const roleWeight = (id: string) => playerGuild.leaderId === id ? 0 : playerGuild.deputyId === id ? 1 : (playerGuild.officerIds ?? []).includes(id) ? 2 : 3;
     const gearOf = (member: any) => member.id === server.player.id ? getGearScore(server.player.equipment) : (member.gearScore ?? getGearScore(member.equipment ?? {}));
@@ -78,8 +88,7 @@ export const GuildScreen = () => {
       .filter(Boolean)
       .sort((a: any, b: any) => roleWeight(a.id) - roleWeight(b.id) || b.level - a.level || gearOf(b) - gearOf(a))
       .slice(0, 160);
-    const guildNews = server.worldNews.filter((entry) => entry.text.includes(playerGuild.name)).slice(0, 8);
-    const activeWars = (server.guildWars ?? []).filter((war) => war.status === "active" && (war.attackerGuildId === playerGuild.id || war.defenderGuildId === playerGuild.id));
+
     const relationRows = server.guilds
       .filter((guild) => guild.id !== playerGuild.id)
       .map((guild) => ({
@@ -88,6 +97,9 @@ export const GuildScreen = () => {
         incoming: server.guildRelations.find((rel) => rel.fromGuildId === guild.id && rel.toGuildId === playerGuild.id)?.value ?? 0,
       }))
       .sort((a, b) => a.outgoing - b.outgoing || a.guild.name.localeCompare(b.guild.name));
+
+    const guildNews = server.worldNews.filter((entry) => entry.text.includes(playerGuild.name)).slice(0, 8);
+    const activeWars = server.guildWars.filter((war) => war.status === "active" && (war.attackerGuildId === playerGuild.id || war.defenderGuildId === playerGuild.id));
     const officerText = (playerGuild.officerIds ?? []).length === 0 ? <span>нет</span> : (playerGuild.officerIds ?? []).slice(0, 4).map((id) => <span key={id}> {renderNpcLink(id)}</span>);
 
     return (
@@ -96,7 +108,11 @@ export const GuildScreen = () => {
           <div className="section-title">Твоя гильдия</div>
           <div className="title-row">
             <h1>{playerGuild.name}</h1>
-            <button onClick={() => setShowAllGuilds(true)}>Гильдии</button>
+            <button onClick={() => setShowAllGuilds(true)}>Все гильдии</button>
+          </div>
+          <div className="tab-row">
+            <button className="active" onClick={() => setMainTab("guilds")}>Гильдии</button>
+            <button onClick={() => setMainTab("wars")}>Войны</button>
           </div>
           <p className="muted">{guildFocusLabel(playerGuild.guildFocus)} · {playerGuild.tier ?? "low"} · Lv. {playerGuild.level} · сила {guildPower(playerGuild)}</p>
           <div className="tab-row">
@@ -104,7 +120,6 @@ export const GuildScreen = () => {
             <button className={tab === "roster" ? "active" : ""} onClick={() => setTab("roster")}>Ростер</button>
             {playerGuild.leaderId === server.player.id && <button className={tab === "applications" ? "active" : ""} onClick={() => setTab("applications")}>Заявки {applications.length}</button>}
             <button className={tab === "relations" ? "active" : ""} onClick={() => setTab("relations")}>Отношения</button>
-            <button className={tab === "wars" ? "active" : ""} onClick={() => setTab("wars")}>Войны</button>
             <button className={tab === "events" ? "active" : ""} onClick={() => setTab("events")}>События</button>
           </div>
         </section>
@@ -120,7 +135,7 @@ export const GuildScreen = () => {
               <div className="profile-cell"><span>Репутация</span><strong>{playerGuild.reputation}</strong></div>
               <div className="profile-cell"><span>PvP рейтинг</span><strong>{playerGuild.pvpRating}</strong></div>
               <div className="profile-cell"><span>Активные войны</span><strong>{activeWars.length}</strong></div>
-              <div className="profile-cell"><span>Твоя роль</span><strong>{guildRoleIcon(playerGuild, server.player.id)} {guildRole(playerGuild, server.player.id)}</strong></div>
+              <div className="profile-cell"><span>Твоя роль</span><strong>{guildRole(playerGuild, server.player.id)}</strong></div>
               <div className="profile-cell"><span>ГМ</span><strong>{renderNpcLink(playerGuild.leaderId)}</strong></div>
               <div className="profile-cell"><span>Зам</span><strong>{renderNpcLink(playerGuild.deputyId)}</strong></div>
               <div className="profile-cell wide-cell"><span>Офицеры</span><strong>{officerText}</strong></div>
@@ -154,7 +169,7 @@ export const GuildScreen = () => {
             <div className="list-lines scroll-list">
               {roster.map((member: any) => (
                 <div key={member.id} className="list-line">
-                  {member.id === server.player.id ? <span>{guildRoleIcon(playerGuild, member.id)} {member.name} · ты</span> : <button className="text-button" onClick={() => openNpcProfile(member.id)}>{guildRoleIcon(playerGuild, member.id)} {member.name}</button>}
+                  {member.id === server.player.id ? <span>{member.name} · ты</span> : <button className="text-button" onClick={() => openNpcProfile(member.id)}>{member.name}</button>}
                   <strong>{guildRole(playerGuild, member.id)} · Lv. {member.level} · Gear {gearOf(member)} · {getClassName(member.classId)}</strong>
                 </div>
               ))}
@@ -183,7 +198,6 @@ export const GuildScreen = () => {
           </section>
         )}
 
-        {tab === "wars" && <GuildWarPanel />}
         {tab === "events" && (
           <section className="panel">
             <div className="section-title">События</div>
@@ -203,6 +217,10 @@ export const GuildScreen = () => {
     <div className="screen-stack">
       <section className="panel hero-panel">
         <div className="section-title">Гильдии</div>
+        <div className="tab-row">
+          <button className="active" onClick={() => setMainTab("guilds")}>Гильдии</button>
+          <button onClick={() => setMainTab("wars")}>Войны</button>
+        </div>
         <div className="title-row"><h1>Список гильдий</h1>{playerGuild && <button onClick={() => setShowAllGuilds(false)}>Назад</button>}</div>
         <div className="chip-row">{(["all", "high", "mid", "low"] as const).map((tier) => <button key={tier} className={tierFilter === tier ? "active" : ""} onClick={() => setTierFilter(tier)}>{tierLabel[tier]}</button>)}</div>
       </section>
@@ -223,8 +241,6 @@ export const GuildScreen = () => {
           </div>
         </section>
       )}
-
-      <ServerGuildWarList />
 
       <section className="panel">
         <div className="section-title">Топ по общей силе</div>

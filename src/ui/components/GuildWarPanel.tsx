@@ -1,23 +1,25 @@
 import { useMemo, useState } from 'react';
 import { useGameStore } from '../../state/gameStore';
 
-type WarTab = 'active' | 'declare' | 'votes' | 'history';
+type WarTab = 'active' | 'declare' | 'history';
 
-const minutesText = (minute?: number) => {
+const timeText = (day?: number, minute?: number) => {
   const value = minute ?? 0;
-  return `${Math.floor(value / 60).toString().padStart(2, '0')}:${(value % 60).toString().padStart(2, '0')}`;
+  return `День ${day ?? '?'} · ${Math.floor(value / 60).toString().padStart(2, '0')}:${(value % 60).toString().padStart(2, '0')}`;
 };
 
 export const GuildWarPanel = () => {
   const server = useGameStore((state) => state.server);
-  const voteGuildWar = useGameStore((state) => state.voteGuildWar);
   const declareGuildWar = useGameStore((state) => state.declareGuildWar);
   const openGuildProfile = useGameStore((state) => state.openGuildProfile);
+  const openNpcProfile = useGameStore((state) => state.openNpcProfile);
   const [tab, setTab] = useState<WarTab>('active');
+  const [selectedWarId, setSelectedWarId] = useState<string | null>(null);
 
   const playerGuildId = server.player.guildId;
   const playerGuild = server.guilds.find((guild) => guild.id === playerGuildId);
   const guildName = (id?: string) => server.guilds.find((guild) => guild.id === id)?.name ?? id ?? '???';
+  const npcName = (id?: string) => server.npcs.find((npc) => npc.id === id)?.name ?? id ?? '???';
 
   const relevantWars = useMemo(() => (server.guildWars ?? []).filter((war) =>
     !playerGuildId || war.attackerGuildId === playerGuildId || war.defenderGuildId === playerGuildId,
@@ -25,9 +27,7 @@ export const GuildWarPanel = () => {
 
   const activeWars = relevantWars.filter((war) => war.status === 'active');
   const historyWars = relevantWars.filter((war) => war.status !== 'active');
-  const votes = (server.guildWarVotes ?? []).filter((vote) =>
-    !playerGuildId || vote.proposerGuildId === playerGuildId || vote.targetGuildId === playerGuildId || vote.guildId === playerGuildId,
-  );
+  const selectedWar = (server.guildWars ?? []).find((war) => war.id === selectedWarId) ?? activeWars[0];
 
   const enemyCandidates = server.guilds
     .filter((guild) => guild.id !== playerGuildId)
@@ -43,30 +43,76 @@ export const GuildWarPanel = () => {
     })
     .slice(0, 20);
 
+  const topList = (warId: string, guildId: string) => {
+    const war = server.guildWars.find((entry) => entry.id === warId);
+    if (!war) return [];
+    const map = new Map<string, number>();
+    war.killRecords
+      .filter((record) => record.killerGuildId === guildId)
+      .forEach((record) => map.set(record.killerId, (map.get(record.killerId) ?? 0) + 1));
+    return [...map.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 5);
+  };
+
   return (
     <section className="panel">
       <div className="section-title">Войны гильдии</div>
       <div className="tab-row">
         <button className={tab === 'active' ? 'active' : ''} onClick={() => setTab('active')}>Активные</button>
         <button className={tab === 'declare' ? 'active' : ''} onClick={() => setTab('declare')}>Объявить войну</button>
-        <button className={tab === 'votes' ? 'active' : ''} onClick={() => setTab('votes')}>Голосования</button>
         <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>История</button>
       </div>
 
       {tab === 'active' && (
-        <div className="list-lines">
-          {activeWars.length === 0 && <span className="muted">Активных войн нет.</span>}
-          {activeWars.map((war) => (
-            <div key={war.id} className="list-line danger-line">
-              <span>
-                <button className="text-button danger-text" onClick={() => openGuildProfile(war.attackerGuildId)}>{guildName(war.attackerGuildId)}</button>
-                {' '}vs{' '}
-                <button className="text-button danger-text" onClick={() => openGuildProfile(war.defenderGuildId)}>{guildName(war.defenderGuildId)}</button>
-                <small>День {war.startsDay ?? war.declaredDay} · до дня {war.endsDay}</small>
-              </span>
-              <strong>{war.attackerKills}:{war.defenderKills}</strong>
-            </div>
-          ))}
+        <div className="grid-two">
+          <div className="list-lines">
+            {activeWars.length === 0 && <span className="muted">Активных войн нет.</span>}
+            {activeWars.map((war) => (
+              <div key={war.id} className={`list-line danger-line ${selectedWar?.id === war.id ? 'active' : ''}`}>
+                <span>
+                  <button className="text-button danger-text" onClick={() => openGuildProfile(war.attackerGuildId)}>{guildName(war.attackerGuildId)}</button>
+                  {' '}vs{' '}
+                  <button className="text-button danger-text" onClick={() => openGuildProfile(war.defenderGuildId)}>{guildName(war.defenderGuildId)}</button>
+                  <small>конец: {timeText(war.endsDay, war.endsMinute)}</small>
+                </span>
+                <strong>{war.attackerKills}:{war.defenderKills}</strong>
+                <button onClick={() => setSelectedWarId(war.id)}>Профиль</button>
+              </div>
+            ))}
+          </div>
+
+          {selectedWar && (
+            <section className="panel nested-panel">
+              <div className="section-title">Профиль войны</div>
+              <h3>{guildName(selectedWar.attackerGuildId)} vs {guildName(selectedWar.defenderGuildId)}</h3>
+              <p className="muted">Счёт {selectedWar.attackerKills}:{selectedWar.defenderKills} · завершение: {timeText(selectedWar.endsDay, selectedWar.endsMinute)}</p>
+              <div className="grid-two">
+                <div>
+                  <div className="section-title">{guildName(selectedWar.attackerGuildId)} · топ-5</div>
+                  <div className="list-lines">
+                    {topList(selectedWar.id, selectedWar.attackerGuildId).length === 0 && <span className="muted">Убийств нет.</span>}
+                    {topList(selectedWar.id, selectedWar.attackerGuildId).map(([id, kills], index) => (
+                      <div key={id} className="list-line">
+                        <button className="text-button" onClick={() => openNpcProfile(id)}>{index + 1}. {npcName(id)}</button>
+                        <strong>{kills}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="section-title">{guildName(selectedWar.defenderGuildId)} · топ-5</div>
+                  <div className="list-lines">
+                    {topList(selectedWar.id, selectedWar.defenderGuildId).length === 0 && <span className="muted">Убийств нет.</span>}
+                    {topList(selectedWar.id, selectedWar.defenderGuildId).map(([id, kills], index) => (
+                      <div key={id} className="list-line">
+                        <button className="text-button" onClick={() => openNpcProfile(id)}>{index + 1}. {npcName(id)}</button>
+                        <strong>{kills}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
         </div>
       )}
 
@@ -84,26 +130,6 @@ export const GuildWarPanel = () => {
               </div>
             );
           })}
-        </div>
-      )}
-
-      {tab === 'votes' && (
-        <div className="list-lines">
-          {votes.length === 0 && <span className="muted">Голосований нет.</span>}
-          {votes.map((vote) => (
-            <div key={vote.id} className="list-line">
-              <span>
-                <strong>{guildName(vote.proposerGuildId)} → {guildName(vote.targetGuildId)}</strong>
-                <small>Да: {vote.yesNpcIds?.length ?? 0} · Нет: {vote.noNpcIds?.length ?? 0} · до {minutesText(vote.endsMinute)}</small>
-              </span>
-              {playerGuild && (vote.proposerGuildId === playerGuild.id || vote.guildId === playerGuild.id) && (
-                <span className="action-grid compact-actions">
-                  <button onClick={() => voteGuildWar(vote.id, 'yes')}>За</button>
-                  <button onClick={() => voteGuildWar(vote.id, 'no')}>Против</button>
-                </span>
-              )}
-            </div>
-          ))}
         </div>
       )}
 
@@ -125,24 +151,62 @@ export const GuildWarPanel = () => {
 export const ServerGuildWarList = () => {
   const server = useGameStore((state) => state.server);
   const openGuildProfile = useGameStore((state) => state.openGuildProfile);
+  const openNpcProfile = useGameStore((state) => state.openNpcProfile);
+  const [selectedWarId, setSelectedWarId] = useState<string | null>(null);
   const activeWars = (server.guildWars ?? []).filter((war) => war.status === 'active');
+  const selectedWar = (server.guildWars ?? []).find((war) => war.id === selectedWarId) ?? activeWars[0];
   const guildName = (id?: string) => server.guilds.find((guild) => guild.id === id)?.name ?? id ?? '???';
+  const npcName = (id?: string) => server.npcs.find((npc) => npc.id === id)?.name ?? id ?? '???';
+  const topList = (warId: string, guildId: string) => {
+    const war = server.guildWars.find((entry) => entry.id === warId);
+    if (!war) return [];
+    const map = new Map<string, number>();
+    war.killRecords.filter((record) => record.killerGuildId === guildId).forEach((record) => map.set(record.killerId, (map.get(record.killerId) ?? 0) + 1));
+    return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  };
 
   return (
     <section className="panel">
       <div className="section-title">Войны сервера</div>
-      <div className="list-lines">
-        {activeWars.length === 0 && <span className="muted">Активных войн нет.</span>}
-        {activeWars.slice(0, 12).map((war) => (
-          <div key={war.id} className="list-line danger-line">
-            <span>
-              <button className="text-button danger-text" onClick={() => openGuildProfile(war.attackerGuildId)}>{guildName(war.attackerGuildId)}</button>
-              {' '}vs{' '}
-              <button className="text-button danger-text" onClick={() => openGuildProfile(war.defenderGuildId)}>{guildName(war.defenderGuildId)}</button>
-            </span>
-            <strong>{war.attackerKills}:{war.defenderKills}</strong>
-          </div>
-        ))}
+      <div className="grid-two">
+        <div className="list-lines">
+          {activeWars.length === 0 && <span className="muted">Активных войн нет.</span>}
+          {activeWars.slice(0, 24).map((war) => (
+            <div key={war.id} className="list-line danger-line">
+              <span>
+                <button className="text-button danger-text" onClick={() => openGuildProfile(war.attackerGuildId)}>{guildName(war.attackerGuildId)}</button>
+                {' '}vs{' '}
+                <button className="text-button danger-text" onClick={() => openGuildProfile(war.defenderGuildId)}>{guildName(war.defenderGuildId)}</button>
+                <small>конец: {timeText(war.endsDay, war.endsMinute)}</small>
+              </span>
+              <strong>{war.attackerKills}:{war.defenderKills}</strong>
+              <button onClick={() => setSelectedWarId(war.id)}>Профиль</button>
+            </div>
+          ))}
+        </div>
+        {selectedWar && (
+          <section className="panel nested-panel">
+            <div className="section-title">Профиль войны</div>
+            <h3>{guildName(selectedWar.attackerGuildId)} vs {guildName(selectedWar.defenderGuildId)}</h3>
+            <p className="muted">Счёт {selectedWar.attackerKills}:{selectedWar.defenderKills} · завершение: {timeText(selectedWar.endsDay, selectedWar.endsMinute)}</p>
+            <div className="grid-two">
+              {[selectedWar.attackerGuildId, selectedWar.defenderGuildId].map((guildId) => (
+                <div key={guildId}>
+                  <div className="section-title">{guildName(guildId)} · топ-5</div>
+                  <div className="list-lines">
+                    {topList(selectedWar.id, guildId).length === 0 && <span className="muted">Убийств нет.</span>}
+                    {topList(selectedWar.id, guildId).map(([id, kills], index) => (
+                      <div key={id} className="list-line">
+                        <button className="text-button" onClick={() => openNpcProfile(id)}>{index + 1}. {npcName(id)}</button>
+                        <strong>{kills}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </section>
   );
