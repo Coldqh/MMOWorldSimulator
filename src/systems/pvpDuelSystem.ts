@@ -1,4 +1,4 @@
-import type { CombatState, Combatant, NpcPlayer, PartyRoleMap, ServerState } from '../types/game';
+import type { CombatAggression, CombatState, Combatant, CombatantV2, CombatTeamV2, NpcPlayer, PartyRole, PartyRoleMap, ServerState } from '../types/game';
 import type { Rng } from '../engine/rng';
 import { uid } from '../engine/rng';
 import { getPlayerStats } from './itemSystem';
@@ -10,13 +10,24 @@ import {
   getWarAttackCooldownMinutes,
 } from './npcLocationSystem';
 
-const totalMinute = (day: number, minute: number) => (Math.max(1, day) - 1) * 1440 + Math.max(0, minute);
-
-const classRole = (classId?: string) => {
+const classRole = (classId?: string): PartyRole => {
   if (classId === 'warrior') return 'tank';
   if (classId === 'priest') return 'healer';
   if (classId === 'mage') return 'magicDps';
   return 'physicalDps';
+};
+
+const aggressionForRole = (role: PartyRole, pvp = false): CombatAggression => {
+  if (role === 'tank') return 'reckless';
+  if (role === 'healer') return 'defensive';
+  if (role === 'physicalDps' || role === 'magicDps') return pvp ? 'aggressive' : 'balanced';
+  return 'balanced';
+};
+
+const targetPriorityForRole = (role: PartyRole) => {
+  if (role === 'tank') return 'enemyDps' as const;
+  if (role === 'healer') return 'enemyDps' as const;
+  return 'lowestHp' as const;
 };
 
 const makePartyRoles = (playerId: string, partyNpcIds: string[], npcs: NpcPlayer[]): PartyRoleMap => {
@@ -62,13 +73,79 @@ const npcCombatant = (npc: NpcPlayer): Combatant => {
   };
 };
 
-const activeWarIdForGuilds = (server: ServerState, guildA?: string, guildB?: string) => {
-  if (!guildA || !guildB) return 'guild_war_duel';
-  return (server.guildWars ?? []).find((war) =>
-    war.status === 'active' &&
-    ((war.attackerGuildId === guildA && war.defenderGuildId === guildB) ||
-      (war.defenderGuildId === guildA && war.attackerGuildId === guildB)),
-  )?.id ?? 'guild_war_duel';
+const npcCombatantV2 = (npc: NpcPlayer, teamId: 'teamA' | 'teamB', index: number): CombatantV2 => {
+  const legacy = npcCombatant(npc);
+  const role = classRole(npc.classId);
+  const pvp = npc.playstyle === 'pvp' || ['PVP_PLAYER', 'HARDCORE', 'GUILD_PLAYER', 'LEADER'].includes(npc.roleFocus);
+  return {
+    id: `${teamId}_${npc.id}_${index}`,
+    sourceId: npc.id,
+    name: npc.name,
+    kind: 'npcPlayer',
+    controller: 'npc',
+    teamId,
+    level: npc.level,
+    classId: npc.classId,
+    role,
+    maxHp: legacy.maxHp,
+    hp: legacy.hp,
+    maxMana: legacy.maxMana,
+    mana: legacy.mana,
+    attack: legacy.attack,
+    magic: legacy.magic,
+    defense: legacy.defense,
+    speed: legacy.speed,
+    shield: legacy.shield,
+    gearScore: npc.gearScore,
+    skill: npc.skill ?? 5,
+    aggression: aggressionForRole(role, pvp),
+    targetPriority: targetPriorityForRole(role),
+    threat: {},
+    cooldowns: {},
+    defending: false,
+    alive: true,
+    damageDealt: 0,
+    damageTaken: 0,
+    healingDone: 0,
+    kills: 0,
+  };
+};
+
+const playerCombatantV2 = (server: ServerState): CombatantV2 => {
+  const stats = getPlayerStats(server.player);
+  const role = classRole(server.player.classId);
+  return {
+    id: 'teamA_player',
+    sourceId: server.player.id,
+    name: server.player.name,
+    kind: 'player',
+    controller: 'player',
+    teamId: 'teamA',
+    level: server.player.level,
+    classId: server.player.classId,
+    role,
+    maxHp: stats.hp,
+    hp: Math.max(1, Math.min(server.player.hp, stats.hp)),
+    maxMana: stats.mana,
+    mana: Math.max(0, Math.min(server.player.mana, stats.mana)),
+    attack: stats.attack,
+    magic: stats.magic,
+    defense: stats.defense,
+    speed: stats.speed,
+    shield: 0,
+    gearScore: Object.values(server.player.equipment ?? {}).length * 100,
+    skill: 7,
+    aggression: aggressionForRole(role, true),
+    targetPriority: targetPriorityForRole(role),
+    threat: {},
+    cooldowns: {},
+    defending: false,
+    alive: true,
+    damageDealt: 0,
+    damageTaken: 0,
+    healingDone: 0,
+    kills: 0,
+  };
 };
 
 const aggregateEnemies = (enemies: NpcPlayer[]): Combatant => {
@@ -77,7 +154,7 @@ const aggregateEnemies = (enemies: NpcPlayer[]): Combatant => {
   const avg = (getter: (enemy: Combatant) => number) => Math.max(1, Math.round(combatants.reduce((sum, enemy) => sum + getter(enemy), 0) / Math.max(1, combatants.length)));
   return {
     id: enemies.length === 1 ? enemies[0].id : `enemy_group_${enemies.map((npc) => npc.id).join('_')}`,
-    name: enemies.length === 1 ? enemies[0].name : `Группа врагов · ${enemies.length}`,
+    name: enemies.length === 1 ? enemies[0].name : `Враги · ${enemies.length}`,
     level: avg((enemy) => enemy.level),
     classId: enemies.length === 1 ? enemies[0].classId : 'ranger',
     maxHp: totalHp,
@@ -92,6 +169,15 @@ const aggregateEnemies = (enemies: NpcPlayer[]): Combatant => {
     cooldowns: {},
     defending: false,
   };
+};
+
+const activeWarIdForGuilds = (server: ServerState, guildA?: string, guildB?: string) => {
+  if (!guildA || !guildB) return 'guild_war_duel';
+  return (server.guildWars ?? []).find((war) =>
+    war.status === 'active' &&
+    ((war.attackerGuildId === guildA && war.defenderGuildId === guildB) ||
+      (war.defenderGuildId === guildA && war.attackerGuildId === guildB)),
+  )?.id ?? 'guild_war_duel';
 };
 
 const pickGuildmateAssistants = (server: ServerState, rng: Rng, maxCount = 2) => {
@@ -116,6 +202,20 @@ const buildWarDuelCombat = (server: ServerState, enemies: NpcPlayer[], allies: N
   const enemyGuildId = enemies.find((npc) => npc.guildId)?.guildId;
   const allyIds = allies.map((npc) => npc.id);
   const enemyIds = enemies.map((npc) => npc.id);
+  const teamA: CombatTeamV2 = {
+    id: 'teamA',
+    name: allies.length > 0 ? 'Ты и союзники' : 'Ты',
+    faction: 'guild',
+    guildId: server.player.guildId,
+    members: [playerCombatantV2(server), ...allies.map((npc, index) => npcCombatantV2(npc, 'teamA', index))],
+  };
+  const teamB: CombatTeamV2 = {
+    id: 'teamB',
+    name: enemies.length > 1 ? 'Нападающие' : 'Противник',
+    faction: 'guild',
+    guildId: enemyGuildId,
+    members: enemies.map((npc, index) => npcCombatantV2(npc, 'teamB', index)),
+  };
 
   return {
     id: uid(startedBy === 'player' ? 'war_duel' : 'war_ambush', rng),
@@ -124,6 +224,13 @@ const buildWarDuelCombat = (server: ServerState, enemies: NpcPlayer[], allies: N
     enemyNpcId: enemies[0].id,
     enemyNpcIds: enemyIds,
     allyNpcIds: allyIds,
+    arenaMode: '3v3',
+    teamA,
+    teamB,
+    activeCombatantId: teamA.members[0].id,
+    winnerTeamId: undefined,
+    recentEvents: [],
+    round: 1,
     player: {
       ...player,
       hp: Math.max(1, Math.min(server.player.hp, playerStats.hp)),
@@ -150,7 +257,7 @@ export const startWarNpcDuelCombat = (server: ServerState, npcId: string, rng: R
   if (!first) return null;
   const sameGuildEnemies = getEnemyWarNpcsInPlayerLocation(server)
     .filter((npc) => npc.id === first.id || npc.guildId === first.guildId)
-    .slice(0, 4);
+    .slice(0, 5);
   const allies = pickGuildmateAssistants(server, rng, rng.chance(0.45) ? 2 : 1);
   return buildWarDuelCombat(server, sameGuildEnemies, allies, rng, 'player');
 };
@@ -166,15 +273,8 @@ export const startWarNpcAmbushCombat = (server: ServerState, rng: Rng): CombatSt
   });
   if (attackers.length === 0) return null;
   const allies = pickGuildmateAssistants(server, rng, rng.chance(0.55) ? 2 : 1);
-  return buildWarDuelCombat(server, attackers.slice(0, 4), allies, rng, 'npc');
+  return buildWarDuelCombat(server, attackers.slice(0, 5), allies, rng, 'npc');
 };
-
-const combatLocationKey = (server: ServerState) =>
-  server.location.mode === 'spot'
-    ? server.location.spotId
-    : server.location.mode === 'zone'
-      ? server.location.zoneId
-      : 'city';
 
 const notAlreadyInCombat = (combat: CombatState, npc: NpcPlayer) =>
   !(combat.partyNpcIds ?? []).includes(npc.id) && !(combat.enemyNpcIds ?? []).includes(npc.id) && combat.enemyNpcId !== npc.id;
@@ -185,7 +285,6 @@ export const maybeAddWarDuelReinforcements = (server: ServerState, combat: Comba
 
   let next = { ...combat };
   const log = [...next.log];
-  const playerGuildId = server.player.guildId;
   const currentEnemyIds = next.enemyNpcIds && next.enemyNpcIds.length > 0
     ? next.enemyNpcIds
     : next.enemyNpcId
@@ -197,17 +296,19 @@ export const maybeAddWarDuelReinforcements = (server: ServerState, combat: Comba
       .filter((id): id is string => Boolean(id)),
   );
 
-  if (playerGuildId && rng.chance(0.18)) {
+  if (server.player.guildId && rng.chance(0.18)) {
     const ally = getGuildmateNpcsInPlayerLocation(server)
       .filter((npc) => notAlreadyInCombat(next, npc))
       .sort((a, b) => (b.gearScore ?? 0) - (a.gearScore ?? 0))[0];
     if (ally) {
       const allyIds = [...(next.partyNpcIds ?? []), ally.id];
+      const allyUnit = npcCombatantV2(ally, 'teamA', allyIds.length);
       next = {
         ...next,
         partyNpcIds: allyIds,
         allyNpcIds: [...(next.allyNpcIds ?? []), ally.id],
         partyRoles: makePartyRoles(server.player.id, allyIds, server.npcs),
+        teamA: next.teamA ? { ...next.teamA, members: [...next.teamA.members, allyUnit] } : next.teamA,
         log,
       };
       log.push(`${ally.name} пришёл на помощь.`);
@@ -221,12 +322,14 @@ export const maybeAddWarDuelReinforcements = (server: ServerState, combat: Comba
       .sort((a, b) => (b.gearScore ?? 0) - (a.gearScore ?? 0))[0];
     if (enemy) {
       const enemyCombatant = npcCombatant(enemy);
+      const enemyUnit = npcCombatantV2(enemy, 'teamB', currentEnemyIds.length);
       next = {
         ...next,
         enemyNpcIds: [...currentEnemyIds, enemy.id],
+        teamB: next.teamB ? { ...next.teamB, members: [...next.teamB.members, enemyUnit] } : next.teamB,
         enemy: {
           ...next.enemy,
-          name: next.enemy.name.startsWith('Группа врагов') ? `Группа врагов · ${(next.enemyNpcIds?.length ?? 1) + 1}` : `Группа врагов · ${(next.enemyNpcIds?.length ?? 1) + 1}`,
+          name: `Враги · ${currentEnemyIds.length + 1}`,
           maxHp: next.enemy.maxHp + enemyCombatant.maxHp,
           hp: next.enemy.hp + enemyCombatant.maxHp,
           maxMana: next.enemy.maxMana + enemyCombatant.maxMana,

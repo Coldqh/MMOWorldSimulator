@@ -36,7 +36,7 @@ export const CombatPanel = () => {
   const skillIds = getUsableSkillIds(server);
   const party = combat.partyMembers ?? [];
   const consumables = getCombatConsumables(server.player.inventory, server.player.level);
-  const isTeamCombat = combat.arenaMode === '3v3' && combat.teamA && combat.teamB;
+  const isTeamCombat = Boolean(combat.teamA && combat.teamB);
 
   if (isTeamCombat) {
     const allMembers = [...combat.teamA!.members, ...combat.teamB!.members];
@@ -68,15 +68,15 @@ export const CombatPanel = () => {
         <section className="panel combat-panel">
           <div className="combat-header">
             <div>
-              <div className="section-title">⚔️ Арена 3v3 · Раунд {combat.turn}</div>
+              <div className="section-title">⚔️ {combat.source === 'guild_war' ? 'Дуэль войны' : 'Арена 3v3'} · Раунд {combat.turn}</div>
               <h1>{combat.teamA!.name} vs {combat.teamB!.name}</h1>
             </div>
-            <span className="combat-source">3v3</span>
+            <span className="combat-source">{combat.source === 'guild_war' ? 'WAR' : '3v3'}</span>
           </div>
 
           <div className="grid-two">
-            {renderTeam('Твоя команда', combat.teamA!.members)}
-            {renderTeam('Соперники', combat.teamB!.members, true)}
+            {renderTeam(combat.teamA!.name || 'Твоя команда', combat.teamA!.members)}
+            {renderTeam(combat.teamB!.name || 'Соперники', combat.teamB!.members, true)}
           </div>
 
           <div className="action-grid combat-actions">

@@ -15,6 +15,7 @@ import type {
 } from '../types/game';
 import { getGearScore, getPlayerStats } from './itemSystem';
 import { addPlayerXp } from './progressionSystem';
+import { finishGuildWarDefeatV2, finishGuildWarVictoryV2 } from './guildWarCombatResultSystem';
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, Math.round(value)));
 
@@ -538,6 +539,7 @@ const finishIfNeeded = (server: ServerState, combat: CombatState, rng: Rng): { s
   if (aAlive && bAlive) return { server, combat: syncLegacyCombat(combat) };
 
   const playerWon = aAlive && !bAlive;
+  if (combat.source === 'guild_war') return playerWon ? finishGuildWarVictoryV2(server, combat, rng) : finishGuildWarDefeatV2(server, combat, rng);
   const enemyNpcIds = combat.enemyNpcIds ?? [];
   const allyNpcIds = combat.allyNpcIds ?? [];
   const enemyAvgRating = enemyNpcIds.length
