@@ -24,3 +24,22 @@ if (fail.length) {
 }
 console.log('Smoke passed:');
 ok.forEach((msg) => console.log(`- ${msg}`));
+
+const smokeV0727 = {
+  siege: fs.readFileSync('src/systems/siegeSystem.ts', 'utf8'),
+  guildWar: fs.readFileSync('src/systems/guildWarSystem.ts', 'utf8'),
+  combat: fs.readFileSync('src/ui/components/CombatPanel.tsx', 'utf8'),
+};
+if (!smokeV0727.siege.includes('registerGuildsForCastleNow(next, castle)')) {
+  console.error('Smoke failed: siege rosters are not forced at due time');
+  process.exit(1);
+}
+if (!smokeV0727.guildWar.includes('hasOpenWarBetween') || !smokeV0727.guildWar.includes('notifyPlayerGuildWarVotes')) {
+  console.error('Smoke failed: guild war duplicate/vote fix missing');
+  process.exit(1);
+}
+if (!smokeV0727.combat.includes('team-combat-layout')) {
+  console.error('Smoke failed: compact team combat layout missing');
+  process.exit(1);
+}
+console.log('Smoke passed: v0.7.27 guild war siege ui fix');

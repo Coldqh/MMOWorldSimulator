@@ -127,6 +127,66 @@ const registrationWindowOpen = (server: ServerState, castle: Castle) => {
   return now >= due - REGISTRATION_DAYS_BEFORE * 1440 && now < due;
 };
 
+
+const selectSiegeGuildsForCastle = (server: ServerState, castle: Castle): Guild[] => {
+  const playerGuildId = server.player.guildId;
+  const candidates = server.guilds
+    .filter((guild) => castleTierAllowed(guild, castle))
+    .filter((guild) => chooseSiegeRosterMembers(server, guild, MAX_ROSTER_SIZE).length >= MIN_ROSTER_SIZE)
+    .sort((a, b) => {
+      if (a.id === castle.ownerGuildId) return -1;
+      if (b.id === castle.ownerGuildId) return 1;
+      if (a.id === playerGuildId) return -1;
+      if (b.id === playerGuildId) return 1;
+      return guildPower(server, b) - guildPower(server, a) || (b.pvpRating ?? 0) - (a.pvpRating ?? 0);
+    });
+
+  const picked: Guild[] = [];
+  const add = (guild?: Guild) => {
+    if (!guild) return;
+    if (picked.some((entry) => entry.id === guild.id)) return;
+    if (picked.length >= MAX_GUILDS_PER_SIEGE) return;
+    picked.push(guild);
+  };
+
+  add(candidates.find((guild) => guild.id === castle.ownerGuildId));
+  add(candidates.find((guild) => guild.id === playerGuildId));
+  candidates.forEach(add);
+  return picked;
+};
+
+const registerGuildsForCastleNow = (server: ServerState, castle: Castle): ServerState => {
+  let next = { ...server, castles: normalizeCastles(server), siegeRosters: [...(server.siegeRosters ?? [])] };
+  const rosters = [...(next.siegeRosters ?? [])];
+
+  selectSiegeGuildsForCastle(next, castle).forEach((guild) => {
+    const memberIds = chooseSiegeRosterMembers(next, guild, MAX_ROSTER_SIZE);
+    if (memberIds.length < MIN_ROSTER_SIZE) return;
+    rosters.splice(0, rosters.length, ...upsertRoster(rosters, {
+      castleId: castle.id,
+      guildId: guild.id,
+      memberIds,
+      registeredDay: next.serverDay,
+      registeredMinute: next.currentMinute,
+    }));
+  });
+
+  const byCastle = new Map<string, Set<string>>();
+  rosters.forEach((roster) => {
+    if (!byCastle.has(roster.castleId)) byCastle.set(roster.castleId, new Set());
+    byCastle.get(roster.castleId)!.add(roster.guildId);
+  });
+
+  next = {
+    ...next,
+    siegeRosters: rosters,
+    castles: (next.castles ?? []).map((entry) => ({ ...entry, registeredGuildIds: Array.from(byCastle.get(entry.id) ?? new Set()) })),
+  };
+
+  return notifyPlayerIfRostered(next);
+};
+
+
 const autoRegisterNpcGuildsForOpenSieges = (server: ServerState): ServerState => {
   let next = { ...server, castles: normalizeCastles(server), siegeRosters: server.siegeRosters ?? [] };
   const rosters = [...(next.siegeRosters ?? [])];
@@ -134,7 +194,7 @@ const autoRegisterNpcGuildsForOpenSieges = (server: ServerState): ServerState =>
   for (const castle of next.castles ?? []) {
     if (!registrationWindowOpen(next, castle)) continue;
 
-    const selectedGuilds = eligibleNpcGuildsForCastle(next, castle);
+    const selectedGuilds = selectSiegeGuildsForCastle(next, castle);
     for (const guild of selectedGuilds) {
       const strongest = chooseSiegeRosterMembers(next, guild, MAX_ROSTER_SIZE);
       if (strongest.length < MIN_ROSTER_SIZE) continue;
@@ -540,8 +600,10 @@ export const tickSieges = (server: ServerState, rng: Rng, _minutes = 0): ServerS
     const due = totalMinute(castle.nextSiegeDay, castle.nextSiegeMinute);
     if (now < due) continue;
     if (castle.lastResolvedSiegeDay === next.serverDay) continue;
+    next = registerGuildsForCastleNow(next, castle);
+    const latestCastle = (next.castles ?? []).find((entry) => entry.id === castle.id) ?? castle;
     const rosters = (next.siegeRosters ?? []).filter((roster) => roster.castleId === castle.id);
-    next = openDueSiege(next, castle, rosters, rng);
+    next = openDueSiege(next, latestCastle, rosters, rng);
   }
   return next;
 };

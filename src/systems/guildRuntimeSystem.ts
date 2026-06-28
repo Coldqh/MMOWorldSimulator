@@ -27,6 +27,34 @@ const clamp = (value: number, min: number, max: number) => Math.max(min, Math.mi
 const totalMinute = (day: number, minute: number) => (Math.max(1, day) - 1) * 1440 + Math.max(0, minute);
 const npcPower = (npc: NpcPlayer) => Math.max(1, (npc.gearScore ?? 1) * (0.55 + clamp(npc.skill ?? 5, 1, 10) * 0.11));
 
+
+const addMinutesToClockRuntime = (day: number, minute: number, add: number) => {
+  const total = totalMinute(day, minute) + Math.max(0, Math.round(add));
+  return { day: Math.floor(total / 1440) + 1, minute: total % 1440 };
+};
+const runtimePairKey = (a: Id, b: Id) => [a, b].sort().join('::');
+const openRuntimeWarExists = (server: ServerState, a: Id, b: Id) =>
+  (server.guildWars ?? []).some((war) => (war.status === 'active' || war.status === 'scheduled' || war.status === 'pending_votes') && runtimePairKey(war.attackerGuildId, war.defenderGuildId) === runtimePairKey(a, b));
+const startScheduledRuntimeWars = (server: ServerState): ServerState => ({
+  ...server,
+  guildWars: (server.guildWars ?? []).map((war) => war.status === 'scheduled' && totalMinute(server.serverDay, server.currentMinute) >= totalMinute(war.startsDay ?? war.declaredDay, war.startsMinute ?? war.declaredMinute)
+    ? { ...war, status: 'active' as const, lastSimulatedDay: server.serverDay, lastSimulatedMinute: server.currentMinute }
+    : war),
+});
+const dedupeRuntimeWarPairs = (server: ServerState): ServerState => {
+  const seen = new Set<string>();
+  return {
+    ...server,
+    guildWars: (server.guildWars ?? []).map((war) => {
+      const key = runtimePairKey(war.attackerGuildId, war.defenderGuildId);
+      if ((war.status === 'active' || war.status === 'scheduled' || war.status === 'pending_votes') && seen.has(key)) return { ...war, status: 'cancelled' as const };
+      if (war.status === 'active' || war.status === 'scheduled' || war.status === 'pending_votes') seen.add(key);
+      return war;
+    }),
+  };
+};
+
+
 const soloName = (tier: 'low' | 'mid' | 'high', index: number) => {
   const low = ['Рик', 'Миро', 'Лана', 'Брен', 'Томми', 'Элла', 'Кайл', 'Нора', 'Дэн', 'Сайна', 'Финн'];
   const mid = ['Кай', 'Мел', 'Дора', 'Рей', 'Ник', 'Алис', 'Глен', 'Тея', 'Бруно', 'Лисса', 'Корин'];
@@ -106,7 +134,7 @@ export const normalizeGuildWarsRuntime = (server: ServerState): ServerState => (
 });
 
 const isExpired = (server: ServerState, war: GuildWar) =>
-  war.status === 'active' && totalMinute(server.serverDay, server.currentMinute) >= totalMinute(war.endsDay, war.endsMinute);
+  (war.status === 'active' || war.status === 'scheduled') && totalMinute(server.serverDay, server.currentMinute) >= totalMinute(war.endsDay, war.endsMinute);
 
 const finishExpiredWars = (server: ServerState): ServerState => {
   const finished: GuildWar[] = [];
@@ -164,27 +192,31 @@ const sameTierWarCount = (server: ServerState, tier: 'low' | 'mid' | 'high') =>
     return a?.tier === tier && b?.tier === tier;
   }).length;
 
-const seedWar = (server: ServerState, attackerGuildId: string, defenderGuildId: string, index: number): GuildWar => ({
-  id: `tier_war_${server.seed}_${server.serverDay}_${server.currentMinute}_${attackerGuildId}_${defenderGuildId}_${index}`,
-  attackerGuildId,
-  defenderGuildId,
-  status: 'active',
-  declaredDay: server.serverDay,
-  declaredMinute: server.currentMinute,
-  startsDay: server.serverDay,
-  startsMinute: server.currentMinute,
-  endsDay: server.serverDay + 3,
-  endsMinute: server.currentMinute,
-  durationDays: 3,
-  extensionCount: 0,
-  attackerKills: 0,
-  defenderKills: 0,
-  killRecords: [],
-  attackerTopKillers: [],
-  defenderTopKillers: [],
-  lastSimulatedDay: server.serverDay,
-  lastSimulatedMinute: server.currentMinute,
-});
+const seedWar = (server: ServerState, attackerGuildId: string, defenderGuildId: string, index: number): GuildWar => {
+  const start = addMinutesToClockRuntime(server.serverDay, server.currentMinute, 60 + ((index * 173) % 720));
+  const end = addMinutesToClockRuntime(start.day, start.minute, (3 + (index % 5)) * 1440 + ((index * 97) % 1440));
+  return {
+    id: `tier_war_${server.seed}_${server.serverDay}_${server.currentMinute}_${attackerGuildId}_${defenderGuildId}_${index}`,
+    attackerGuildId,
+    defenderGuildId,
+    status: 'scheduled',
+    declaredDay: server.serverDay,
+    declaredMinute: server.currentMinute,
+    startsDay: start.day,
+    startsMinute: start.minute,
+    endsDay: end.day,
+    endsMinute: end.minute,
+    durationDays: 3 + (index % 5),
+    extensionCount: 0,
+    attackerKills: 0,
+    defenderKills: 0,
+    killRecords: [],
+    attackerTopKillers: [],
+    defenderTopKillers: [],
+    lastSimulatedDay: start.day,
+    lastSimulatedMinute: start.minute,
+  };
+}
 
 const pickTierWarPair = (server: ServerState, tier: 'low' | 'mid' | 'high', used: Set<string>) => {
   const guilds = server.guilds
@@ -201,7 +233,7 @@ const pickTierWarPair = (server: ServerState, tier: 'low' | 'mid' | 'high', used
     for (const b of guilds) {
       if (a.id >= b.id) continue;
       if (used.has(a.id) || used.has(b.id)) continue;
-      if (activeWarExists(server, a.id, b.id)) continue;
+      if (activeWarExists(server, a.id, b.id) || openRuntimeWarExists(server, a.id, b.id)) continue;
       const avg = Math.round((getGuildRelationValue(server, a.id, b.id) + getGuildRelationValue(server, b.id, a.id)) / 2);
       const af = normalizeGuildFocus(a.guildFocus ?? a.type ?? a.focus);
       const bf = normalizeGuildFocus(b.guildFocus ?? b.type ?? b.focus);
@@ -216,7 +248,7 @@ const pickTierWarPair = (server: ServerState, tier: 'low' | 'mid' | 'high', used
 };
 
 export const seedActiveGuildWarsIfEmpty = (server: ServerState): ServerState => {
-  let next = finishExpiredWars(normalizeGuildWarsRuntime(server));
+  let next = dedupeRuntimeWarPairs(finishExpiredWars(startScheduledRuntimeWars(normalizeGuildWarsRuntime(server))));
   const used = new Set<string>();
 
   (['high', 'mid', 'low'] as const).forEach((tier) => {
@@ -277,7 +309,7 @@ const resolveWarDuel = (server: ServerState, war: GuildWar, rng: Rng): GuildWar 
 };
 
 export const simulateGuildWarsEveryHalfHour = (server: ServerState, rng: Rng, minutesAdvanced: number): ServerState => {
-  let next = seedActiveGuildWarsIfEmpty(server);
+  let next = dedupeRuntimeWarPairs(startScheduledRuntimeWars(seedActiveGuildWarsIfEmpty(server)));
   const now = totalMinute(next.serverDay, next.currentMinute);
   const guildWars = next.guildWars.map((war) => {
     if (war.status !== 'active') return war;

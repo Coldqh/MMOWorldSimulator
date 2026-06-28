@@ -40,6 +40,7 @@ export const CombatPanel = () => {
 
   if (isTeamCombat) {
     const allMembers = [...combat.teamA!.members, ...combat.teamB!.members];
+    const compactTeamCombat = allMembers.length >= 10;
     const floatingEvents = combat.floatingEvents ?? [];
     const eventByMember = (member: CombatantV2) => floatingEvents
       .filter((event) => event.sourceId === member.id || event.sourceId === member.sourceId || event.targetId === member.id || event.targetId === member.sourceId)
@@ -52,7 +53,7 @@ export const CombatPanel = () => {
         {members.map((member) => {
           const events = eventByMember(member);
           return (
-            <div key={`${member.id}_${member.hp}_${member.mana}_${member.alive}_${combat.turn}`} className={`party-member-card ${member.controller === 'player' ? 'self-line' : ''} ${danger ? 'danger' : ''} ${member.alive ? '' : 'defeated-card'}`}>
+            <div key={`${member.id}_${member.hp}_${member.mana}_${member.alive}_${combat.turn}`} className={`party-member-card ${compactTeamCombat ? 'team-compact-card' : ''} ${member.controller === 'player' ? 'self-line' : ''} ${danger ? 'danger' : ''} ${member.alive ? '' : 'defeated-card'}`}>
               <div className="party-member-top">
                 <strong>{member.name}{member.alive ? '' : ' · выбит'}</strong>
                 <span>{roleLabel(member)} · {aggressionLabel(member.aggression)}</span>
@@ -98,7 +99,7 @@ export const CombatPanel = () => {
             </div>
           )}
 
-          <div className="grid-two">
+          <div className={`team-combat-layout ${compactTeamCombat ? "team-combat-large" : ""}`}>
             {renderTeam(combat.teamA!.name || 'Твоя команда', combat.teamA!.members)}
             {renderTeam(combat.teamB!.name || 'Соперники', combat.teamB!.members, true)}
           </div>

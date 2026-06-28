@@ -783,3 +783,62 @@ button:hover:not(:disabled) { border-color: rgba(96,165,250,0.75); }
 .siege-cell.guild-3 { background: rgba(255, 123, 123, 0.78); }
 .siege-cell.guild-4 { background: rgba(190, 140, 255, 0.78); }
 .siege-cell.guild-5 { background: rgba(120, 220, 255, 0.78); }
+
+
+.team-combat-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.team-combat-large .party-combat-board {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.team-combat-large .section-title {
+  grid-column: 1 / -1;
+  margin-bottom: 2px;
+}
+.team-compact-card {
+  padding: 6px !important;
+  min-height: 0 !important;
+  font-size: 0.72rem;
+}
+.team-compact-card .party-member-top {
+  gap: 2px;
+}
+.team-compact-card .party-member-top strong {
+  font-size: 0.76rem;
+  line-height: 1.05;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-compact-card .party-member-top span,
+.team-compact-card .resource-meta,
+.team-compact-card .party-round-stats {
+  font-size: 0.62rem;
+}
+.team-compact-card .resource-track {
+  height: 5px;
+}
+.team-compact-card .party-round-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 4px;
+}
+.combat-panel {
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+}
+@media (max-width: 760px) {
+  .team-combat-layout {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .team-combat-large .party-combat-board {
+    grid-template-columns: 1fr;
+  }
+}

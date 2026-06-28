@@ -37,3 +37,31 @@ if (fail.length) {
 }
 console.log('Sanity passed:');
 ok.forEach((msg) => console.log(`- ${msg}`));
+
+const v0727Files = {
+  siege: fs.readFileSync('src/systems/siegeSystem.ts', 'utf8'),
+  combat: fs.readFileSync('src/ui/components/CombatPanel.tsx', 'utf8'),
+  castlePanel: fs.readFileSync('src/ui/components/CastlePanel.tsx', 'utf8'),
+  guildWar: fs.readFileSync('src/systems/guildWarSystem.ts', 'utf8'),
+  guildRuntime: fs.readFileSync('src/systems/guildRuntimeSystem.ts', 'utf8'),
+  styles: fs.readFileSync('src/ui/styles.css', 'utf8'),
+};
+const v0727Checks = [
+  [v0727Files.siege.includes('registerGuildsForCastleNow(next, castle)'), 'siege due-time force registration missing'],
+  [v0727Files.siege.includes('selectSiegeGuildsForCastle'), 'siege guild selector missing'],
+  [v0727Files.combat.includes('team-combat-layout'), 'compact team combat layout missing'],
+  [v0727Files.styles.includes('.team-combat-large'), 'compact team combat css missing'],
+  [v0727Files.castlePanel.includes('Назад'), 'castle back button missing'],
+  [v0727Files.guildWar.includes('hasOpenWarBetween'), 'guild war duplicate guard missing'],
+  [v0727Files.guildWar.includes("status: 'scheduled'"), 'scheduled guild war start missing'],
+  [v0727Files.guildWar.includes('notifyPlayerGuildWarVotes'), 'guild war vote notifications missing'],
+  [v0727Files.guildRuntime.includes('dedupeRuntimeWarPairs'), 'runtime duplicate war dedupe missing'],
+  [v0727Files.guildRuntime.includes('addMinutesToClockRuntime'), 'runtime random war times missing'],
+];
+const v0727Fail = v0727Checks.filter(([ok]) => !ok).map(([, msg]) => msg);
+if (v0727Fail.length) {
+  console.error('Sanity failed:');
+  v0727Fail.forEach((msg) => console.error('- ' + msg));
+  process.exit(1);
+}
+console.log('Sanity passed: v0.7.27 guild war siege ui fix');
