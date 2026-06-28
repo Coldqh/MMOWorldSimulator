@@ -18,7 +18,7 @@ import {
   saveGame,
   SAVE_VERSION,
 } from "../engine/saveLoad";
-import { advanceServerClock, ensureTimeNotRolledBack, totalGameMinutes } from "../engine/time";
+import { advanceServerClock } from "../engine/time";
 import { APP_VERSION } from "../engine/version";
 import { repairServerRuntime, validateServerRuntime } from "../engine/runtimeValidation";
 
@@ -42,8 +42,16 @@ import {
   socketCardIntoEquipment,
   socketCardIntoInventoryItem,
 } from "../systems/itemSystem";
-import { arenaRankIcon, arenaRankName, estimateArenaRatingValue, updateRankings } from "../systems/progressionSystem";
-import { getArenaBracketIdForPlayer, getArenaBracketOpponentPool } from "../systems/arenaBracketSystem";
+import {
+  arenaRankIcon,
+  arenaRankName,
+  estimateArenaRatingValue,
+  updateRankings,
+} from "../systems/progressionSystem";
+import {
+  getArenaBracketIdForPlayer,
+  getArenaBracketOpponentPool,
+} from "../systems/arenaBracketSystem";
 import {
   acceptQuest as acceptQuestState,
   normalizeQuestStates,
@@ -63,8 +71,17 @@ import {
   updateContractsOnDungeonComplete,
   updateContractsOnMobKill,
 } from "../systems/contractSystem";
-import { createPlayerCombatant, resolveCombatAction, startSpotCombat } from "../systems/combatSystem";
-import { completeDungeonFloor, resolveDungeonEventFloor, restInDungeon, startDungeonFloorCombat } from "../systems/dungeonSystem";
+import {
+  createPlayerCombatant,
+  resolveCombatAction,
+  startSpotCombat,
+} from "../systems/combatSystem";
+import {
+  completeDungeonFloor,
+  resolveDungeonEventFloor,
+  restInDungeon,
+  startDungeonFloorCombat,
+} from "../systems/dungeonSystem";
 import { enhanceItem, type EnhanceTarget } from "../systems/enhancementSystem";
 import {
   acceptPartyApplicant as acceptPartyFinderApplicant,
@@ -99,18 +116,29 @@ import {
   seedActiveGuildWarsIfEmpty,
   simulateGuildWarsEveryHalfHour,
 } from "../systems/guildRuntimeSystem";
-import { resolveArenaTeamRound, startArena10v10Combat, startArena3v3Combat, startArena5v5Combat } from "../systems/arena3v3System";
-import { markWarAttackCooldown, maybeAddWarDuelReinforcements, startWarNpcAmbushCombat, startWarNpcDuelCombat } from "../systems/pvpDuelSystem";
 import {
-  advanceCurrentSiege,
-  normalizeSiegeState,
-  registerPlayerGuildForCastle,
-  startCurrentSiege,
-  tickSieges,
-  unregisterPlayerGuildFromCastle,
-} from "../systems/siegeSystem";
+  resolveArenaTeamRound,
+  startArena3v3Combat,
+  startArena5v5Combat,
+  startArena10v10Combat,
+} from "../systems/arena3v3System";
+import {
+  markWarAttackCooldown,
+  maybeAddWarDuelReinforcements,
+  startWarNpcAmbushCombat,
+  startWarNpcDuelCombat,
+} from "../systems/pvpDuelSystem";
+import { normalizeSiegeState, registerPlayerGuildForCastle, tickSieges, unregisterPlayerGuildFromCastle } from "../systems/siegeSystem";
 
-import type { CombatState, GameModal, GuildFocus, LootChoice, ScreenId, ServerNotification, ServerState } from "../types/game";
+import type {
+  CombatState,
+  GameModal,
+  LootChoice,
+  ScreenId,
+  ServerNotification,
+  ServerState,
+  GuildFocus,
+} from "../types/game";
 
 interface GameStore {
   server: ServerState;
@@ -190,8 +218,6 @@ interface GameStore {
   attackWarEnemyNpc: (npcId: string) => void;
   registerSiegeRoster: (castleId: string) => void;
   unregisterSiegeRoster: (castleId: string) => void;
-  startSiege: () => void;
-  siegeStep: (direction: "up" | "down" | "left" | "right" | "auto") => void;
 }
 
 const collectOwnedItemIds = (server: ServerState): string[] => {
@@ -232,42 +258,19 @@ const normalizeEquipmentItemIds = (equipment: any = {}) => {
 };
 
 const simulateServerForMinutes = (server: ServerState, minutes: number, rngInput?: unknown): ServerState => {
-  const safeMinutes = Math.max(0, Math.round(Number.isFinite(minutes) ? minutes : 0));
   const rng = rngInput && typeof (rngInput as any).next === 'function'
     ? (rngInput as any)
-    : createRng((server.seed ?? Date.now()) + server.serverDay * 47000 + server.currentMinute + safeMinutes);
-
-  const expectedTimeServer = advanceServerClock(server, safeMinutes);
-  const expectedTotal = totalGameMinutes(expectedTimeServer);
-
-  const guardTime = (source: string, afterTick: ServerState): ServerState => {
-    if (totalGameMinutes(afterTick) >= expectedTotal) return afterTick;
-    if (import.meta.env.DEV) {
-      console.warn(`[MMOWS] ${source} returned stale time during simulateServerForMinutes`, {
-        afterTick: { day: afterTick.serverDay, minute: afterTick.currentMinute },
-        expected: { day: expectedTimeServer.serverDay, minute: expectedTimeServer.currentMinute },
-      });
-    }
-    return {
-      ...afterTick,
-      serverDay: expectedTimeServer.serverDay,
-      currentMinute: expectedTimeServer.currentMinute,
-      serverWeek: expectedTimeServer.serverWeek,
-    };
-  };
-
-  let next = expectedTimeServer;
-  next = guardTime('ensureSoloNpcPool', ensureSoloNpcPool(next));
-  next = guardTime('seedActiveGuildWarsIfEmpty', seedActiveGuildWarsIfEmpty(next));
-  next = guardTime('tickGuildWars', tickGuildWars(next, rng, safeMinutes));
-  next = guardTime('simulateGuildWarsEveryHalfHour', simulateGuildWarsEveryHalfHour(next, rng, safeMinutes));
-  next = guardTime('repairFreshPlayerGuildLeadership', repairFreshPlayerGuildLeadership(next));
-  next = guardTime('maybeGeneratePlayerGuildApplication', maybeGeneratePlayerGuildApplication(next, rng));
-  next = guardTime('tickSieges', tickSieges(next, rng, safeMinutes));
-
-  return ensureTimeNotRolledBack(server, next, expectedTimeServer, 'simulateServerForMinutes');
+    : createRng((server.seed ?? Date.now()) + server.serverDay * 47000 + server.currentMinute + Math.max(0, minutes));
+  let next = advanceServerClock(server, minutes);
+  next = ensureSoloNpcPool(next);
+  next = seedActiveGuildWarsIfEmpty(next);
+  next = tickGuildWars(next, rng, minutes);
+  next = simulateGuildWarsEveryHalfHour(next, rng, minutes);
+  next = repairFreshPlayerGuildLeadership(next);
+  next = maybeGeneratePlayerGuildApplication(next, rng);
+  next = tickSieges(next, rng, minutes);
+  return next;
 };
-
 
 const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): ServerState => {
   const needsMigration = server.version !== SAVE_VERSION;
@@ -1428,17 +1431,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { server } = get();
     const next = castGuildWarVote(server, voteId, vote);
     commit(set, next, undefined);
-  },
-
-  startSiege: () => {
-    const { server } = get();
-    commit(set, startCurrentSiege(server), null);
-  },
-
-  siegeStep: (direction) => {
-    const { server } = get();
-    const rng = createRng(server.seed + server.serverDay * 9100 + server.currentMinute + (server.currentSiegeRun?.turn ?? 0));
-    commit(set, advanceCurrentSiege(server, rng, direction), null);
   },
 
   registerSiegeRoster: (castleId) => {

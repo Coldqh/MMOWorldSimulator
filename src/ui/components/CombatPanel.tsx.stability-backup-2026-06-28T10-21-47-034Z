@@ -3,16 +3,14 @@ import { getSkillById } from '../../content/classes';
 import { useGameStore } from '../../state/gameStore';
 import { getCombatConsumables, getPartyRoleName, getUsableSkillIds } from '../../systems/combatSystem';
 import type { CombatAggression, CombatantV2 } from '../../types/game';
-import { getCombatLogLimit, getCombatUiMode, shouldRenderFloatingCombatEvents, shouldRenderManaInTeamCard } from '../combatUiMode';
+import { getCombatUiMode, shouldRenderFloatingCombatEvents } from '../combatUiMode';
 
 const pct = (value: number, max: number) => Math.max(0, Math.min(100, Math.round((value / Math.max(1, max)) * 100)));
 
 const ResourceBar = ({ label, value, max, kind, compact = false }: { label: string; value: number; max: number; kind: 'hp' | 'mana' | 'xp'; compact?: boolean }) => (
   <div className={`resource-wrap ${kind} ${compact ? 'resource-compact' : ''}`}>
-    <div className={`resource-meta ${compact ? 'compact-meta' : ''}`}>
-      <span>{label}</span>
-      <strong>{compact ? Math.max(0, value) : `${Math.max(0, value)}/${max}`}</strong>
-    </div>
+    {!compact && <div className="resource-meta"><span>{label}</span><strong>{Math.max(0, value)}/{max}</strong></div>}
+    {compact && <div className="resource-meta compact-meta"><span>{label}</span><strong>{Math.max(0, value)}</strong></div>}
     <div className="resource-track"><div className="resource-fill" style={{ width: `${pct(value, max)}%` }} /></div>
   </div>
 );
@@ -44,7 +42,7 @@ const roleShort = (member: CombatantV2) => {
   return '—';
 };
 
-const ellipsis = (value: string, max = 18) => value.length > max ? `${value.slice(0, Math.max(1, max - 1))}…` : value;
+const ellipsis = (value: string, max = 14) => value.length > max ? `${value.slice(0, Math.max(1, max - 1))}…` : value;
 
 export const CombatPanel = () => {
   const combat = useGameStore((state) => state.combat);
@@ -84,30 +82,25 @@ export const CombatPanel = () => {
             <span>{title}</span>
             <strong>{summary.alive}/{summary.total} · DMG {summary.damage}{isHugeTeamFight ? '' : ` · HEAL ${summary.healing}`}</strong>
           </div>
-
           {members.map((member) => {
             const events = eventByMember(member);
-            const nameMax = isHugeTeamFight ? 19 : isLargeTeamFight ? 16 : 28;
             return (
               <div key={`${member.id}_${member.hp}_${member.mana}_${member.alive}_${combat.turn}`} className={`party-member-card ${isLargeTeamFight ? 'team-compact-card' : ''} ${isHugeTeamFight ? 'team-ultra-compact-card' : ''} ${member.controller === 'player' ? 'self-line' : ''} ${danger ? 'danger' : ''} ${member.alive ? '' : 'defeated-card'}`}>
                 <div className="party-member-top">
-                  <strong title={member.name}>{ellipsis(member.name, nameMax)}{member.alive ? '' : ' · выбит'}</strong>
+                  <strong title={member.name}>{isHugeTeamFight ? ellipsis(member.name, 11) : ellipsis(member.name, 16)}{member.alive ? '' : ' · выбит'}</strong>
                   <span>{isLargeTeamFight ? `${roleShort(member)} · ${aggressionShort(member.aggression)}` : `${roleLabel(member)} · ${aggressionLabel(member.aggression)}`}</span>
                 </div>
-
                 <ResourceBar label="HP" value={member.hp} max={member.maxHp} kind="hp" compact={isLargeTeamFight} />
-                {shouldRenderManaInTeamCard(uiMode) && <ResourceBar label="Mana" value={member.mana} max={member.maxMana} kind="mana" />}
-
+                {!isLargeTeamFight && <ResourceBar label="Mana" value={member.mana} max={member.maxMana} kind="mana" />}
                 {!isHugeTeamFight && (
                   <div className="party-round-stats">
-                    <span className="dps-stat">→ {ellipsis(targetName(member.targetId), isLargeTeamFight ? 14 : 22)}</span>
+                    <span className="dps-stat">Цель: {ellipsis(targetName(member.targetId), isLargeTeamFight ? 12 : 20)}</span>
                     {!isLargeTeamFight && <span className="dps-stat">DMG {member.damageDealt}</span>}
                     {!isLargeTeamFight && <span className="tank-stat">HIT {member.damageTaken}</span>}
                     {!isLargeTeamFight && <span className="heal-stat">HEAL {member.healingDone}</span>}
                     {!isLargeTeamFight && <span className="dps-stat">KILL {member.kills}</span>}
                   </div>
                 )}
-
                 {events.length > 0 && (
                   <div className="floating-event-stack">
                     {events.map((event) => (
@@ -123,6 +116,8 @@ export const CombatPanel = () => {
         </div>
       );
     };
+
+    const logLines = combat.log.slice(isHugeTeamFight ? -5 : isLargeTeamFight ? -8 : -20);
 
     return (
       <div className={`combat-overlay combat-overlay-${uiMode}`}>
@@ -161,7 +156,7 @@ export const CombatPanel = () => {
           </div>
 
           <div className={`combat-log combat-log-${uiMode}`}>
-            {combat.log.slice(-getCombatLogLimit(uiMode)).map((line, index) => <div key={`${line}_${index}`}>{line}</div>)}
+            {logLines.map((line, index) => <div key={`${line}_${index}`}>{line}</div>)}
           </div>
         </section>
       </div>

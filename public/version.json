@@ -1,6 +1,6 @@
 {
-  "version": "0.7.28",
+  "version": "0.7.30",
   "channel": "stable",
-  "build": "2026-06-28-debug-fix",
+  "build": "2026-06-28-gamestore-import-sanitizer",
   "buildTime": "2026-06-25T00:00:00.000Z"
 }
