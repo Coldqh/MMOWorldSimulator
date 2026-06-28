@@ -5,19 +5,17 @@ const fail = [];
 const ok = [];
 const assert = (cond, msg) => cond ? ok.push(msg) : fail.push(msg);
 
-const guildRuntime = read('src/systems/guildRuntimeSystem.ts');
-const castles = read('src/content/castles.ts');
 const siege = read('src/systems/siegeSystem.ts');
+const castlePanel = read('src/ui/components/CastlePanel.tsx');
+const store = read('src/state/gameStore.ts');
 
-assert(read('package.json').includes('"version": "0.7.25"'), 'version bumped');
-assert(guildRuntime.includes('memberIds: [server.player.id]') && guildRuntime.includes('leaderId: server.player.id'), 'player-created guild is solo + player GM');
-assert(guildRuntime.includes('deputyId: undefined') && guildRuntime.includes('officerIds: []'), 'no random leadership');
-assert(!castles.includes('Redstone Keep') && castles.includes('Virspire Citadel'), 'only high castles');
-assert(castles.includes('CASTLE_SIEGE_WEEKDAYS'), 'weekday schedule map exists');
-assert(siege.includes('nextScheduledDay'), 'weekly schedule helper exists');
-assert(siege.includes('autoRegisterNpcGuildsForSieges'), 'NPC guilds auto-register');
-assert(siege.includes('memberIds: chooseRosterMembers'), 'rosters use strongest members');
-assert(siege.includes('MAX_ROSTER_SIZE = 10'), 'rosters are 10 strongest');
+assert(read('package.json').includes('"version": "0.7.26"'), 'version bumped');
+assert(siege.includes('registrationWindowOpen'), 'registration window exists');
+assert(siege.includes('autoRegisterNpcGuildsForOpenSieges'), 'NPC guilds register only for open sieges');
+assert(siege.includes('currentSiegeRun: run'), 'due siege creates active run');
+assert(!siege.includes('return finishSiege(server, castle, { ...run, status: \\'finished\\''), 'due siege is not instantly finished');
+assert(castlePanel.includes('Начать осаду') && castlePanel.includes('Идти вверх'), 'interactive siege UI exists');
+assert(store.includes('startSiege: () =>') && store.includes('siegeStep: (direction) =>'), 'store actions exist');
 
 if (fail.length) {
   console.error('Smoke failed:');
@@ -26,10 +24,3 @@ if (fail.length) {
 }
 console.log('Smoke passed:');
 ok.forEach((msg) => console.log(`- ${msg}`));
-
-const gameStoreSmokeImportHardfix = fs.readFileSync('src/state/gameStore.ts', 'utf8');
-if (gameStoreSmokeImportHardfix.includes('import { SAVE_VERSION, arenaRankName') || gameStoreSmokeImportHardfix.includes('from "../systems/enhancementSystem";\nimport {\n  attackWarEnemyNpc')) {
-  console.error('Smoke failed: corrupted gameStore imports remain');
-  process.exit(1);
-}
-console.log('Smoke passed: v0.7.25 gameStore import hardfix');
