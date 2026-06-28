@@ -1,0 +1,251 @@
+import { useState } from 'react';
+import { getSkillById } from '../../content/classes';
+import { useGameStore } from '../../state/gameStore';
+import { getCombatConsumables, getPartyRoleName, getUsableSkillIds } from '../../systems/combatSystem';
+import type { CombatAggression, CombatantV2 } from '../../types/game';
+import { getCombatLogLimit, getCombatUiMode, shouldRenderFloatingCombatEvents, shouldRenderManaInTeamCard } from '../combatUiMode';
+
+const pct = (value: number, max: number) => Math.max(0, Math.min(100, Math.round((value / Math.max(1, max)) * 100)));
+
+const ResourceBar = ({ label, value, max, kind, compact = false }: { label: string; value: number; max: number; kind: 'hp' | 'mana' | 'xp'; compact?: boolean }) => (
+  <div className={`resource-wrap ${kind} ${compact ? 'resource-compact' : ''}`}>
+    <div className={`resource-meta ${compact ? 'compact-meta' : ''}`}>
+      <span>{label}</span>
+      <strong>{compact ? Math.max(0, value) : `${Math.max(0, value)}/${max}`}</strong>
+    </div>
+    <div className="resource-track"><div className="resource-fill" style={{ width: `${pct(value, max)}%` }} /></div>
+  </div>
+);
+
+const aggressionLabel = (value?: CombatAggression) => {
+  if (value === 'defensive') return 'защита';
+  if (value === 'aggressive') return 'агрессия';
+  if (value === 'reckless') return 'риск';
+  return 'баланс';
+};
+
+const aggressionShort = (value?: CombatAggression) => {
+  if (value === 'defensive') return 'DEF';
+  if (value === 'aggressive') return 'AGG';
+  if (value === 'reckless') return 'RISK';
+  return 'BAL';
+};
+
+const roleLabel = (member: CombatantV2) => {
+  if (!member.role) return 'роль —';
+  return getPartyRoleName(member.role);
+};
+
+const roleShort = (member: CombatantV2) => {
+  if (member.role === 'tank') return 'T';
+  if (member.role === 'healer') return 'H';
+  if (member.role === 'magicDps') return 'MD';
+  if (member.role === 'physicalDps') return 'D';
+  return '—';
+};
+
+const ellipsis = (value: string, max = 18) => value.length > max ? `${value.slice(0, Math.max(1, max - 1))}…` : value;
+
+export const CombatPanel = () => {
+  const combat = useGameStore((state) => state.combat);
+  const server = useGameStore((state) => state.server);
+  const combatAction = useGameStore((state) => state.combatAction);
+  const [consumablesOpen, setConsumablesOpen] = useState(false);
+
+  if (!combat) return null;
+
+  const skillIds = getUsableSkillIds(server);
+  const party = combat.partyMembers ?? [];
+  const consumables = getCombatConsumables(server.player.inventory, server.player.level);
+  const isTeamCombat = Boolean(combat.teamA && combat.teamB);
+
+  if (isTeamCombat) {
+    const allMembers = [...combat.teamA!.members, ...combat.teamB!.members];
+    const uiMode = getCombatUiMode(combat);
+    const isLargeTeamFight = uiMode !== 'normal';
+    const isHugeTeamFight = uiMode === 'ultra';
+    const floatingEvents = shouldRenderFloatingCombatEvents(uiMode) ? (combat.floatingEvents ?? []) : [];
+    const eventByMember = (member: CombatantV2) => floatingEvents
+      .filter((event) => event.sourceId === member.id || event.sourceId === member.sourceId || event.targetId === member.id || event.targetId === member.sourceId)
+      .slice(-3);
+    const targetName = (id?: string) => id ? allMembers.find((member) => member.id === id || member.sourceId === id)?.name ?? '—' : '—';
+    const teamSummary = (members: CombatantV2[]) => ({
+      alive: members.filter((member) => member.alive).length,
+      total: members.length,
+      damage: members.reduce((sum, member) => sum + (member.damageDealt ?? 0), 0),
+      healing: members.reduce((sum, member) => sum + (member.healingDone ?? 0), 0),
+    });
+
+    const renderTeam = (title: string, members: CombatantV2[], danger = false) => {
+      const summary = teamSummary(members);
+      return (
+        <div className="party-combat-board">
+          <div className="section-title team-title-line">
+            <span>{title}</span>
+            <strong>{summary.alive}/{summary.total} · DMG {summary.damage}{isHugeTeamFight ? '' : ` · HEAL ${summary.healing}`}</strong>
+          </div>
+
+          {members.map((member) => {
+            const events = eventByMember(member);
+            const nameMax = isHugeTeamFight ? 19 : isLargeTeamFight ? 16 : 28;
+            return (
+              <div key={`${member.id}_${member.hp}_${member.mana}_${member.alive}_${combat.turn}`} className={`party-member-card ${isLargeTeamFight ? 'team-compact-card' : ''} ${isHugeTeamFight ? 'team-ultra-compact-card' : ''} ${member.controller === 'player' ? 'self-line' : ''} ${danger ? 'danger' : ''} ${member.alive ? '' : 'defeated-card'}`}>
+                <div className="party-member-top">
+                  <strong title={member.name}>{ellipsis(member.name, nameMax)}{member.alive ? '' : ' · выбит'}</strong>
+                  <span>{isLargeTeamFight ? `${roleShort(member)} · ${aggressionShort(member.aggression)}` : `${roleLabel(member)} · ${aggressionLabel(member.aggression)}`}</span>
+                </div>
+
+                <ResourceBar label="HP" value={member.hp} max={member.maxHp} kind="hp" compact={isLargeTeamFight} />
+                {shouldRenderManaInTeamCard(uiMode) && <ResourceBar label="Mana" value={member.mana} max={member.maxMana} kind="mana" />}
+
+                {!isHugeTeamFight && (
+                  <div className="party-round-stats">
+                    <span className="dps-stat">→ {ellipsis(targetName(member.targetId), isLargeTeamFight ? 14 : 22)}</span>
+                    {!isLargeTeamFight && <span className="dps-stat">DMG {member.damageDealt}</span>}
+                    {!isLargeTeamFight && <span className="tank-stat">HIT {member.damageTaken}</span>}
+                    {!isLargeTeamFight && <span className="heal-stat">HEAL {member.healingDone}</span>}
+                    {!isLargeTeamFight && <span className="dps-stat">KILL {member.kills}</span>}
+                  </div>
+                )}
+
+                {events.length > 0 && (
+                  <div className="floating-event-stack">
+                    {events.map((event) => (
+                      <span key={event.id} className={`floating-event ${event.type}`}>
+                        {event.text}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      );
+    };
+
+    return (
+      <div className={`combat-overlay combat-overlay-${uiMode}`}>
+        <section className={`panel combat-panel combat-panel-${uiMode}`}>
+          <div className="combat-header">
+            <div>
+              <div className="section-title">⚔️ {combat.source === 'guild_war' ? 'Дуэль войны' : 'Командная арена'} · Раунд {combat.turn}</div>
+              <h1>{combat.teamA!.name} vs {combat.teamB!.name}</h1>
+            </div>
+            <span className="combat-source">{combat.source === 'guild_war' ? 'WAR' : combat.arenaMode ?? 'TEAM'}</span>
+          </div>
+
+          {!isLargeTeamFight && floatingEvents.length > 0 && (
+            <div className="round-event-strip">
+              {floatingEvents.slice(-8).map((event) => <span key={event.id} className={`floating-event ${event.type}`}>{event.text}</span>)}
+            </div>
+          )}
+
+          <div className={`team-combat-layout team-combat-${uiMode}`}>
+            {renderTeam(combat.teamA!.name || 'Твоя команда', combat.teamA!.members)}
+            {renderTeam(combat.teamB!.name || 'Соперники', combat.teamB!.members, true)}
+          </div>
+
+          <div className="action-grid combat-actions sticky-combat-actions">
+            <button onClick={() => combatAction('basic')}>Следующий раунд</button>
+            {!isHugeTeamFight && skillIds.map((skillId) => {
+              const skill = getSkillById(skillId);
+              const player = combat.teamA!.members.find((member) => member.controller === 'player');
+              const disabled = !player || !player.alive || player.mana < (skill?.manaCost ?? 0);
+              return (
+                <button key={skillId} onClick={() => combatAction(skillId)} disabled={disabled}>
+                  {skill?.name ?? skillId}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className={`combat-log combat-log-${uiMode}`}>
+            {combat.log.slice(-getCombatLogLimit(uiMode)).map((line, index) => <div key={`${line}_${index}`}>{line}</div>)}
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  return (
+    <div className="combat-overlay">
+      <section className="panel combat-panel">
+        <div className="combat-header">
+          <div>
+            <div className="section-title">⚔️ Бой · Раунд {combat.turn}</div>
+            <h1>{combat.enemy.name}</h1>
+          </div>
+          <span className="combat-source">{combat.source === 'arena' ? 'Арена' : combat.source === 'dungeon' ? 'Данж' : 'Фарм'}</span>
+        </div>
+
+        <div className="combat-bars">
+          <div className="combatant-card player-card">
+            <strong>{combat.player.name}</strong>
+            <ResourceBar label="HP" value={combat.player.hp} max={combat.player.maxHp} kind="hp" />
+            <ResourceBar label="Mana" value={combat.player.mana} max={combat.player.maxMana} kind="mana" />
+            <span>ATK {combat.player.attack} · DEF {combat.player.defense}</span>
+          </div>
+          <div className="combatant-card danger">
+            <strong>{combat.enemy.name}</strong>
+            <ResourceBar label="HP" value={combat.enemy.hp} max={combat.enemy.maxHp} kind="hp" />
+            <span>Lv. {combat.enemy.level}</span>
+            <span>ATK {combat.enemy.attack} · DEF {combat.enemy.defense}</span>
+          </div>
+        </div>
+
+        {party.length > 0 && (
+          <div className="party-combat-board">
+            <div className="section-title">Пати · прошлый раунд</div>
+            {party.map((member) => (
+              <div key={member.id} className={`party-member-card ${member.id === server.player.id ? 'self-line' : ''}`}>
+                <div className="party-member-top">
+                  <strong>{member.name}</strong>
+                  <span>{getPartyRoleName(member.role)}</span>
+                </div>
+                <ResourceBar label="HP" value={member.id === server.player.id ? combat.player.hp : member.hp} max={member.maxHp} kind="hp" />
+                <ResourceBar label="Mana" value={member.id === server.player.id ? combat.player.mana : member.mana} max={member.maxMana} kind="mana" />
+                <div className="party-round-stats">
+                  <span className="dps-stat">DMG {member.damageLastRound}</span>
+                  <span className="tank-stat">HIT {member.damageTakenLastRound}</span>
+                  <span className="heal-stat">HEAL {member.healingLastRound}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="action-grid combat-actions">
+          <button onClick={() => combatAction('basic')}>Атака</button>
+          {skillIds.map((skillId) => {
+            const skill = getSkillById(skillId);
+            const cd = combat.player.cooldowns[skillId] ?? 0;
+            const disabled = cd > 0 || combat.player.mana < (skill?.manaCost ?? 0);
+            return (
+              <button key={skillId} onClick={() => combatAction(skillId)} disabled={disabled}>
+                {skill?.name ?? skillId}{cd > 0 ? ` (${cd})` : ''}
+              </button>
+            );
+          })}
+          <button onClick={() => setConsumablesOpen((value) => !value)} disabled={consumables.length === 0}>
+            Расходники{consumables.length > 0 ? ` · ${consumables.length}` : ''}
+          </button>
+        </div>
+
+        {consumablesOpen && consumables.length > 0 && (
+          <div className="consumable-menu">
+            {consumables.map(({ entry, item }) => (
+              <button key={`${entry.itemId}_${entry.amount}`} onClick={() => { combatAction(`consume:${entry.itemId}`); setConsumablesOpen(false); }}>
+                {item?.name ?? entry.itemId} · ×{entry.amount}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="combat-log">
+          {combat.log.map((line, index) => <div key={`${line}_${index}`}>{line}</div>)}
+        </div>
+      </section>
+    </div>
+  );
+};
