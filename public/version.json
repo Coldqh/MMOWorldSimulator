@@ -1,6 +1,6 @@
 {
-  "version": "0.7.27",
+  "version": "0.7.28",
   "channel": "stable",
-  "build": "2026-06-28-v0727-rescue-full-project-gate",
+  "build": "2026-06-28-debug-fix",
   "buildTime": "2026-06-25T00:00:00.000Z"
 }
