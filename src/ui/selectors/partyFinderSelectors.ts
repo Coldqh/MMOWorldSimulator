@@ -31,6 +31,8 @@ export type PartyFinderListingView = {
   roleText: string;
 };
 
+const ALL_INSTANCES = [...DUNGEONS, ...RAIDS];
+
 const typeLabel: Record<string, string> = {
   dungeon: "Данж",
   raid: "Рейд",
@@ -66,24 +68,37 @@ export const partyFinderTimeLabel = (day: number, minute: number) => {
   return `День ${day} · ${hh}:${mm}`;
 };
 
+const isVisibleToPlayer = (server: ServerState, listing: PartyFinderListing, filter: PartyFinderFilter) => {
+  if (listing.visibility === "public") return true;
+  if (listing.guildId === server.player.guildId) return true;
+  return filter !== "all" && listing.guildId === server.player.guildId;
+};
+
 export const buildPartyFinderViewModel = (server: ServerState, options: PartyFinderViewOptions) => {
-  const instances = sortInstancesForPlayer([...DUNGEONS, ...RAIDS], server.player.level);
+  const instances = sortInstancesForPlayer(ALL_INSTANCES, server.player.level);
   const dungeonById = new Map(instances.map((dungeon) => [dungeon.id, dungeon]));
-  const npcNameById = new Map(server.npcs.map((npc) => [npc.id, npc.name]));
-  const guildNameById = new Map(server.guilds.map((guild) => [guild.id, guild.name]));
+  const npcNameById = new Map((server.npcs ?? []).map((npc) => [npc.id, npc.name]));
+  const guildNameById = new Map((server.guilds ?? []).map((guild) => [guild.id, guild.name]));
   const playerRole = getClassPartyRole(server.player.classId);
   const playerGear = getGearScore(server.player.equipment);
 
-  const listings = (server.partyFinderListings ?? [])
-    .filter((listing) => {
+  const listingEntries = (server.partyFinderListings ?? [])
+    .map((listing) => {
       const dungeon = dungeonById.get(listing.dungeonId);
-      if (!dungeon) return false;
-      if (listing.visibility !== "public" && listing.guildId !== server.player.guildId) return options.filter === "all" ? false : listing.guildId === server.player.guildId;
+      if (!dungeon) return undefined;
+      const reason = getPlayerListingBlockReason(server, listing);
+      return { listing, dungeon, reason };
+    })
+    .filter(Boolean) as Array<{ listing: PartyFinderListing; dungeon: DungeonDefinition; reason: string }>;
+
+  const listings = listingEntries
+    .filter(({ listing, reason }) => {
+      if (!isVisibleToPlayer(server, listing, options.filter)) return false;
       if (options.filter === "dungeon") return listing.contentType === "dungeon";
       if (options.filter === "raid") return listing.contentType === "raid";
       if (options.filter === "public") return listing.visibility === "public";
       if (options.filter === "guild") return listing.visibility === "guild_internal" || listing.visibility === "static";
-      if (options.filter === "available") return getPlayerListingBlockReason(server, listing) === "";
+      if (options.filter === "available") return reason === "";
       if (options.filter === "role") {
         if (listing.memberIds.includes(server.player.id)) return true;
         if (playerRole === "tank") return listing.roles.tankIds.length < listing.requirements.tanks;
@@ -93,27 +108,26 @@ export const buildPartyFinderViewModel = (server: ServerState, options: PartyFin
       return true;
     })
     .sort((a, b) => {
-      const aAvailable = server.player.level >= listingLevel(dungeonById, a);
-      const bAvailable = server.player.level >= listingLevel(dungeonById, b);
+      const aAvailable = server.player.level >= listingLevel(dungeonById, a.listing);
+      const bAvailable = server.player.level >= listingLevel(dungeonById, b.listing);
       if (aAvailable !== bAvailable) return aAvailable ? -1 : 1;
-      return listingLevel(dungeonById, b) - listingLevel(dungeonById, a) || a.id.localeCompare(b.id);
+      return listingLevel(dungeonById, b.listing) - listingLevel(dungeonById, a.listing) || a.listing.id.localeCompare(b.listing.id);
     })
-    .map<PartyFinderListingView>((listing) => {
-      const dungeon = dungeonById.get(listing.dungeonId);
+    .map<PartyFinderListingView>(({ listing, dungeon, reason }) => {
       const memberCount = listing.memberIds.length;
       const maxMembers = totalPartyRequired(listing.requirements);
       const leaderName = listing.leaderId === server.player.id ? server.player.name : npcNameById.get(listing.leaderId) ?? listing.leaderId;
       const guildName = listing.guildId ? guildNameById.get(listing.guildId) ?? listing.guildId : "нет";
       return {
         listing,
-        dungeonName: dungeon?.name ?? listing.dungeonId,
+        dungeonName: dungeon.name,
         typeLabel: typeLabel[listing.contentType] ?? listing.contentType,
         visibilityLabel: visibilityLabel[listing.visibility] ?? listing.visibility,
         leaderName,
         guildName,
         memberCount,
         maxMembers,
-        reason: getPlayerListingBlockReason(server, listing),
+        reason,
         isMember: listing.memberIds.includes(server.player.id),
         levelText: `Lv. ${listing.requirements.minLevel}-${listing.requirements.maxLevel}${listing.requirements.minGearScore ? ` · GS ${listing.requirements.minGearScore}+` : ""}${listing.note ? ` · ${listing.note}` : ""}`,
         roleText: `танки ${listing.roles.tankIds.length}/${listing.requirements.tanks} · хилы ${listing.roles.healerIds.length}/${listing.requirements.healers} · дд ${listing.roles.dpsIds.length}/${listing.requirements.dps}`,

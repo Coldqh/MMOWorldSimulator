@@ -1,25 +1,45 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useGameStore } from '../../state/gameStore';
-import type { PartyListingVisibility } from '../../types/game';
+import type { ServerState } from '../../types/game';
 import { buildPartyFinderViewModel, type PartyFinderFilter, partyFinderTimeLabel } from '../selectors/partyFinderSelectors';
 
 const FilterButton = ({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) => (
   <button className={active ? 'active' : ''} onClick={onClick}>{label}</button>
 );
 
+type CreatePartyVisibility = 'public' | 'guild_internal';
+
 export const PartyFinderScreen = () => {
-  const server = useGameStore((state) => state.server);
+  const player = useGameStore((state) => state.server.player);
+  const partyFinderListings = useGameStore((state) => state.server.partyFinderListings);
+  const npcs = useGameStore((state) => state.server.npcs);
+  const guilds = useGameStore((state) => state.server.guilds);
+  const currentDungeonRun = useGameStore((state) => state.server.currentDungeonRun);
+  const currentPartyListingId = useGameStore((state) => state.server.currentPartyListingId);
+  const serverDay = useGameStore((state) => state.server.serverDay);
+  const currentMinute = useGameStore((state) => state.server.currentMinute);
   const refreshPartyFinder = useGameStore((state) => state.refreshPartyFinder);
   const createPartyListing = useGameStore((state) => state.createPartyListing);
   const joinPartyListing = useGameStore((state) => state.joinPartyListing);
   const setScreen = useGameStore((state) => state.setScreen);
   const [filter, setFilter] = useState<PartyFinderFilter>('all');
   const [selectedId, setSelectedId] = useState('');
-  const [visibility, setVisibility] = useState<PartyListingVisibility>('public');
+  const [visibility, setVisibility] = useState<CreatePartyVisibility>('public');
+
+  const viewServer = useMemo(() => ({
+    player,
+    partyFinderListings,
+    npcs,
+    guilds,
+    currentDungeonRun,
+    currentPartyListingId,
+    serverDay,
+    currentMinute,
+  } as ServerState), [player, partyFinderListings, npcs, guilds, currentDungeonRun, currentPartyListingId, serverDay, currentMinute]);
 
   const view = useMemo(
-    () => buildPartyFinderViewModel(server, { filter, selectedId, visibility }),
-    [server, filter, selectedId, visibility],
+    () => buildPartyFinderViewModel(viewServer, { filter, selectedId, visibility }),
+    [viewServer, filter, selectedId, visibility],
   );
 
   useEffect(() => {
@@ -32,13 +52,13 @@ export const PartyFinderScreen = () => {
       <section className="panel hero-panel">
         <div className="section-title">👥 Поиск пати</div>
         <h1>Party Finder</h1>
-        <p className="muted">{partyFinderTimeLabel(server.serverDay, server.currentMinute)} · активных заявок: {server.partyFinderListings?.length ?? 0}</p>
+        <p className="muted">{partyFinderTimeLabel(serverDay, currentMinute)} · активных заявок: {partyFinderListings?.length ?? 0}</p>
         <p className="muted">Доступные группы и инстансы сверху: от высокого уровня к низкому. Недоступные ниже.</p>
         <div className="stat-grid stat-grid-compact">
           <span>Твоя роль: {view.playerRoleLabel}</span>
-          <span>Lv. {server.player.level}</span>
+          <span>Lv. {player.level}</span>
           <span>Gear {view.playerGear}</span>
-          <span>{server.player.guildId ? `Гильдия: ${view.guildName}` : 'Без гильдии'}</span>
+          <span>{player.guildId ? `Гильдия: ${view.guildName}` : 'Без гильдии'}</span>
         </div>
       </section>
 
@@ -47,7 +67,7 @@ export const PartyFinderScreen = () => {
         <div className="action-grid">
           <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
             {view.instances.map((dungeon) => {
-              const locked = server.player.level < dungeon.levelRange[0];
+              const locked = player.level < dungeon.levelRange[0];
               return (
                 <option key={dungeon.id} value={dungeon.id}>
                   {dungeon.name} · {(dungeon.contentType ?? 'dungeon') === 'raid' ? 'Рейд' : 'Данж'} · Lv. {dungeon.levelRange[0]}-{dungeon.levelRange[1]}{locked ? ' · locked' : ''}
@@ -55,11 +75,11 @@ export const PartyFinderScreen = () => {
               );
             })}
           </select>
-          <select value={visibility} onChange={(event) => setVisibility(event.target.value as PartyListingVisibility)} disabled={!server.player.guildId}>
+          <select value={visibility} onChange={(event) => setVisibility(event.target.value as CreatePartyVisibility)} disabled={!player.guildId}>
             <option value="public">Публичная</option>
             <option value="guild_internal">Гильдейская</option>
           </select>
-          <button className="primary-button" onClick={() => selectedId && createPartyListing(selectedId, visibility === "guild_internal" ? "guild_internal" : "public")} disabled={Boolean(view.createReason)}>
+          <button className="primary-button" onClick={() => selectedId && createPartyListing(selectedId, visibility)} disabled={Boolean(view.createReason)}>
             {view.createReason || 'Создать группу'}
           </button>
           <button onClick={refreshPartyFinder}>Обновить</button>
