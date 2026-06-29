@@ -59,7 +59,7 @@ export const PartyFinderScreen = () => {
             <option value="public">Публичная</option>
             <option value="guild_internal">Гильдейская</option>
           </select>
-          <button className="primary-button" onClick={() => selectedId && createPartyListing(selectedId, visibility)} disabled={Boolean(view.createReason)}>
+          <button className="primary-button" onClick={() => selectedId && createPartyListing(selectedId, visibility === "guild_internal" ? "guild_internal" : "public")} disabled={Boolean(view.createReason)}>
             {view.createReason || 'Создать группу'}
           </button>
           <button onClick={refreshPartyFinder}>Обновить</button>
