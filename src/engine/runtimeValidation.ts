@@ -61,7 +61,7 @@ export const validateServerRuntime = (server: ServerState): RuntimeIssue[] => {
 export const repairServerRuntime = (server: ServerState): ServerState => {
   const rng = createRng(server.seed + server.serverDay * 7100 + server.currentMinute);
   const marketReady = repairMarketIfBroken(server, rng, 'runtime_validation');
-  const guildWarReady = normalizeGuildWarsCore(protectPlayerCreatedGuilds(marketReady), rng);
+  const guildWarReady = protectPlayerCreatedGuilds(normalizeGuildWarsCore(protectPlayerCreatedGuilds(marketReady), rng));
   return {
     ...guildWarReady,
     version: SAVE_VERSION,

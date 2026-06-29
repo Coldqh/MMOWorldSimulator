@@ -140,8 +140,10 @@ export const runSmokeTest = async (label = 'Smoke') => {
       createPlayerGuildRuntime,
       repairFreshPlayerGuildLeadership,
     } = await importBuilt('systems/guildRuntimeSystem.js');
+    const { repairServerRuntime } = await importBuilt('engine/runtimeValidation.js');
 
     const guildScreen = read('src/ui/screens/GuildScreen.tsx');
+    const partyFinderScreen = read('src/ui/screens/PartyFinderScreen.tsx');
     const castlePanel = read('src/ui/components/CastlePanel.tsx');
     const gameStore = read('src/state/gameStore.ts');
     const guildRuntime = read('src/systems/guildRuntimeSystem.ts');
@@ -164,6 +166,10 @@ export const runSmokeTest = async (label = 'Smoke') => {
     const repaired = repairFreshPlayerGuildLeadership(rosterNormalized);
     const afterRepair = onlyPlayerGuildMembers(repaired, playerGuildId);
     assert(afterRepair.ok, 'PLAYER GUILD REPAIR REMOVES RANDOM NPC LEADERS/OFFICERS', `members=${afterRepair.guild?.memberIds.join(',')} npcMembers=${afterRepair.npcMembers.join(',')}`);
+
+    const runtimeRepaired = repairServerRuntime(created.server);
+    const afterRuntimeRepair = onlyPlayerGuildMembers(runtimeRepaired, playerGuildId);
+    assert(afterRuntimeRepair.ok, 'PLAYER GUILD STAYS PLAYER-ONLY AFTER runtime repair', `members=${afterRuntimeRepair.guild?.memberIds.join(',')} npcMembers=${afterRuntimeRepair.npcMembers.join(',')}`);
 
     const levelFixture = prepareHighTierPlayerGuildServer(createNewGame('SiegeLevel', 'human', 'warrior', 440028, true));
     const normalizedLevelFixture = normalizeSiegeState(levelFixture);
@@ -208,6 +214,9 @@ export const runSmokeTest = async (label = 'Smoke') => {
 
     assert(runtimeValidation.includes('player_guild_auto_members'), 'Runtime validation CHECKS PLAYER GUILD AUTO MEMBERS');
     assert(runtimeValidation.includes('siege_stuck_without_player'), 'Runtime validation CHECKS NON-PLAYER ACTIVE SIEGE STUCK STATE');
+    assert(!siegeSystem.includes('const normalized = normalizeSiegeState(server);\n  const castle'), 'SIEGE ELIGIBILITY CHECK DOES NOT NORMALIZE FULL SIEGE STATE');
+    assert(!siegeSystem.includes('const check = canRegisterPlayerGuildForCastle(normalized, castleId);'), 'SIEGE REGISTRATION DOES NOT DOUBLE-RUN ELIGIBILITY NORMALIZATION');
+    assert(!partyFinderScreen.includes('useEffect(() => {\n    refreshPartyFinder();\n  }, [refreshPartyFinder]);'), 'PARTY FINDER DOES NOT AUTO-REFRESH ON MOUNT');
 
     if (fail.length) {
       console.error(`${label} failed:`);
