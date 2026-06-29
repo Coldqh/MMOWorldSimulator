@@ -9,6 +9,8 @@ import { SAVE_VERSION } from './saveLoad';
 import { getMarketDiagnostics, repairMarketIfBroken } from '../systems/marketSystem';
 import { createRng } from './rng';
 import { normalizeGuildWarsCore } from '../systems/guildWarSystem';
+import { allowedPlayerGuildMemberIds, isPlayerCreatedGuild, protectPlayerCreatedGuilds } from '../systems/playerGuildProtection';
+import { shouldAutoResolveSiege } from '../systems/siegeSystem';
 
 export const validateServerRuntime = (server: ServerState): RuntimeIssue[] => {
   const issues: RuntimeIssue[] = [];
@@ -23,6 +25,31 @@ export const validateServerRuntime = (server: ServerState): RuntimeIssue[] => {
   if (!Array.isArray(server.guildRelations) || !Array.isArray(server.guildWars) || !Array.isArray(server.guildWarVotes)) issues.push({ severity: 'warning', code: 'guild_wars_missing', message: 'Guild war fields are missing' });
   if ((server.npcs ?? []).some((npc) => !npc.skill || npc.skill < 1 || npc.skill > 10 || !npc.playstyle || !npc.locationMode)) issues.push({ severity: 'warning', code: 'npc_war_fields_missing', message: 'NPC war fields are missing' });
 
+  (server.guilds ?? []).filter(isPlayerCreatedGuild).forEach((guild) => {
+    const allowed = new Set(allowedPlayerGuildMemberIds(server, guild));
+    const unexpectedMembers = (guild.memberIds ?? []).filter((id) => id !== server.player.id && !allowed.has(id));
+    const unexpectedNpcLinks = (server.npcs ?? []).filter((npc) => npc.guildId === guild.id && !allowed.has(npc.id));
+    if (unexpectedMembers.length > 0 || unexpectedNpcLinks.length > 0) {
+      issues.push({ severity: 'critical', code: 'player_guild_auto_members', message: `${guild.name} has non-accepted NPC members` });
+    }
+    if (server.player.guildId === guild.id && guild.leaderId !== server.player.id) {
+      issues.push({ severity: 'critical', code: 'player_guild_bad_leader', message: `${guild.name} leader is not the player` });
+    }
+    if ((guild.officerIds ?? []).some((id) => !allowed.has(id))) {
+      issues.push({ severity: 'critical', code: 'player_guild_random_officers', message: `${guild.name} has non-accepted NPC officers` });
+    }
+  });
+
+  const activeSiege = server.currentSiegeRun?.status === 'active' ? server.currentSiegeRun : undefined;
+  if (activeSiege && shouldAutoResolveSiege(server, activeSiege)) {
+    issues.push({ severity: 'warning', code: 'siege_stuck_without_player', message: 'Active siege is waiting even though the player is not commanding it' });
+  }
+  (server.castles ?? []).forEach((castle) => {
+    if (castle.lastResolvedSiegeDay && (castle.history ?? []).length === 0) {
+      issues.push({ severity: 'warning', code: 'castle_history_missing', message: `${castle.name} has a resolved siege without history` });
+    }
+  });
+
   const market = getMarketDiagnostics(server);
   if (market.brokenReasons.length > 0) {
     issues.push({ severity: 'critical', code: 'market_broken', message: market.brokenReasons.join(', ') });
@@ -34,7 +61,7 @@ export const validateServerRuntime = (server: ServerState): RuntimeIssue[] => {
 export const repairServerRuntime = (server: ServerState): ServerState => {
   const rng = createRng(server.seed + server.serverDay * 7100 + server.currentMinute);
   const marketReady = repairMarketIfBroken(server, rng, 'runtime_validation');
-  const guildWarReady = normalizeGuildWarsCore(marketReady, rng);
+  const guildWarReady = normalizeGuildWarsCore(protectPlayerCreatedGuilds(marketReady), rng);
   return {
     ...guildWarReady,
     version: SAVE_VERSION,

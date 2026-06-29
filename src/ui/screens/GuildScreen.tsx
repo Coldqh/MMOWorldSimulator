@@ -46,7 +46,6 @@ export const GuildScreen = () => {
   const [tab, setTab] = useState<GuildTab>("profile");
   const [guildName, setGuildName] = useState("");
   const [guildFocus, setGuildFocus] = useState<GuildFocus>("pvp");
-  const [guildLevel, setGuildLevel] = useState(1);
 
   const playerGuild = server.guilds.find((entry) => entry.id === server.player.guildId);
   const applications = getPlayerGuildPendingApplications(server);
@@ -55,7 +54,7 @@ export const GuildScreen = () => {
   const guilds = useMemo(
     () => server.guilds
       .filter((guild) => tierFilter === "all" || guild.tier === tierFilter)
-      .sort((a, b) => guildPower(b) - guildPower(a) || (b.level ?? 1) - (a.level ?? 1) || b.memberIds.length - a.memberIds.length),
+      .sort((a, b) => guildPower(b) - guildPower(a) || b.memberIds.length - a.memberIds.length),
     [server.guilds, tierFilter],
   );
 
@@ -66,7 +65,7 @@ export const GuildScreen = () => {
   };
 
   if (mainTab === "castles") {
-    return <CastlePanel />;
+    return <CastlePanel onBack={() => setMainTab("guilds")} />;
   }
 
   if (mainTab === "wars") {
@@ -130,7 +129,7 @@ export const GuildScreen = () => {
             <button onClick={() => setMainTab("wars")}>Войны</button>
             <button onClick={() => setMainTab("castles")}>Замки</button>
           </div>
-          <p className="muted">{guildFocusLabel(playerGuild.guildFocus)} · {playerGuild.tier ?? "low"} · Lv. {playerGuild.level} · сила {guildPower(playerGuild)}</p>
+          <p className="muted">{guildFocusLabel(playerGuild.guildFocus)} · {playerGuild.tier ?? "low"} · сила {guildPower(playerGuild)}</p>
           <div className="tab-row">
             <button className={tab === "profile" ? "active" : ""} onClick={() => setTab("profile")}>Профиль</button>
             <button className={tab === "roster" ? "active" : ""} onClick={() => setTab("roster")}>Ростер</button>
@@ -146,7 +145,6 @@ export const GuildScreen = () => {
             <div className="section-title">Профиль</div>
             <div className="profile-grid-modal">
               <div className="profile-cell"><span>Тип</span><strong>{guildFocusLabel(playerGuild.guildFocus)}</strong></div>
-              <div className="profile-cell"><span>Уровень</span><strong>{playerGuild.level}</strong></div>
               <div className="profile-cell"><span>Требование</span><strong>{playerGuild.minLevel ?? 1}+ уровень</strong></div>
               <div className="profile-cell"><span>Участников</span><strong>{playerGuild.memberIds.length}</strong></div>
               <div className="profile-cell"><span>Репутация</span><strong>{playerGuild.reputation}</strong></div>
@@ -215,7 +213,7 @@ export const GuildScreen = () => {
           </section>
         )}
 
-        {tab === "castles" && <CastlePanel />}
+        {tab === "castles" && <CastlePanel onBack={() => setTab("profile")} />}
 
         {tab === "events" && (
           <section className="panel">
@@ -251,7 +249,7 @@ export const GuildScreen = () => {
       {!server.player.guildId && (
         <section className="panel">
           <div className="section-title">Создать гильдию</div>
-          <p className="muted">Цена: 50 000 золота. Уровень гильдии нельзя поставить выше уровня персонажа.</p>
+          <p className="muted">Цена: 50 000 золота.</p>
           <div className="form-grid">
             <input value={guildName} onChange={(event) => setGuildName(event.target.value)} placeholder="Название гильдии" />
             <select value={guildFocus} onChange={(event) => setGuildFocus(event.target.value as GuildFocus)}>
@@ -259,8 +257,7 @@ export const GuildScreen = () => {
               <option value="pve">PvE</option>
               <option value="hybrid">Смешанная</option>
             </select>
-            <input type="number" min={1} max={server.player.level} value={guildLevel} onChange={(event) => setGuildLevel(Math.max(1, Math.min(server.player.level, Number(event.target.value) || 1)))} />
-            <button disabled={server.player.gold < 50000 || !guildName.trim()} onClick={() => createPlayerGuild(guildName, guildFocus, guildLevel)}>Создать за 50 000</button>
+            <button disabled={server.player.gold < 50000 || !guildName.trim()} onClick={() => createPlayerGuild(guildName, guildFocus)}>Создать за 50 000</button>
           </div>
         </section>
       )}
@@ -273,7 +270,7 @@ export const GuildScreen = () => {
             return (
               <article key={guild.id} className="content-card guild-card">
                 <button className="text-button guild-title-button" onClick={() => openGuildProfile(guild.id)}><strong>{guild.name}</strong></button>
-                <span>{guildFocusLabel(guild.guildFocus)} · {guild.tier ?? "low"} · Lv. {guild.level} · требование {guild.minLevel ?? 1}+</span>
+                <span>{guildFocusLabel(guild.guildFocus)} · {guild.tier ?? "low"} · требование {guild.minLevel ?? 1}+</span>
                 <span>ГМ: {renderNpcLink(guild.leaderId)}</span>
                 <span>Участников: {guild.memberIds.length}</span>
                 <span>Сила: {guildPower(guild)}</span>

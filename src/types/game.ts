@@ -237,7 +237,7 @@ export interface Guild {
   name: string;
   type: GuildType;
   guildFocus?: GuildFocus;
-  level: number;
+  level?: number; // legacy only, ignored by active guild logic
   reputation: number;
   memberIds: Id[];
   leaderId?: Id;

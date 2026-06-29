@@ -34,8 +34,9 @@ const SiegeMapView = ({ run }: { run?: SiegeRun }) => {
   );
 };
 
-export const CastlePanel = () => {
+export const CastlePanel = ({ onBack }: { onBack?: () => void } = {}) => {
   const server = useGameStore((state) => state.server);
+  const setScreen = useGameStore((state) => state.setScreen);
   const registerSiegeRoster = useGameStore((state) => state.registerSiegeRoster);
   const unregisterSiegeRoster = useGameStore((state) => state.unregisterSiegeRoster);
   const startSiege = useGameStore((state) => state.startSiege);
@@ -55,7 +56,7 @@ export const CastlePanel = () => {
   return (
     <div className="screen-stack">
       <section className="panel hero-panel">
-        <div className="title-row"><div className="section-title">🏰 Замки</div><button onClick={() => window.history.back()}>Назад</button></div>
+        <div className="title-row"><div className="section-title">🏰 Замки</div><button onClick={onBack ?? (() => setScreen('guild'))}>Назад</button></div>
         <h1>Осады замков</h1>
         <p className="muted">За 3 дня до осады хай-гильдии выставляют 10 сильнейших. Если ты в топ-10 своей гильдии, тебе придёт уведомление.</p>
       </section>

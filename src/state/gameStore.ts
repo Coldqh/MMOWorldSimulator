@@ -128,7 +128,15 @@ import {
   startWarNpcAmbushCombat,
   startWarNpcDuelCombat,
 } from "../systems/pvpDuelSystem";
-import { normalizeSiegeState, registerPlayerGuildForCastle, tickSieges, unregisterPlayerGuildFromCastle } from "../systems/siegeSystem";
+import {
+  advanceCurrentSiege,
+  normalizeSiegeState,
+  registerPlayerGuildForCastle,
+  startCurrentSiege,
+  tickSieges,
+  unregisterPlayerGuildFromCastle,
+  type SiegeMoveDirection,
+} from "../systems/siegeSystem";
 
 import type {
   CombatState,
@@ -204,7 +212,7 @@ interface GameStore {
   openGuildRoster: (guildId: string) => void;
   openGuildRelations: (guildId: string) => void;
   openGuildWarProfile: (warId: string) => void;
-  createPlayerGuild: (name: string, focus: GuildFocus, level: number) => void;
+  createPlayerGuild: (name: string, focus: GuildFocus) => void;
   acceptGuildApplicant: (applicationId: string) => void;
   rejectGuildApplicant: (applicationId: string) => void;
   acceptQuest: (questId: string) => void;
@@ -218,6 +226,8 @@ interface GameStore {
   attackWarEnemyNpc: (npcId: string) => void;
   registerSiegeRoster: (castleId: string) => void;
   unregisterSiegeRoster: (castleId: string) => void;
+  startSiege: () => void;
+  siegeStep: (direction: SiegeMoveDirection) => void;
 }
 
 const collectOwnedItemIds = (server: ServerState): string[] => {
@@ -1445,6 +1455,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
     commit(set, unregisterPlayerGuildFromCastle(server, castleId), null);
   },
 
+  startSiege: () => {
+    const { server } = get();
+    commit(set, startCurrentSiege(server), null);
+  },
+
+  siegeStep: (direction) => {
+    const { server } = get();
+    const rng = createRng(server.seed + server.serverDay * 9100 + server.currentMinute + (server.currentSiegeRun?.turn ?? 0));
+    commit(set, advanceCurrentSiege(server, rng, direction), null);
+  },
+
 
   attackWarEnemyNpc: (npcId) => {
     const { server, combat } = get();
@@ -1455,9 +1476,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     commit(set, markWarAttackCooldown(server), duel, null);
   },
 
-  createPlayerGuild: (name, focus, level) => {
+  createPlayerGuild: (name, focus) => {
     const { server } = get();
-    const result = createPlayerGuildRuntime(server, name, focus, level);
+    const result = createPlayerGuildRuntime(server, name, focus);
     commit(set, result.server, undefined, {
       id: `modal_create_guild_${server.serverDay}_${server.currentMinute}`,
       type: 'guild',
@@ -1619,7 +1640,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
         text: `${guildFocusLabel(guild.guildFocus)} · ${guild.tier ?? 'low'} · ${guild.memberIds.length} игроков`,
         lines: [
           `Тип: ${guildFocusLabel(guild.guildFocus)}`,
-          `Уровень: ${guild.level}`,
           `Требование: ${guild.minLevel ?? 1}+ уровень`,
           `Участников: ${guild.memberIds.length}`,
           `Репутация: ${guild.reputation}`,
