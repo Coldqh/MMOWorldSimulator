@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { CLASSES } from "../../content/classes";
-import { getItemById, rarityScore } from "../../content/items";
+import { getItemById } from "../../content/items";
 import { useGameStore } from "../../state/gameStore";
-import { estimateItemPrice, getMarketDiagnostics, getSellPrice, isSystemMarketSeller } from "../../systems/marketSystem";
+import { getSellPrice, estimateItemPrice } from "../../systems/marketSystem";
 import type { EquipmentSlot } from "../../types/game";
 import { ItemLine } from "../components/ItemLine";
+import { buildMarketViewModel, type MarketCategory } from "../selectors/marketSelectors";
 
 const priceMark = (percent: number) =>
   percent === 0 ? "0%" : percent > 0 ? `+${percent}%` : `${percent}%`;
@@ -19,30 +20,6 @@ const slotLabel: Record<string, string> = {
   boots: "ботинки",
   ring: "кольцо",
   amulet: "амулет",
-};
-
-const systemSellerLabel: Record<string, string> = {
-  system_market_general: "Системный рынок",
-  system_market_equipment: "Снаряжение",
-  system_market_materials: "Материалы",
-  system_market_cards: "Карточный рынок",
-};
-
-type MarketCategory = "all" | "equipment" | "consumable" | "material" | "card";
-
-type ListingGroup = {
-  key: string;
-  itemId: string;
-  enhancement: number;
-  listings: ReturnType<typeof useGameStore.getState>["server"]["market"];
-};
-
-const marketLevelSort = (playerLevel: number, levelA: number, levelB: number) => {
-  const aUsable = levelA <= playerLevel;
-  const bUsable = levelB <= playerLevel;
-  if (aUsable !== bUsable) return aUsable ? -1 : 1;
-  if (aUsable && bUsable) return levelB - levelA;
-  return levelA - levelB;
 };
 
 const categoryLabel: Record<MarketCategory, string> = {
@@ -65,61 +42,23 @@ export const MarketScreen = () => {
   const [category, setCategory] = useState<MarketCategory>("all");
   const [classFilter, setClassFilter] = useState("all");
   const [slotFilter, setSlotFilter] = useState<EquipmentSlot | "">("");
+  const [visibleLimit, setVisibleLimit] = useState(80);
   const inCity = server.location.mode === "city";
 
   useEffect(() => {
-    if (inCity) repairMarket();
-  }, [inCity, repairMarket]);
+    setVisibleLimit(80);
+  }, [category, classFilter, slotFilter]);
 
-  const listingGroups = useMemo<ListingGroup[]>(() => {
-    const filtered = server.market.filter((listing) => {
-      if (listing.sellerId === server.player.id) return false;
-      const item = getItemById(listing.itemId);
-      if (!item) return false;
+  const marketView = useMemo(
+    () => buildMarketViewModel(server, { category, classFilter, slotFilter, visibleLimit }),
+    [server, category, classFilter, slotFilter, visibleLimit],
+  );
 
-      if (category === "all") return true;
-      if (category === "consumable") return item.type === "consumable";
-      if (category === "material") return item.type === "material";
-      if (category === "card") return item.type === "card";
+  useEffect(() => {
+    if (inCity && marketView.shouldRepair) repairMarket();
+  }, [inCity, marketView.shouldRepair, repairMarket]);
 
-      if (category === "equipment") {
-        if (!item.slot || !["weapon", "armor", "accessory"].includes(item.type)) return false;
-        if (slotFilter && item.slot !== slotFilter) return false;
-        if (classFilter !== "all") {
-          if (item.slot === "weapon" && !item.classTags.includes(classFilter)) return false;
-          if (item.slot !== "weapon" && item.classTags.length > 0 && !item.classTags.includes(classFilter)) return false;
-        }
-        return true;
-      }
-
-      return true;
-    });
-
-    const grouped = new Map<string, ListingGroup>();
-    filtered.forEach((listing) => {
-      const key = `${listing.itemId}|${listing.enhancement ?? 0}|${(listing.cardIds ?? []).join(',')}`;
-      const existing = grouped.get(key);
-      if (existing) existing.listings.push(listing);
-      else grouped.set(key, { key, itemId: listing.itemId, enhancement: listing.enhancement ?? 0, listings: [listing] });
-    });
-
-    return [...grouped.values()]
-      .map((group) => ({ ...group, listings: [...group.listings].sort((a, b) => a.price - b.price) }))
-      .sort((a, b) => {
-        const itemA = getItemById(a.itemId);
-        const itemB = getItemById(b.itemId);
-        const levelSort = marketLevelSort(server.player.level, itemA?.levelReq ?? 1, itemB?.levelReq ?? 1);
-        if (levelSort !== 0) return levelSort;
-        const raritySort = (rarityScore[itemB?.rarity ?? "common"] ?? 0) - (rarityScore[itemA?.rarity ?? "common"] ?? 0);
-        if (raritySort !== 0) return raritySort;
-        return a.listings[0].price - b.listings[0].price;
-      });
-  }, [server.market, server.player.id, server.player.level, category, classFilter, slotFilter]);
-
-  const marketDiagnostics = useMemo(() => ({
-    ...getMarketDiagnostics(server),
-    visibleGroups: listingGroups.length,
-  }), [server, listingGroups.length]);
+  const marketDiagnostics = marketView.diagnostics;
 
   if (!inCity) {
     return (
@@ -153,6 +92,7 @@ export const MarketScreen = () => {
             <div className="list-line"><span>valid listings</span><strong>{marketDiagnostics.validListings}</strong></div>
             <div className="list-line"><span>groups</span><strong>{marketDiagnostics.itemGroups}</strong></div>
             <div className="list-line"><span>visibleGroups</span><strong>{marketDiagnostics.visibleGroups}</strong></div>
+            <div className="list-line"><span>rendered</span><strong>{marketView.groups.length}</strong></div>
             <div className="list-line"><span>equipment</span><strong>{marketDiagnostics.equipment}</strong></div>
             <div className="list-line"><span>materials</span><strong>{marketDiagnostics.consumableMaterial}</strong></div>
             <div className="list-line"><span>cards</span><strong>{marketDiagnostics.cards}</strong></div>
@@ -192,33 +132,32 @@ export const MarketScreen = () => {
           </section>
 
           <section className="panel">
-            <div className="section-title">Товары · {listingGroups.length}</div>
-            {listingGroups.length === 0 && <p className="muted">Ничего не найдено.</p>}
+            <div className="section-title">Товары · {marketView.totalGroups}</div>
+            {marketView.totalGroups === 0 && <p className="muted">Ничего не найдено.</p>}
             <div className="list-lines">
-              {listingGroups.map((group) => {
+              {marketView.groups.map((group) => {
                 const item = getItemById(group.itemId);
-                const best = group.listings[0];
                 return (
                   <div key={group.key} className="market-group-card">
                     <div className="market-group-head">
                       <button className="text-button" onClick={() => openItemProfile(group.itemId, "market", group.enhancement)}>
-                        <ItemLine itemId={group.itemId} amount={group.listings.reduce((sum, listing) => sum + listing.amount, 0)} enhancement={group.enhancement} showLevel />
+                        <ItemLine itemId={group.itemId} amount={group.amount} enhancement={group.enhancement} showLevel />
                       </button>
-                      <strong>от {best.price}g</strong>
+                      <strong>от {group.bestPrice}g</strong>
                     </div>
-                    <small>база {best.basePrice ?? (item ? estimateItemPrice(item) : best.price)}g · продавцов {group.listings.length}</small>
+                    <small>база {group.basePrice}g · продавцов {group.sellerCount}</small>
                     <div className="seller-list">
-                      {group.listings.slice(0, 3).map((listing) => (
+                      {group.sellerRows.map((listing) => (
                         <div key={listing.id} className="seller-row">
                           <span>
-                            {isSystemMarketSeller(listing.sellerId) ? (
-                              <strong>{systemSellerLabel[listing.sellerId] ?? listing.sellerId}</strong>
+                            {listing.isSystemSeller ? (
+                              <strong>{listing.sellerLabel}</strong>
                             ) : (
-                              <button className="text-button inline-button" onClick={() => openNpcProfile(listing.sellerId)}>{server.npcs.find((npc) => npc.id === listing.sellerId)?.name ?? listing.sellerId}</button>
+                              <button className="text-button inline-button" onClick={() => openNpcProfile(listing.sellerId)}>{listing.sellerLabel}</button>
                             )}
-                            <small> · {priceMark(listing.pricePercent ?? 0)} · ×{listing.amount}</small>
+                            <small> · {priceMark(listing.pricePercent)} · ×{listing.amount}</small>
                           </span>
-                          <button onClick={() => buy(listing.id)} disabled={server.player.gold < listing.price || !item}>Купить {listing.price}g</button>
+                          <button onClick={() => buy(listing.id)} disabled={!listing.canAfford || !item}>Купить {listing.price}g</button>
                         </div>
                       ))}
                     </div>
@@ -226,6 +165,11 @@ export const MarketScreen = () => {
                 );
               })}
             </div>
+            {marketView.hasMore && (
+              <button className="wide-button" onClick={() => setVisibleLimit((value) => value + 80)}>
+                Показать ещё 80
+              </button>
+            )}
           </section>
         </>
       )}
