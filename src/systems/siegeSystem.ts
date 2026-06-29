@@ -278,24 +278,26 @@ export const normalizeSiegeState = (server: ServerState): ServerState => {
   return notifyPlayerIfRostered(autoRegisterNpcGuildsForOpenSieges(base));
 };
 
-export const canRegisterPlayerGuildForCastle = (server: ServerState, castleId: Id): { ok: boolean; reason?: string } => {
-  const normalized = normalizeSiegeState(server);
-  const castle = (normalized.castles ?? DEFAULT_CASTLES).find((entry) => entry.id === castleId);
-  const guild = normalized.guilds.find((entry) => entry.id === normalized.player.guildId);
+const getPlayerGuildCastleRegistrationCheck = (server: ServerState, castleId: Id): { ok: boolean; reason?: string } => {
+  const castles = server.castles?.length ? server.castles : normalizeCastles(server);
+  const castle = castles.find((entry) => entry.id === castleId);
+  const guild = server.guilds.find((entry) => entry.id === server.player.guildId);
   if (!castle) return { ok: false, reason: 'Замок не найден.' };
   if (!guild) return { ok: false, reason: 'Нет гильдии.' };
-  if (!isOfficerOrLeader(guild, normalized.player.id)) return { ok: false, reason: 'Нужен ГМ, зам или офицер.' };
+  if (!isOfficerOrLeader(guild, server.player.id)) return { ok: false, reason: 'Нужен ГМ, зам или офицер.' };
   if (!castleTierAllowed(guild, castle)) return { ok: false, reason: 'Нужна хай-гильдия.' };
-  if (!registrationWindowOpen(normalized, castle)) return { ok: false, reason: 'Регистрация откроется за 3 дня до осады.' };
-  if ((normalized.siegeRosters ?? []).some((roster) => roster.castleId === castleId && roster.guildId === guild.id)) return { ok: false, reason: 'Гильдия уже зарегистрирована.' };
-  const roster = chooseSiegeRosterMembers(normalized, guild, MAX_ROSTER_SIZE);
+  if (!registrationWindowOpen(server, castle)) return { ok: false, reason: 'Регистрация откроется за 3 дня до осады.' };
+  if ((server.siegeRosters ?? []).some((roster) => roster.castleId === castleId && roster.guildId === guild.id)) return { ok: false, reason: 'Гильдия уже зарегистрирована.' };
+  const roster = chooseSiegeRosterMembers(server, guild, MAX_ROSTER_SIZE);
   if (roster.length < MIN_ROSTER_SIZE) return { ok: false, reason: 'Нужно минимум 5 участников.' };
   return { ok: true };
 };
 
+export const canRegisterPlayerGuildForCastle = getPlayerGuildCastleRegistrationCheck;
+
 export const registerPlayerGuildForCastle = (server: ServerState, castleId: Id): ServerState => {
   const normalized = normalizeSiegeState(server);
-  const check = canRegisterPlayerGuildForCastle(normalized, castleId);
+  const check = getPlayerGuildCastleRegistrationCheck(normalized, castleId);
   if (!check.ok) return { ...normalized, notifications: [...(normalized.notifications ?? []), { id: `siege_register_fail_${castleId}_${normalized.serverDay}_${normalized.currentMinute}`, type: 'guild', title: 'Осада недоступна', text: check.reason ?? 'Регистрация невозможна.', lines: [check.reason ?? 'Регистрация невозможна.'] }] };
   const guild = normalized.guilds.find((entry) => entry.id === normalized.player.guildId)!;
   const memberIds = chooseSiegeRosterMembers(normalized, guild, MAX_ROSTER_SIZE);

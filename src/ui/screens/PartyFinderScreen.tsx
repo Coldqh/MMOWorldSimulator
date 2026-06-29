@@ -68,10 +68,6 @@ export const PartyFinderScreen = () => {
   const createReason = selectedId ? getCreatePartyListingBlockReason(server, selectedId, visibility) : 'Контент не найден';
 
   useEffect(() => {
-    refreshPartyFinder();
-  }, [refreshPartyFinder]);
-
-  useEffect(() => {
     if (selectedId) return;
     const highestAvailable = sortedInstances.find((dungeon) => server.player.level >= dungeon.levelRange[0]) ?? sortedInstances[0];
     if (highestAvailable) setSelectedId(highestAvailable.id);

@@ -3,6 +3,7 @@ import type { Rng } from '../engine/rng';
 import { SPOTS, ZONES } from '../content/world';
 import { inferNpcSkill, clampNpcSkill } from './npcSkillSystem';
 import { cleanGuildIdentity, cleanNpcIdentity, normalizeGuildAndNpcIdentities, normalizeNpcPlaystyle, roleFocusToPlaystyle } from './guildIdentitySystem';
+import { isPlayerCreatedGuild, protectPlayerCreatedGuilds } from './playerGuildProtection';
 
 const focusOrder: GuildFocus[] = ['pvp', 'pve', 'hybrid'];
 
@@ -54,32 +55,38 @@ const pushToSmallest = (groups: Map<string, string[]>, guilds: Guild[], npc: Npc
 };
 
 export const rebalanceGuildRoster = (server: ServerState, rng: Rng): ServerState => {
-  const guilds = normalizeGuildFocusDistribution(server.guilds ?? []);
+  const protectedBase = protectPlayerCreatedGuilds(server);
+  const guilds = normalizeGuildFocusDistribution(protectedBase.guilds ?? []);
+  const protectedGuildIds = new Set(guilds.filter(isPlayerCreatedGuild).map((guild) => guild.id));
+  const assignableGuilds = guilds.filter((guild) => !protectedGuildIds.has(guild.id));
   const guildById = new Map(guilds.map((guild) => [guild.id, guild]));
   const groups = new Map<string, string[]>();
-  guilds.forEach((guild) => groups.set(guild.id, []));
+  assignableGuilds.forEach((guild) => groups.set(guild.id, []));
   const byTier = {
-    low: guilds.filter((guild) => (guild.tier ?? 'low') === 'low'),
-    mid: guilds.filter((guild) => (guild.tier ?? 'low') === 'mid'),
-    high: guilds.filter((guild) => (guild.tier ?? 'low') === 'high'),
+    low: assignableGuilds.filter((guild) => (guild.tier ?? 'low') === 'low'),
+    mid: assignableGuilds.filter((guild) => (guild.tier ?? 'low') === 'mid'),
+    high: assignableGuilds.filter((guild) => (guild.tier ?? 'low') === 'high'),
   };
-  const npcs = [...(server.npcs ?? [])].sort((a, b) => b.level - a.level || b.gearScore - a.gearScore || a.id.localeCompare(b.id)).map((npc) => {
+  const npcs = [...(protectedBase.npcs ?? [])].sort((a, b) => b.level - a.level || b.gearScore - a.gearScore || a.id.localeCompare(b.id)).map((npc) => {
     const tier = tierForNpcLevel(npc.level, rng);
     const next: NpcPlayer = { ...npc };
     const pool = tier === 'high' ? byTier.high : tier === 'mid' ? byTier.mid : tier === 'low' ? byTier.low : [];
-    if (tier === 'none') next.guildId = undefined;
-    else pushToSmallest(groups, pool.length ? pool : guilds, next);
+    if (next.guildId && protectedGuildIds.has(next.guildId)) {
+      // Player-created guilds are filled only through accepted applications, not background balancing.
+    } else if (tier === 'none') next.guildId = undefined;
+    else pushToSmallest(groups, pool.length ? pool : assignableGuilds, next);
     const guild = next.guildId ? guildById.get(next.guildId) : undefined;
     const loc = next.locationMode ? { locationMode: next.locationMode, currentZoneId: next.currentZoneId, currentSpotId: next.currentSpotId } : pickLocation(next, rng);
     const forcedPlaystyle = guild?.guildFocus === 'pvp' ? 'pvp' : guild?.guildFocus === 'pve' ? 'pve' : next.playstyle ?? playstyleForGuild(guild, next, rng);
-    return { ...next, skill: clampNpcSkill(next.skill ?? inferNpcSkill(next, rng)), playstyle: forcedPlaystyle, ...loc, lastMovedDay: next.lastMovedDay ?? server.serverDay, lastMovedMinute: next.lastMovedMinute ?? server.currentMinute };
+    return { ...next, skill: clampNpcSkill(next.skill ?? inferNpcSkill(next, rng)), playstyle: forcedPlaystyle, ...loc, lastMovedDay: next.lastMovedDay ?? protectedBase.serverDay, lastMovedMinute: next.lastMovedMinute ?? protectedBase.currentMinute };
   });
   const npcById = new Map(npcs.map((npc) => [npc.id, npc]));
   const nextGuilds = guilds.map((guild) => {
+    if (protectedGuildIds.has(guild.id)) return guild;
     const members = (groups.get(guild.id) ?? []).filter((id) => npcById.has(id));
     const ranked = members.map((id) => npcById.get(id)!).sort((a, b) => b.gearScore - a.gearScore || b.arenaRating - a.arenaRating);
-    const playerMember = server.player.guildId === guild.id ? [server.player.id] : [];
+    const playerMember = protectedBase.player.guildId === guild.id ? [protectedBase.player.id] : [];
     return { ...guild, memberIds: [...new Set([...members, ...playerMember])], leaderId: guild.leaderId && members.includes(guild.leaderId) ? guild.leaderId : ranked[0]?.id, deputyId: guild.deputyId && members.includes(guild.deputyId) ? guild.deputyId : ranked[1]?.id, officerIds: (guild.officerIds ?? []).filter((id) => members.includes(id)).length ? (guild.officerIds ?? []).filter((id) => members.includes(id)).slice(0, 4) : ranked.slice(2, 6).map((npc) => npc.id) };
   });
-  return normalizeGuildAndNpcIdentities({ ...server, guilds: nextGuilds, npcs });
+  return protectPlayerCreatedGuilds(normalizeGuildAndNpcIdentities({ ...protectedBase, guilds: nextGuilds, npcs }));
 };
