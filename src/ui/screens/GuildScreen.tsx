@@ -10,6 +10,8 @@ import type { Guild, GuildFocus } from "../../types/game";
 
 type MainGuildTab = "guilds" | "wars" | "castles";
 type GuildTab = "profile" | "roster" | "applications" | "relations" | "events" | "castles";
+type PlayerGuildTier = "low" | "mid" | "high";
+
 
 const getNpcName = (server: ReturnType<typeof useGameStore.getState>["server"], id?: string) => {
   if (!id) return "нет";
@@ -22,6 +24,13 @@ const guildPower = (guild: Guild) => (guild.reputation ?? 0) + (guild.pvpRating 
 const relationPercent = (value: number) => `${Math.max(0, Math.min(100, value + 100) / 2)}%`;
 const relationTone = (value: number) => value <= -40 ? "danger-line" : value >= 40 ? "ready-line" : "";
 const tierLabel: Record<string, string> = { all: "Все", high: "High", mid: "Mid", low: "Low" };
+const guildTierMinLevel: Record<PlayerGuildTier, number> = { low: 1, mid: 10, high: 20 };
+const guildTierOptions: { id: PlayerGuildTier; label: string; minLevel: number }[] = [
+  { id: "low", label: "Low", minLevel: 1 },
+  { id: "mid", label: "Mid", minLevel: 10 },
+  { id: "high", label: "High", minLevel: 20 },
+];
+
 
 const guildRole = (guild: Guild, id: string) => {
   if (guild.leaderId === id) return "ГМ";
@@ -46,10 +55,12 @@ export const GuildScreen = () => {
   const [tab, setTab] = useState<GuildTab>("profile");
   const [guildName, setGuildName] = useState("");
   const [guildFocus, setGuildFocus] = useState<GuildFocus>("pvp");
+  const [guildTier, setGuildTier] = useState<PlayerGuildTier>("low");
 
   const playerGuild = server.guilds.find((entry) => entry.id === server.player.guildId);
   const applications = getPlayerGuildPendingApplications(server);
   const pendingByGuild = new Map(server.guildApplications.filter((app) => app.status === "pending").map((app) => [app.guildId, app]));
+  const canCreateSelectedTier = server.player.level >= guildTierMinLevel[guildTier];
 
   const guilds = useMemo(
     () => server.guilds
@@ -257,7 +268,27 @@ export const GuildScreen = () => {
               <option value="pve">PvE</option>
               <option value="hybrid">Смешанная</option>
             </select>
-            <button disabled={server.player.gold < 50000 || !guildName.trim()} onClick={() => createPlayerGuild(guildName, guildFocus)}>Создать за 50 000</button>
+            <div className="chip-row">
+              {guildTierOptions.map((option) => {
+                const locked = server.player.level < option.minLevel;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    className={guildTier === option.id ? "active" : ""}
+                    disabled={locked}
+                    onClick={() => setGuildTier(option.id)}
+                    title={locked ? `Нужен ${option.minLevel} уровень` : undefined}
+                  >
+                    {option.label}{locked ? ` · Lv. ${option.minLevel}` : ""}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="muted">Low доступна всегда. Mid с 10 уровня. High с 20 уровня.</p>
+            <button disabled={server.player.gold < 50000 || !guildName.trim() || !canCreateSelectedTier} onClick={() => createPlayerGuild(guildName, guildFocus, guildTier)}>
+              {canCreateSelectedTier ? "Создать за 50 000" : `Нужен ${guildTierMinLevel[guildTier]} уровень`}
+            </button>
           </div>
         </section>
       )}

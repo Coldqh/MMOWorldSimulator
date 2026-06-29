@@ -380,12 +380,18 @@ export const createPlayerGuildRuntime = (
   server: ServerState,
   name: string,
   focus: GuildFocus,
+  tier: "low" | "mid" | "high" = "low",
 ): { server: ServerState; ok: boolean; message: string } => {
   const cleanName = name.trim().slice(0, 32);
   if (!cleanName) return { server, ok: false, message: 'Название пустое.' };
   if (server.player.guildId) return { server, ok: false, message: 'Ты уже в гильдии.' };
   if (server.player.gold < 50000) return { server, ok: false, message: 'Нужно 50 000 золота.' };
   if (server.guilds.some((guild) => guild.name.toLowerCase() === cleanName.toLowerCase())) return { server, ok: false, message: 'Гильдия с таким названием уже есть.' };
+
+  const normalizedTier = tier === 'mid' || tier === 'high' ? tier : 'low';
+  const minLevelByTier: Record<"low" | "mid" | "high", number> = { low: 1, mid: 10, high: 20 };
+  const requiredLevel = minLevelByTier[normalizedTier];
+  if (server.player.level < requiredLevel) return { server, ok: false, message: `Для ${normalizedTier.toUpperCase()} гильдии нужен уровень ${requiredLevel}.` };
 
   const guild: Guild = {
     id: `guild_player_${server.seed}_${server.serverDay}_${server.currentMinute}`,
@@ -397,8 +403,8 @@ export const createPlayerGuildRuntime = (
     leaderId: server.player.id,
     deputyId: undefined,
     officerIds: [],
-    tier: 'low',
-    minLevel: 1,
+    tier: normalizedTier,
+    minLevel: requiredLevel,
     focus,
     castleControl: undefined,
     raidProgress: 0,

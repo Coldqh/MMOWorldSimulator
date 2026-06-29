@@ -212,7 +212,7 @@ interface GameStore {
   openGuildRoster: (guildId: string) => void;
   openGuildRelations: (guildId: string) => void;
   openGuildWarProfile: (warId: string) => void;
-  createPlayerGuild: (name: string, focus: GuildFocus) => void;
+  createPlayerGuild: (name: string, focus: GuildFocus, tier: "low" | "mid" | "high") => void;
   acceptGuildApplicant: (applicationId: string) => void;
   rejectGuildApplicant: (applicationId: string) => void;
   acceptQuest: (questId: string) => void;
@@ -1501,9 +1501,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     commit(set, markWarAttackCooldown(server), duel, null);
   },
 
-  createPlayerGuild: (name, focus) => {
+  createPlayerGuild: (name, focus, tier = "low") => {
     const { server } = get();
-    const result = createPlayerGuildRuntime(server, name, focus);
+    const result = createPlayerGuildRuntime(server, name, focus, tier);
     commit(set, result.server, undefined, {
       id: `modal_create_guild_${server.serverDay}_${server.currentMinute}`,
       type: 'guild',
