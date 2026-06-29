@@ -10,6 +10,7 @@ import { generateFullMarket, repairMarketIfBroken } from '../systems/marketSyste
 import { refreshPartyFinderListings } from '../systems/partyFinderSystem';
 import { initializeGuildWarsCore } from '../systems/guildWarSystem';
 import { generateEquipmentForClassLevel, generateEliteEquipmentForClassLevel, generateScaledEquipmentForClassLevel, getGearScore, normalizeNpcEquipmentAndGear } from '../systems/itemSystem';
+import { isPlayerCreatedGuild, protectPlayerCreatedGuilds, sanitizePlayerCreatedGuild } from '../systems/playerGuildProtection';
 
 export const NPC_TARGET_COUNT = 500;
 const TARGET_GUILD_MEMBER_DEVIATION = 0;
@@ -60,7 +61,6 @@ const createGuilds = (): Guild[] => {
       type: template.type,
       tier,
       minLevel: template.minLevel ?? minLevelForTier(tier),
-      level: 1,
       reputation: 10 + index * 4,
       memberIds: [],
       focus: template.focus,
@@ -193,23 +193,31 @@ const generateBalancedNpcRoster = (guilds: Guild[], seed: number, startIndex = 0
 
 const rebalanceGuildMemberships = (server: ServerState, guilds: Guild[], normalizedNpcs: NpcPlayer[]): { guilds: Guild[]; npcs: NpcPlayer[] } => {
   const seed = server.seed ?? Date.now();
-  const guildCount = Math.max(1, guilds.length);
+  const protectedBase = protectPlayerCreatedGuilds({ ...server, guilds, npcs: normalizedNpcs });
+  const sourceGuilds = protectedBase.guilds;
+  const npcGuilds = sourceGuilds.filter((guild) => !isPlayerCreatedGuild(guild));
+  if (npcGuilds.length === 0) return { guilds: sourceGuilds, npcs: protectedBase.npcs };
+
+  const guildCount = Math.max(1, npcGuilds.length);
   const perGuild = Math.floor(NPC_TARGET_COUNT / guildCount);
   const remainder = NPC_TARGET_COUNT % guildCount;
-  let npcs = normalizedNpcs.slice(0, NPC_TARGET_COUNT);
+  let npcs = protectedBase.npcs.slice(0, NPC_TARGET_COUNT);
   const existingIds = new Set(npcs.map((npc) => npc.id));
 
   while (npcs.length < NPC_TARGET_COUNT) {
     const index = npcs.length;
-    const guild = guilds[index % guilds.length];
+    const guild = npcGuilds[index % npcGuilds.length];
     const rng = createRng(seed + 90000 + index * 31);
-    npcs.push(createNpc(index, guilds, seed + 120000, npcLevelForGuild(guild, rng), guild));
+    npcs.push(createNpc(index, npcGuilds, seed + 120000, npcLevelForGuild(guild, rng), guild));
     existingIds.add(npcs[npcs.length - 1].id);
   }
 
   const assigned = new Set<string>();
   const updatedNpcs = new Map(npcs.map((npc) => [npc.id, npc]));
-  const nextGuilds = guilds.map((guild, guildIndex) => {
+  const nextGuilds = sourceGuilds.map((guild) => {
+    if (isPlayerCreatedGuild(guild)) return sanitizePlayerCreatedGuild(protectedBase, guild);
+
+    const guildIndex = Math.max(0, npcGuilds.findIndex((entry) => entry.id === guild.id));
     const target = perGuild + (guildIndex < remainder ? 1 : 0);
     const minLevel = guild.minLevel ?? minLevelForTier(guild.tier ?? 'low');
     let pool = npcs
@@ -284,7 +292,8 @@ const rebalanceGuildMemberships = (server: ServerState, guilds: Guild[], normali
   });
 
   npcs = npcs.map((npc) => updatedNpcs.get(npc.id) ?? npc).map((npc) => ({ ...npc, guildId: nextGuilds.find((guild) => guild.memberIds.includes(npc.id))?.id }));
-  return { guilds: nextGuilds, npcs };
+  const protectedResult = protectPlayerCreatedGuilds({ ...server, guilds: nextGuilds, npcs });
+  return { guilds: protectedResult.guilds, npcs: protectedResult.npcs };
 };
 
 const redistributeMaxLevelGearSpread = (npcs: NpcPlayer[], seed: number): NpcPlayer[] => {
@@ -380,12 +389,16 @@ const enforceRosterLevelSpread = (npcs: NpcPlayer[], seed: number): NpcPlayer[] 
 
 const assignGuildsByTier = (server: ServerState, guilds: Guild[], npcs: NpcPlayer[]): { guilds: Guild[]; npcs: NpcPlayer[] } => {
   const seed = server.seed ?? Date.now();
-  const highGuilds = guilds.filter((guild) => (guild.tier ?? 'low') === 'high');
-  const midGuilds = guilds.filter((guild) => (guild.tier ?? 'low') === 'mid');
-  const lowGuilds = guilds.filter((guild) => (guild.tier ?? 'low') === 'low');
+  const protectedBase = protectPlayerCreatedGuilds({ ...server, guilds, npcs });
+  const sourceGuilds = protectedBase.guilds;
+  const protectedGuildIds = new Set(sourceGuilds.filter(isPlayerCreatedGuild).map((guild) => guild.id));
+  const npcGuilds = sourceGuilds.filter((guild) => !isPlayerCreatedGuild(guild));
+  const highGuilds = npcGuilds.filter((guild) => (guild.tier ?? 'low') === 'high');
+  const midGuilds = npcGuilds.filter((guild) => (guild.tier ?? 'low') === 'mid');
+  const lowGuilds = npcGuilds.filter((guild) => (guild.tier ?? 'low') === 'low');
   const groups = new Map<string, string[]>();
-  guilds.forEach((guild) => groups.set(guild.id, []));
-  const shuffled = [...npcs].sort((a, b) => {
+  npcGuilds.forEach((guild) => groups.set(guild.id, []));
+  const shuffled = protectedBase.npcs.map((npc) => npc.guildId && protectedGuildIds.has(npc.guildId) ? { ...npc, guildId: undefined } : { ...npc }).sort((a, b) => {
     const ha = (seed + a.id.length * 71 + a.level * 131 + a.gearScore) % 100000;
     const hb = (seed + b.id.length * 71 + b.level * 131 + b.gearScore) % 100000;
     return ha - hb;
@@ -409,12 +422,14 @@ const assignGuildsByTier = (server: ServerState, guilds: Guild[], npcs: NpcPlaye
       if (rng.chance(0.72) && midGuilds.length) pushToSmallest(midGuilds, npc);
       else pushToSmallest(lowGuilds.length ? lowGuilds : midGuilds, npc);
     } else {
-      pushToSmallest(lowGuilds.length ? lowGuilds : guilds, npc);
+      pushToSmallest(lowGuilds.length ? lowGuilds : npcGuilds, npc);
     }
   });
 
   const npcsById = new Map(shuffled.map((npc) => [npc.id, npc]));
-  const nextGuilds = guilds.map((guild) => {
+  const nextGuilds = sourceGuilds.map((guild) => {
+    if (isPlayerCreatedGuild(guild)) return sanitizePlayerCreatedGuild(protectedBase, guild);
+
     const members = (groups.get(guild.id) ?? [])
       .map((id) => npcsById.get(id))
       .filter(Boolean) as NpcPlayer[];
@@ -432,14 +447,20 @@ const assignGuildsByTier = (server: ServerState, guilds: Guild[], npcs: NpcPlaye
       officerIds: officers.slice(2, 6).map((npc) => npc.id),
     };
   });
-  return { guilds: nextGuilds, npcs: shuffled };
+  const protectedResult = protectPlayerCreatedGuilds({ ...server, guilds: nextGuilds, npcs: shuffled });
+  return { guilds: protectedResult.guilds, npcs: protectedResult.npcs };
 };
 
 
 export const ensureServerRoster = (server: ServerState): ServerState => {
   const seed = server.seed ?? Date.now();
-  const baseGuilds = server.guilds.length >= 20 ? server.guilds : createGuilds();
-  const guilds = baseGuilds.map((guild, index) => {
+  const baseGuilds = server.guilds.length >= 20
+    ? server.guilds
+    : [...createGuilds(), ...server.guilds.filter(isPlayerCreatedGuild)];
+  const protectedBase = protectPlayerCreatedGuilds({ ...server, guilds: baseGuilds, npcs: server.npcs ?? [] });
+  const guilds = protectedBase.guilds.map((guild, index) => {
+    if (isPlayerCreatedGuild(guild)) return sanitizePlayerCreatedGuild(protectedBase, guild);
+
     const tier = guild.tier ?? guildTierForIndex(index);
     return {
       ...guild,
@@ -451,7 +472,7 @@ export const ensureServerRoster = (server: ServerState): ServerState => {
     };
   });
 
-  let npcs = (server.npcs ?? []).map((npc, index) => normalizeNpcEquipmentAndGear(npc, createRng(seed + 33000 + index * 17)));
+  let npcs = (protectedBase.npcs ?? []).map((npc, index) => normalizeNpcEquipmentAndGear(npc, createRng(seed + 33000 + index * 17)));
   while (npcs.length < NPC_TARGET_COUNT) {
     const index = npcs.length;
     npcs.push(createNpc(index, guilds, seed + 120000, (index % 19) + 1));
@@ -464,7 +485,7 @@ export const ensureServerRoster = (server: ServerState): ServerState => {
     return playerAllowed ? { ...guild, memberIds: [...new Set([...guild.memberIds, server.player.id])] } : guild;
   });
 
-  return { ...server, npcs: assigned.npcs, guilds: withPlayerGuild };
+  return protectPlayerCreatedGuilds({ ...server, npcs: assigned.npcs, guilds: withPlayerGuild });
 };
 
 export const createNewGame = (

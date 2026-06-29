@@ -13,6 +13,7 @@ import type { Rng } from '../engine/rng';
 import { createRng } from '../engine/rng';
 import { getGuildRelationValue } from './guildRelationSystem';
 import { guildFocusLabel, normalizeGuildFocus } from './guildIdentitySystem';
+import { isPlayerCreatedGuild, protectPlayerCreatedGuilds } from './playerGuildProtection';
 
 const SOLO_PREFIX = 'solo_pool_';
 const classIds = ['warrior', 'ranger', 'mage', 'priest'];
@@ -379,7 +380,6 @@ export const createPlayerGuildRuntime = (
   server: ServerState,
   name: string,
   focus: GuildFocus,
-  level: number,
 ): { server: ServerState; ok: boolean; message: string } => {
   const cleanName = name.trim().slice(0, 32);
   if (!cleanName) return { server, ok: false, message: 'Название пустое.' };
@@ -387,19 +387,17 @@ export const createPlayerGuildRuntime = (
   if (server.player.gold < 50000) return { server, ok: false, message: 'Нужно 50 000 золота.' };
   if (server.guilds.some((guild) => guild.name.toLowerCase() === cleanName.toLowerCase())) return { server, ok: false, message: 'Гильдия с таким названием уже есть.' };
 
-  const guildLevel = clamp(level, 1, Math.max(1, server.player.level));
   const guild: Guild = {
     id: `guild_player_${server.seed}_${server.serverDay}_${server.currentMinute}`,
     name: cleanName,
     type: focus === 'pvp' ? 'PVP' : focus === 'pve' ? 'PVE' : 'MIXED',
     guildFocus: focus,
-    level: guildLevel,
     reputation: 0,
     memberIds: [server.player.id],
     leaderId: server.player.id,
     deputyId: undefined,
     officerIds: [],
-    tier: guildLevel >= 20 ? 'high' : guildLevel >= 10 ? 'mid' : 'low',
+    tier: 'low',
     minLevel: 1,
     focus,
     castleControl: undefined,
@@ -417,7 +415,7 @@ export const createPlayerGuildRuntime = (
   return {
     ok: true,
     message: `${cleanName} создана. Ты ГМ. Участников: 1.`,
-    server: {
+    server: protectPlayerCreatedGuilds({
       ...server,
       player: { ...server.player, gold: server.player.gold - 50000, guildId: guild.id },
       guilds: [...server.guilds, guild],
@@ -428,7 +426,7 @@ export const createPlayerGuildRuntime = (
           { fromGuildId: other.id, toGuildId: guild.id, value: 0, lastChangedDay: server.serverDay, lastChangedMinute: server.currentMinute },
         ]),
       ],
-    },
+    }),
   };
 };
 
@@ -436,25 +434,8 @@ export const repairFreshPlayerGuildLeadership = (server: ServerState): ServerSta
   const guildId = server.player.guildId;
   if (!guildId) return server;
   const guild = server.guilds.find((entry) => entry.id === guildId);
-  if (!guild || !guild.id.startsWith('guild_player_')) return server;
-  if (guild.leaderId === server.player.id && guild.memberIds.includes(server.player.id)) return server;
-
-  const previousMembers = new Set(guild.memberIds.filter((id) => id !== server.player.id));
-  return {
-    ...server,
-    guilds: server.guilds.map((entry) => entry.id === guild.id
-      ? {
-          ...entry,
-          memberIds: [server.player.id],
-          leaderId: server.player.id,
-          deputyId: undefined,
-          officerIds: [],
-          createdByPlayer: true,
-          founderPlayerId: server.player.id,
-        }
-      : entry),
-    npcs: server.npcs.map((npc) => previousMembers.has(npc.id) && npc.guildId === guild.id ? { ...npc, guildId: undefined, playstyle: 'solo' as const } : npc),
-  };
+  if (!isPlayerCreatedGuild(guild)) return server;
+  return protectPlayerCreatedGuilds(server);
 };
 
 
@@ -474,7 +455,7 @@ export const maybeGeneratePlayerGuildApplication = (server: ServerState, rng: Rn
   const eligible = withPool.npcs
     .filter((npc) => !npc.guildId)
     .filter((npc) => npc.playstyle === 'solo' || npc.id.startsWith(SOLO_PREFIX))
-    .filter((npc) => npc.level <= Math.max(20, guild.level + 6));
+    .filter((npc) => npc.level <= Math.max(20, (guild.minLevel ?? 1) + 6));
   if (eligible.length === 0) return withPool;
   const applicant = rng.pick(eligible);
   const app: GuildApplication = {
@@ -504,12 +485,12 @@ export const acceptPlayerGuildApplication = (server: ServerState, applicationId:
   const guild = server.guilds.find((entry) => entry.id === app.guildId);
   const npc = server.npcs.find((entry) => entry.id === app.applicantNpcId);
   if (!guild || !npc || guild.leaderId !== server.player.id) return server;
-  return {
+  return protectPlayerCreatedGuilds({
     ...server,
     guildApplications: server.guildApplications.map((entry) => entry.id === applicationId ? { ...entry, status: 'accepted' as const, resultText: 'Принят.' } : entry),
     guilds: server.guilds.map((entry) => entry.id === guild.id ? { ...entry, memberIds: [...new Set([...entry.memberIds, npc.id])] } : entry),
     npcs: server.npcs.map((entry) => entry.id === npc.id ? { ...entry, guildId: guild.id, playstyle: guild.guildFocus === 'pvp' ? 'pvp' : guild.guildFocus === 'pve' ? 'pve' : entry.playstyle ?? 'solo', roleFocus: guild.guildFocus === 'pvp' ? 'PVP_PLAYER' : guild.guildFocus === 'pve' ? 'PVE_FARMER' : entry.roleFocus } : entry),
-  };
+  });
 };
 
 export const rejectPlayerGuildApplication = (server: ServerState, applicationId: string): ServerState => ({
