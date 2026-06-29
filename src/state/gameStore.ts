@@ -415,6 +415,21 @@ const commit = (
   });
 };
 
+
+const commitFast = (
+  set: (partial: Partial<GameStore>) => void,
+  server: ServerState,
+  combat?: CombatState | null,
+  modal?: GameModal | null,
+) => {
+  saveGame(server);
+  set({
+    server,
+    ...(combat !== undefined ? { combat } : {}),
+    ...(modal !== undefined ? { modal } : {}),
+  });
+};
+
 const makeRewardModal = (combat: CombatState, rngSeed: number): GameModal => ({
   id: `modal_reward_${rngSeed}_${combat.turn}`,
   type: combat.source === "dungeon" ? "dungeon" : "reward",
@@ -455,10 +470,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   setScreen: (screen) => {
     const { server } = get();
+
     if (screen === 'partyFinder') {
       const next = updateQuestProgressOnSystemAction(server, 'open_party_finder');
-      commit(set, next, undefined);
+      if (next !== server) {
+        commitFast(set, next);
+      }
+      set({ activeScreen: screen, sidebarOpen: false });
+      return;
     }
+
     set({ activeScreen: screen, sidebarOpen: false });
   },
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
@@ -772,7 +793,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       log: [`Арена. Противник: ${opponent.name} · рейтинг ${opponent.arenaRating}.`],
       status: "active",
     };
-    commit(set, server, arenaCombat, null);
+    commitFast(set, server, arenaCombat, null);
   },
   startArena3v3: () => {
     const { server, combat } = get();
@@ -789,7 +810,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({ modal: { id: `modal_arena_3v3_failed_${server.serverDay}_${server.currentMinute}`, type: "system", title: "3v3 недоступно", text: "Не хватает NPC для матча.", lines: ["Нужно минимум пять NPC рядом по уровню или рейтингу."] } });
       return;
     }
-    commit(set, server, arenaCombat, null);
+    commitFast(set, server, arenaCombat, null);
   },
 
   startArena5v5: () => {
@@ -807,7 +828,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({ modal: { id: `modal_arena_5v5_failed_${server.serverDay}_${server.currentMinute}`, type: "system", title: "5v5 недоступно", text: "Не хватает NPC для матча.", lines: ["Нужно минимум девять NPC для режима 5v5."] } });
       return;
     }
-    commit(set, server, arenaCombat, null);
+    commitFast(set, server, arenaCombat, null);
   },
 
   startArena10v10: () => {
@@ -825,7 +846,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({ modal: { id: `modal_arena_10v10_failed_${server.serverDay}_${server.currentMinute}`, type: "system", title: "10v10 недоступно", text: "Не хватает NPC для матча.", lines: ["Нужно минимум девятнадцать NPC для режима 10v10."] } });
       return;
     }
-    commit(set, server, arenaCombat, null);
+    commitFast(set, server, arenaCombat, null);
   },
 
 
@@ -910,7 +931,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       if (result.combat.status === "defeat" && result.combat.source !== 'dungeon' && result.combat.source !== 'raid') set({ activeScreen: "world" });
     }
 
-    commit(set, nextServer, nextCombat, modal);
+    if (result.combat.status === 'active') {
+      commitFast(set, nextServer, nextCombat, modal);
+    } else {
+      commit(set, nextServer, nextCombat, modal);
+    }
   },
 
   recoverFullHp: () => {
