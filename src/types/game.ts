@@ -981,6 +981,7 @@ export type ScreenId =
   | "start"
   | "character"
   | "world"
+  | "goals"
   | "dungeon"
   | "guild"
   | "server"
