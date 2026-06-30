@@ -1284,6 +1284,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const rng = createRng(server.seed + server.serverDay * 13000 + server.currentMinute);
     commitFast(set, refreshPartyFinderListings(server, rng));
   },
+
   createPartyListing: (dungeonId, visibility = "public") => {
     const { server } = get();
     const rng = createRng(server.seed + server.serverDay * 13100 + server.currentMinute);

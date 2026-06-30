@@ -105,22 +105,16 @@ const canSeeListing = (server: ServerState, listing: PartyFinderListing) => {
 const hasHighGuild = (server: ServerState, npc: NpcPlayer) => guildById(server, npc.guildId)?.tier === 'high';
 
 const isPublicListingCreator = (npc: NpcPlayer) => {
-  if (['PVP_PLAYER', 'LEADER'].includes(npc.roleFocus)) return false;
-  if (['TRADER', 'DRAMA'].includes(npc.roleFocus)) return npc.activityLevel >= 7;
-  return ['CASUAL', 'PVE_FARMER', 'GUILD_PLAYER', 'RAIDER', 'COLLECTOR', 'HARDCORE'].includes(npc.roleFocus);
+  if (npc.roleFocus === 'pvp') return npc.activityLevel >= 7 && npc.socialWeight >= 5;
+  if (npc.roleFocus === 'mixed') return npc.activityLevel >= 5;
+  return npc.activityLevel >= 4;
 };
 
 const roleFocusWeight = (npc: NpcPlayer) => {
-  if (npc.roleFocus === 'RAIDER') return 10;
-  if (npc.roleFocus === 'HARDCORE') return 9;
-  if (npc.roleFocus === 'PVE_FARMER') return 8;
-  if (npc.roleFocus === 'GUILD_PLAYER') return 7;
-  if (npc.roleFocus === 'COLLECTOR') return 5;
-  if (npc.roleFocus === 'CASUAL') return 4;
-  if (npc.roleFocus === 'TRADER') return 2;
-  if (npc.roleFocus === 'PVP_PLAYER') return 1;
-  if (npc.roleFocus === 'LEADER') return 1;
-  return 2;
+  if (npc.roleFocus === 'pve') return 8;
+  if (npc.roleFocus === 'mixed') return 6;
+  if (npc.roleFocus === 'pvp') return 3;
+  return 4;
 };
 
 const isNpcBusyInActiveListing = (server: ServerState, npcId: string, exceptListingId?: string) =>
@@ -140,7 +134,6 @@ export const canNpcJoinListing = (npc: NpcPlayer, listing: PartyFinderListing, d
 
   if (listing.visibility === 'public' && hasHighGuild(server, npc)) return false;
   if ((listing.visibility === 'guild_internal' || listing.visibility === 'static') && (!listing.guildId || npc.guildId !== listing.guildId)) return false;
-  if (dungeon.contentType === 'raid' && !['RAIDER', 'HARDCORE', 'GUILD_PLAYER', 'LEADER'].includes(npc.roleFocus)) return false;
 
   return canMemberFillNeededRole(npc, listing, server);
 };
@@ -262,23 +255,35 @@ const pickNpcApplicantForPlayerListing = (server: ServerState, listing: PartyFin
   if (!ACTIVE_STATUSES.includes(listing.status)) return undefined;
   if (listing.memberIds.length >= listingMemberLimit(listing)) return undefined;
 
+  const isRaid = dungeon.contentType === 'raid';
+  const relaxed = (listing.waitAttempts ?? 0) >= 2;
+  const minLevel = dungeon.levelRange[0];
+  const maxLevel = dungeon.levelRange[1] + (isRaid ? 2 : 1);
+  const targetLevel = Math.round((dungeon.levelRange[0] + dungeon.levelRange[1]) / 2);
+  const minGs = listing.requirements.minGearScore ?? 0;
+  const allowedGs = isRaid && relaxed ? Math.floor(minGs * 0.85) : minGs;
+
   let best: NpcPlayer | undefined;
   let bestScore = -Infinity;
 
   for (const npc of server.npcs) {
+    const focus = npc.roleFocus ?? npc.playstyle ?? 'mixed';
+
     if (listing.memberIds.includes(npc.id)) continue;
     if ((listing.applicantIds ?? []).includes(npc.id)) continue;
     if ((listing.rejectedIds ?? []).includes(npc.id)) continue;
-    if (npc.level < listing.requirements.minLevel || npc.level > listing.requirements.maxLevel + 1) continue;
-    if (listing.requirements.minGearScore && npc.gearScore < listing.requirements.minGearScore) continue;
+    if (npc.level < minLevel || npc.level > maxLevel) continue;
+    if (allowedGs && npc.gearScore < allowedGs) continue;
     if (isNpcBusyInBlockingListingForPlayerRequest(server, npc.id, listing.id)) continue;
-    if (dungeon.contentType === 'raid' && !['RAIDER', 'HARDCORE', 'GUILD_PLAYER', 'LEADER'].includes(npc.roleFocus)) continue;
+    if (isRaid && !relaxed && focus === 'pvp') continue;
     if (!canMemberFillNeededRole(npc, listing, server)) continue;
 
     const role = getClassPartyRole(npc.classId);
-    const need = hasRoleSlot(listing, role) ? 10 : 0;
-    const levelFit = Math.max(0, 6 - Math.abs(npc.level - dungeon.levelRange[0]));
-    const score = need + levelFit + roleFocusWeight(npc) + npc.activityLevel * 0.6 + npc.socialWeight * 0.3 + npc.gearScore / 240 + rng.next() * 4;
+    const need = hasRoleSlot(listing, role) ? 30 : 0;
+    const levelFit = Math.max(0, 26 - Math.abs(npc.level - targetLevel) * 5);
+    const gearBonus = Math.min(7, npc.gearScore / 420);
+    const focusBonus = focus === 'pve' ? 5 : focus === 'mixed' ? 3 : isRaid ? -4 : 0;
+    const score = need + levelFit + gearBonus + focusBonus + npc.activityLevel * 0.35 + npc.socialWeight * 0.2 + rng.next() * 2;
 
     if (score > bestScore) {
       best = npc;
@@ -287,6 +292,49 @@ const pickNpcApplicantForPlayerListing = (server: ServerState, listing: PartyFin
   }
 
   return best;
+};
+
+const explainNoPlayerApplicant = (server: ServerState, listing: PartyFinderListing) => {
+  const dungeon = getDungeonById(listing.dungeonId);
+  if (!dungeon) return 'Контент не найден';
+
+  const isRaid = dungeon.contentType === 'raid';
+  const relaxed = (listing.waitAttempts ?? 0) >= 2;
+  const minLevel = dungeon.levelRange[0];
+  const maxLevel = dungeon.levelRange[1] + (isRaid ? 2 : 1);
+  const minGs = listing.requirements.minGearScore ?? 0;
+  const allowedGs = isRaid && relaxed ? Math.floor(minGs * 0.85) : minGs;
+
+  const available = server.npcs.filter((npc) =>
+    !listing.memberIds.includes(npc.id) &&
+    !(listing.applicantIds ?? []).includes(npc.id) &&
+    !(listing.rejectedIds ?? []).includes(npc.id) &&
+    !isNpcBusyInBlockingListingForPlayerRequest(server, npc.id, listing.id),
+  );
+
+  const byLevel = available.filter((npc) => npc.level >= minLevel && npc.level <= maxLevel);
+  if (byLevel.length === 0) return 'Нет NPC по уровню';
+
+  const byGs = byLevel.filter((npc) => !allowedGs || npc.gearScore >= allowedGs);
+  if (byGs.length === 0) return 'Нет NPC по GS';
+
+  const needsTank = listing.roles.tankIds.length < listing.requirements.tanks;
+  const needsHealer = listing.roles.healerIds.length < listing.requirements.healers;
+
+  const hasRole = byGs.some((npc) => {
+    const role = getClassPartyRole(npc.classId);
+    if (needsTank) return role === 'tank';
+    if (needsHealer) return role === 'healer';
+    return role === 'physicalDps' || role === 'magicDps';
+  });
+
+  if (!hasRole) {
+    if (needsTank) return 'Нет подходящего танка';
+    if (needsHealer) return 'Нет подходящего хила';
+    return 'Нет подходящего DPS';
+  }
+
+  return 'Новых заявок нет';
 };
 
 const pickNpcForListing = (server: ServerState, listing: PartyFinderListing, rng: Rng) => {
@@ -509,10 +557,11 @@ export const waitPartyListing = (server: ServerState, listingId: string, rng: Rn
       });
     }
 
+    const reason = playerLed ? explainNoPlayerApplicant(nextServer, listing) : candidate ? 'Ждём ответа от игроков.' : 'Новых заявок нет';
     return {
       ...listing,
       waitAttempts: (listing.waitAttempts ?? 0) + 1,
-      log: [...(listing.log ?? []), candidate ? 'Ждём ответа от игроков.' : 'Новых заявок нет'].slice(-12),
+      log: [...(listing.log ?? []), reason].slice(-12),
     };
   });
 

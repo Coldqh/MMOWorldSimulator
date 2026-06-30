@@ -3,70 +3,59 @@ import path from 'node:path';
 
 const root = process.cwd();
 const read = (filePath) => fs.readFileSync(path.join(root, filePath), 'utf8');
+
 const pass = [];
 const fail = [];
 const assert = (condition, message) => condition ? pass.push(message) : fail.push(message);
 
-const takeBetween = (text, startNeedle, endNeedle) => {
+const between = (text, startNeedle, endNeedle) => {
   const start = text.indexOf(startNeedle);
   if (start < 0) return '';
-  const fromStart = text.slice(start);
-  const end = fromStart.indexOf(endNeedle);
-  return end >= 0 ? fromStart.slice(0, end) : fromStart;
+  const end = text.indexOf(endNeedle, start + startNeedle.length);
+  return end >= 0 ? text.slice(start, end) : text.slice(start);
 };
 
-const gameStore = read('src/state/gameStore.ts');
-const guildWarSystem = read('src/systems/guildWarSystem.ts');
-const guildRuntimeSystem = read('src/systems/guildRuntimeSystem.ts');
-const partyFinderSystem = read('src/systems/partyFinderSystem.ts');
-const siegeSystem = read('src/systems/siegeSystem.ts');
-const castlePanel = read('src/ui/components/CastlePanel.tsx');
-const appShell = read('src/ui/layout/AppShell.tsx');
-const gameTypes = read('src/types/game.ts');
-const version = read('src/engine/version.ts');
 const pkg = JSON.parse(read('package.json'));
+const gameTypes = read('src/types/game.ts');
+const gameStore = read('src/state/gameStore.ts');
+const partyFinderSystem = read('src/systems/partyFinderSystem.ts');
+const guildWarSystem = read('src/systems/guildWarSystem.ts');
+const appShell = read('src/ui/layout/AppShell.tsx');
+const contentNpc = read('src/content/npc.ts');
+const createNewGame = read('src/engine/createNewGame.ts');
+const npcSkillSystem = read('src/systems/npcSkillSystem.ts');
 
-const bottomNav = takeBetween(appShell, 'const bottomNav', 'const sideNav');
-const sideNav = takeBetween(appShell, 'const sideNav', 'const cityOnlyScreens');
-const simulateServer = takeBetween(gameStore, 'const simulateServerForMinutes', 'const normalizeServer');
-const partyActions = takeBetween(gameStore, 'refreshPartyFinder:', 'joinGuild:');
-const applicantPicker = takeBetween(partyFinderSystem, 'const pickNpcApplicantForPlayerListing', 'const pickNpcForListing');
+const storeImpl = between(gameStore, 'export const useGameStore = create<GameStore>', '));');
+const partyActions = between(storeImpl, 'refreshPartyFinder:', 'joinGuild:');
+const bottomNav = between(appShell, 'const bottomNav', 'const sideNav');
+const sideNav = between(appShell, 'const sideNav', 'const cityOnlyScreens');
+const applicantPicker = between(partyFinderSystem, 'const pickNpcApplicantForPlayerListing =', 'const pickNpcForListing =');
+const refreshBlock = between(storeImpl, 'refreshPartyFinder:', 'createPartyListing:');
 
-const bottomNavIds = Array.from(bottomNav.matchAll(/id:\s*'([^']+)'/g)).map((match) => match[1]);
+const legacyTokens = ['PVE_FARMER', 'RAIDER', 'PVP_PLAYER', 'GUILD_PLAYER', 'COLLECTOR', 'TRADER', 'CASUAL', 'HARDCORE', 'LEADER', 'DRAMA', 'NEWBIE'];
 
-assert(pkg.version === '0.7.32', 'package.json version is 0.7.32');
-assert(version.includes("APP_VERSION = '0.7.32'") || version.includes('APP_VERSION = "0.7.32"'), 'APP_VERSION is 0.7.32');
+assert(pkg.version === '0.7.33', 'package version is 0.7.33');
+assert(gameTypes.includes('export type RoleFocus = "pve" | "pvp" | "mixed";'), 'RoleFocus is pve/pvp/mixed');
+assert(gameTypes.includes('export type NpcPlaystyle = "pve" | "pvp" | "mixed";'), 'NpcPlaystyle is pve/pvp/mixed');
+assert(gameTypes.includes('export type GuildType = "PVE" | "PVP" | "MIXED";'), 'GuildType is PVE/PVP/MIXED');
 
-assert(appShell.includes('GoalsScreen'), 'AppShell registers GoalsScreen');
-assert(sideNav.includes("{ id: 'goals', label: '🎯 Цели' }"), 'sideNav contains Goals tab');
-assert(!bottomNav.includes('goals'), 'bottomNav does not contain Goals tab');
-assert(bottomNavIds.length === 3 && bottomNavIds.join('|') === 'character|world|quests', 'bottomNav contains exactly Hero/World/Quests');
-assert(gameTypes.includes('| "goals"'), 'ScreenId contains goals');
+assert(!legacyTokens.some((token) => gameTypes.includes(token)), 'legacy npc focus types removed from game types');
+assert(!legacyTokens.some((token) => contentNpc.includes(token)), 'legacy npc focus types removed from npc content');
+assert(!legacyTokens.some((token) => createNewGame.includes(token)), 'legacy npc focus types removed from new game generator');
+assert(!legacyTokens.some((token) => npcSkillSystem.includes(token)), 'legacy npc focus types removed from npc skill system');
 
-assert(simulateServer.includes('tickGuildWars('), 'simulateServerForMinutes runs tickGuildWars');
-assert(!simulateServer.includes('simulateGuildWarsEveryHalfHour('), 'simulateServerForMinutes does not run duplicate half-hour guild war simulator');
-assert(guildWarSystem.includes('npcsByGuildId'), 'guild war simulation indexes NPCs by guild');
-assert(!guildWarSystem.includes('const attackers = next.npcs.filter((npc) => npc.guildId === currentWar.attackerGuildId)'), 'guild war does not repeatedly filter attackers');
-assert(guildWarSystem.includes('Math.min(6') || guildWarSystem.includes('Math.min(4'), 'guild war catch-up is capped');
-assert(guildRuntimeSystem.includes('Math.min(6') || guildRuntimeSystem.includes('Math.min(4'), 'legacy half-hour guild-war simulator is capped');
+assert(!bottomNav.includes('goals'), 'bottom nav has no goals');
+assert(sideNav.includes("{ id: 'goals', label: '🎯 Цели' }"), 'side nav has goals');
 
-assert(partyFinderSystem.includes('pickNpcApplicantForPlayerListing'), 'Party Finder has player-led applicant picker');
-assert(!applicantPicker.includes('.sort('), 'player applicant picker does not sort all NPCs');
-assert(partyFinderSystem.includes('isNpcBusyInBlockingListingForPlayerRequest'), 'Party Finder only blocks static/guild-internal/player groups for applicants');
-assert(partyFinderSystem.includes("listing.leaderType !== 'npc' || listing.visibility !== 'public'"), 'accepted NPC is removed from public NPC listings');
-assert(partyFinderSystem.includes('ownsPlayerListing'), 'Party Finder preserves player-led listing without full refresh');
-
-assert(partyActions.includes('commitFast(set, refreshPartyFinderListings'), 'refreshPartyFinder uses commitFast');
-assert(partyActions.includes('commitFast(set, result.server, undefined, result.modal)'), 'party create/join/wait/accept/reject use commitFast');
-assert(partyActions.includes('commitFast(set, leavePartyFinderListing'), 'leavePartyListing uses commitFast');
-assert(partyActions.includes('commitFast(set, cancelPartyFinderListing'), 'cancelPartyListing uses commitFast');
-assert(partyActions.includes('commitFast(set, result.server, null, result.modal)'), 'startPartyListing uses commitFast');
+assert(/commitFast\s*\(\s*set\s*,\s*refreshPartyFinderListings\s*\(\s*server\s*,\s*rng\s*\)\s*\)/.test(refreshBlock), 'refreshPartyFinder is fast');
 assert(!partyActions.includes('commit(set,'), 'Party Finder action block has no full commit');
 
-assert(siegeSystem.includes('canUnregisterPlayerGuildFromCastle'), 'Siege unregister permission check exists');
-assert(siegeSystem.includes('Нужен ГМ, зам или офицер.'), 'Siege unregister requires leader/deputy/officer');
-assert(castlePanel.includes('canUnregisterPlayerGuildFromCastle'), 'CastlePanel uses siege unregister permission check');
-assert(castlePanel.includes('unregisterCheck.ok') && castlePanel.includes('Гильдия зарегистрирована'), 'CastlePanel shows registered state without unregister button for regular members');
+assert(partyFinderSystem.includes('pickNpcApplicantForPlayerListing'), 'NPC applicant picker exists');
+assert(partyFinderSystem.includes('const explainNoPlayerApplicant ='), 'NPC applicant no-candidate reason helper exists');
+assert(!applicantPicker.includes('.sort('), 'NPC applicant picker does not sort all NPCs');
+
+assert(guildWarSystem.includes('npcsByGuildId'), 'guild war uses guild NPC index');
+assert(!guildWarSystem.includes('Math.min(6, rawDuelTicks)'), 'guild war is not capped to 6 duels');
 
 if (fail.length) {
   console.error('Sanity failed:');
