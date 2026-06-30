@@ -47,6 +47,7 @@ const screens: Record<ScreenId, ReactNode> = {
 const bottomNav: Array<{ id: ScreenId; label: string }> = [
   { id: 'character', label: '🧍 Герой' },
   { id: 'world', label: '🌍 Мир' },
+  { id: 'goals', label: '🎯 Цели' },
   { id: 'quests', label: '📜 Квесты' },
 ];
 
