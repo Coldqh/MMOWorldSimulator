@@ -1,11 +1,11 @@
-import type { Guild, GuildFocus, NpcPlayer, NpcPlaystyle, ServerState } from '../types/game';
+import type { Guild, GuildFocus, NpcPlayer, NpcPlaystyle, RoleFocus, ServerState } from '../types/game';
 
 export const normalizeGuildFocus = (value?: string, fallback: GuildFocus = 'hybrid'): GuildFocus => {
   const normalized = String(value ?? '').toLowerCase();
   if (normalized === 'pvp' || normalized === 'pve' || normalized === 'hybrid') return normalized;
+  if (normalized === 'mixed' || normalized === 'trade') return 'hybrid';
   if (normalized === 'hardcore') return 'pvp';
   if (normalized === 'casual' || normalized === 'newbie') return 'pve';
-  if (normalized === 'trade' || normalized === 'mixed') return 'hybrid';
   return fallback;
 };
 
@@ -22,33 +22,30 @@ export const guildFocusLabel = (focus?: string) => {
   return 'Смешанная';
 };
 
-export const normalizeNpcPlaystyle = (value?: string, fallback: NpcPlaystyle = 'solo'): NpcPlaystyle => {
+export const normalizeNpcPlaystyle = (value?: string, fallback: NpcPlaystyle = 'mixed'): NpcPlaystyle => {
   const normalized = String(value ?? '').toLowerCase();
-  if (normalized === 'pvp' || normalized === 'pve' || normalized === 'solo') return normalized;
-  if (normalized === 'hybrid') return 'solo';
-  if (normalized === 'hardcore') return 'pvp';
-  if (normalized === 'raider' || normalized === 'farmer') return 'pve';
+  if (normalized === 'pvp' || normalized === 'pve' || normalized === 'mixed') return normalized;
+  if (normalized === 'mixed') return 'mixed';
+  if (normalized.includes('pvp') || normalized.includes('arena') || normalized.includes('hard') || normalized.includes('lead')) return 'pvp';
+  if (normalized.includes('pve') || normalized.includes('raid') || normalized.includes('farm') || normalized.includes('collect') || normalized.includes('casual')) return 'pve';
   return fallback;
 };
+
+export const normalizeNpcRoleFocus = (value?: string, fallback: RoleFocus = 'mixed'): RoleFocus =>
+  normalizeNpcPlaystyle(value, fallback) as RoleFocus;
 
 export const npcPlaystyleLabel = (value?: string) => {
   const normalized = normalizeNpcPlaystyle(value);
   if (normalized === 'pvp') return 'PvP';
   if (normalized === 'pve') return 'PvE';
-  return 'Одиночка';
+  return 'Mixed';
 };
 
-export const roleFocusToPlaystyle = (roleFocus?: string): NpcPlaystyle => {
-  if (roleFocus === 'PVP_PLAYER' || roleFocus === 'HARDCORE' || roleFocus === 'LEADER') return 'pvp';
-  if (roleFocus === 'RAIDER' || roleFocus === 'PVE_FARMER' || roleFocus === 'GUILD_PLAYER') return 'pve';
-  return 'solo';
-};
+export const roleFocusToPlaystyle = (roleFocus?: string): NpcPlaystyle =>
+  normalizeNpcPlaystyle(roleFocus);
 
-export const playstyleToRoleFocus = (playstyle: NpcPlaystyle): NpcPlayer['roleFocus'] => {
-  if (playstyle === 'pvp') return 'PVP_PLAYER';
-  if (playstyle === 'pve') return 'PVE_FARMER';
-  return 'CASUAL';
-};
+export const playstyleToRoleFocus = (playstyle: NpcPlaystyle): NpcPlayer['roleFocus'] =>
+  normalizeNpcPlaystyle(playstyle) as RoleFocus;
 
 export const cleanGuildIdentity = (guild: Guild, index = 0): Guild => {
   const fallback: GuildFocus = index % 3 === 0 ? 'pvp' : index % 3 === 1 ? 'pve' : 'hybrid';
@@ -63,13 +60,14 @@ export const cleanGuildIdentity = (guild: Guild, index = 0): Guild => {
 
 export const cleanNpcIdentity = (npc: NpcPlayer, guild?: Guild): NpcPlayer => {
   const guildFocus = normalizeGuildFocus(guild?.guildFocus ?? guild?.type);
+  const fallback = normalizeNpcRoleFocus(npc.roleFocus);
   const playstyle: NpcPlaystyle = guild
     ? guildFocus === 'pvp'
       ? 'pvp'
       : guildFocus === 'pve'
         ? 'pve'
-        : normalizeNpcPlaystyle(npc.playstyle, roleFocusToPlaystyle(npc.roleFocus))
-    : 'solo';
+        : normalizeNpcPlaystyle(npc.playstyle, fallback)
+    : normalizeNpcPlaystyle(npc.playstyle, fallback);
 
   return {
     ...npc,

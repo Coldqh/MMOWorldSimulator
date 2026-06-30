@@ -27,27 +27,10 @@ export type EquipmentSlot =
   | "boots"
   | "ring"
   | "amulet";
-export type RoleFocus =
-  | "PVE_FARMER"
-  | "RAIDER"
-  | "PVP_PLAYER"
-  | "GUILD_PLAYER"
-  | "COLLECTOR"
-  | "TRADER"
-  | "CASUAL"
-  | "HARDCORE"
-  | "LEADER"
-  | "DRAMA";
-export type GuildType =
-  | "PVE"
-  | "PVP"
-  | "CASUAL"
-  | "HARDCORE"
-  | "TRADE"
-  | "NEWBIE"
-  | "MIXED";
+export type RoleFocus = "pve" | "pvp" | "mixed";
+export type GuildType = "PVE" | "PVP" | "MIXED";
 export type GuildFocus = "pvp" | "pve" | "hybrid";
-export type NpcPlaystyle = "pvp" | "pve" | "solo";
+export type NpcPlaystyle = "pve" | "pvp" | "mixed";
 export type NpcLocationMode = "city" | "zone" | "spot";
 export type GuildWarVoteKind = "declare" | "accept" | "extend";
 export type GuildWarVoteStatus = "active" | "passed" | "failed" | "expired" | "cancelled";

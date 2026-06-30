@@ -338,7 +338,7 @@ const makeSoloNpc = (index: number, level: number, tier: 'low' | 'mid' | 'high',
     xp: 0,
     gearScore: level * (45 + (index % 13) * 4) + rng.int(25, 240),
     gold: rng.int(level * 40, level * 180),
-    roleFocus: 'CASUAL',
+    roleFocus: 'pve',
     currentGoal: 'Ищет гильдию',
     reputation: rng.int(0, 140),
     activityLevel: rng.int(3, 8),
@@ -349,7 +349,7 @@ const makeSoloNpc = (index: number, level: number, tier: 'low' | 'mid' | 'high',
     equipment: {},
     arenaRating: 900 + level * 14 + rng.int(-80, 140),
     skill: clamp(2 + Math.floor(level / 3) + rng.int(0, 3), 1, 10),
-    playstyle: 'solo',
+    playstyle: 'mixed',
     locationMode: rng.chance(0.35) ? 'city' : 'zone',
     currentZoneId: undefined,
     currentSpotId: undefined,
@@ -370,7 +370,7 @@ export const ensureSoloNpcPool = (server: ServerState): ServerState => {
   return {
     ...server,
     npcs: [
-      ...server.npcs.map((npc) => npc.id.startsWith(SOLO_PREFIX) && npc.guildId ? { ...npc, guildId: undefined, playstyle: 'solo' as const, roleFocus: 'CASUAL' as const } : npc),
+      ...server.npcs.map((npc) => npc.id.startsWith(SOLO_PREFIX) && npc.guildId ? { ...npc, guildId: undefined, playstyle: 'mixed' as const, roleFocus: 'pve' as const } : npc),
       ...additions,
     ],
   };
@@ -460,7 +460,7 @@ export const maybeGeneratePlayerGuildApplication = (server: ServerState, rng: Rn
   const withPool = ensureSoloNpcPool(server);
   const eligible = withPool.npcs
     .filter((npc) => !npc.guildId)
-    .filter((npc) => npc.playstyle === 'solo' || npc.id.startsWith(SOLO_PREFIX))
+    .filter((npc) => !npc.guildId || npc.id.startsWith(SOLO_PREFIX))
     .filter((npc) => npc.level <= Math.max(20, (guild.minLevel ?? 1) + 6));
   if (eligible.length === 0) return withPool;
   const applicant = rng.pick(eligible);
@@ -495,7 +495,7 @@ export const acceptPlayerGuildApplication = (server: ServerState, applicationId:
     ...server,
     guildApplications: server.guildApplications.map((entry) => entry.id === applicationId ? { ...entry, status: 'accepted' as const, resultText: 'Принят.' } : entry),
     guilds: server.guilds.map((entry) => entry.id === guild.id ? { ...entry, memberIds: [...new Set([...entry.memberIds, npc.id])] } : entry),
-    npcs: server.npcs.map((entry) => entry.id === npc.id ? { ...entry, guildId: guild.id, playstyle: guild.guildFocus === 'pvp' ? 'pvp' : guild.guildFocus === 'pve' ? 'pve' : entry.playstyle ?? 'solo', roleFocus: guild.guildFocus === 'pvp' ? 'PVP_PLAYER' : guild.guildFocus === 'pve' ? 'PVE_FARMER' : entry.roleFocus } : entry),
+    npcs: server.npcs.map((entry) => entry.id === npc.id ? { ...entry, guildId: guild.id, playstyle: guild.guildFocus === 'pvp' ? 'pvp' : guild.guildFocus === 'pve' ? 'pve' : entry.playstyle ?? 'mixed', roleFocus: guild.guildFocus === 'pvp' ? 'pvp' : guild.guildFocus === 'pve' ? 'pve' : entry.roleFocus } : entry),
   });
 };
 

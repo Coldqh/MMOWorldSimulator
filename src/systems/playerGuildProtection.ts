@@ -54,7 +54,7 @@ export const protectPlayerCreatedGuilds = (server: ServerState): ServerState => 
       if (!npc.guildId || !protectedGuildIds.has(npc.guildId)) return npc;
       return allowedNpcGuild.get(npc.id) === npc.guildId
         ? npc
-        : { ...npc, guildId: undefined, playstyle: npc.playstyle ?? 'solo' };
+        : { ...npc, guildId: undefined, playstyle: npc.playstyle ?? 'mixed' };
     }),
   };
 };

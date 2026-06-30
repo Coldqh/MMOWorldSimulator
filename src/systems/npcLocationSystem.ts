@@ -79,7 +79,7 @@ export const moveNpcPlayers = (server: ServerState, rng: Rng, minutes: number): 
       const lastTotal = ((npc.lastMovedDay ?? 1) - 1) * 1440 + (npc.lastMovedMinute ?? 0);
       const nowTotal = (server.serverDay - 1) * 1440 + server.currentMinute;
       if (nowTotal - lastTotal < 30 && rng.chance(0.9)) return npc;
-      if (!rng.chance(npc.playstyle === 'pvp' ? 0.34 : npc.playstyle === 'solo' ? 0.2 : 0.18)) return npc;
+      if (!rng.chance(npc.playstyle === 'pvp' ? 0.34 : npc.playstyle === 'mixed' ? 0.2 : 0.18)) return npc;
       return { ...npc, ...pickNpcLocation(npc, rng), lastMovedDay: server.serverDay, lastMovedMinute: server.currentMinute };
     }),
   };
@@ -151,7 +151,7 @@ export const handleWarNpcEncountersOnPlayerLocationEnter = (server: ServerState,
   const lines: string[] = [];
   enemies.slice(0, 10).forEach((npc) => {
     const guild = npc.guildId ? server.guilds.find((entry) => entry.id === npc.guildId) : undefined;
-    const base = npc.playstyle === 'pvp' || guild?.guildFocus === 'pvp' ? 0.35 : guild?.guildFocus === 'hybrid' || npc.playstyle === 'solo' ? 0.18 : 0.08;
+    const base = npc.playstyle === 'pvp' || guild?.guildFocus === 'pvp' ? 0.35 : guild?.guildFocus === 'hybrid' || npc.playstyle === 'mixed' ? 0.18 : 0.08;
     const diff = (npc.gearScore ?? 0) - playerGs;
     const attackChance = Math.max(0.02, Math.min(0.7, base + Math.max(-0.25, Math.min(0.25, diff / 4000))));
     if (rng.chance(attackChance)) { lines.push(`${npc.name} ищет момент для нападения.`); return; }
@@ -164,4 +164,4 @@ export const handleWarNpcEncountersOnPlayerLocationEnter = (server: ServerState,
   return lines.length === 0 ? server : { ...server, npcs, notifications: [...(server.notifications ?? []), { id: `war_location_${server.serverDay}_${server.currentMinute}_${rng.int(1, 999999)}`, type: 'guild', title: 'Враги рядом', text: 'Вражеские игроки в локации.', lines: lines.slice(0, 4) }] };
 };
 
-export const handleWarNpcEncountersAfterNpcMovement = handleWarNpcEncountersOnPlayerLocationEnter;
+export const handleWarNpcEncountersAfterNpcMovement = (server: ServerState, _rng: Rng): ServerState => server;

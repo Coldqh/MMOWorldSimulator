@@ -32,11 +32,11 @@ export const findDungeonParty = (server: ServerState, dungeonId: string, rng: Rn
     server.npcs
       .filter((npc) => npc.level >= dungeon.levelRange[0] - 1 && npc.level <= dungeon.levelRange[1] + 1)
       .filter((npc) => !guildLocked || npc.guildId === playerGuild?.id)
-      .filter((npc) => ['RAIDER', 'PVE_FARMER', 'GUILD_PLAYER', 'CASUAL', 'HARDCORE'].includes(npc.roleFocus)),
+      .filter((npc) => ['pve', 'pve', 'mixed', 'pve', 'pvp'].includes(npc.roleFocus)),
     rng,
   ).sort((a, b) => {
-    const aScore = a.activityLevel + a.socialWeight + a.gearScore / 16 + (a.roleFocus === 'RAIDER' ? 4 : 0) + rng.next() * 8;
-    const bScore = b.activityLevel + b.socialWeight + b.gearScore / 16 + (b.roleFocus === 'RAIDER' ? 4 : 0) + rng.next() * 8;
+    const aScore = a.activityLevel + a.socialWeight + a.gearScore / 16 + (a.roleFocus === 'pve' ? 4 : 0) + rng.next() * 8;
+    const bScore = b.activityLevel + b.socialWeight + b.gearScore / 16 + (b.roleFocus === 'pve' ? 4 : 0) + rng.next() * 8;
     return bScore - aScore;
   });
 

@@ -1,6 +1,6 @@
 {
-  "version": "0.7.32",
+  "version": "0.7.33",
   "channel": "stable",
-  "build": "2026-06-30-v0732-hard-performance-fix",
-  "buildTime": "2026-06-30T12:11:43.326Z"
+  "build": "2026-06-30-v0733-content-generator-repair",
+  "buildTime": "2026-06-30T13:42:04.902Z"
 }

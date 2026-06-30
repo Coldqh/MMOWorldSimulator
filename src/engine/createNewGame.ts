@@ -91,14 +91,10 @@ const normalizeLevelForGuildTier = (currentLevel: number, guild: Guild, rng: Ret
   return npcLevelForGuild(guild, rng);
 };
 
-const focusForGuild = (guild: Guild, rng: ReturnType<typeof createRng>) => {
-  const type: GuildType = guild.type;
-  if (type === 'PVP') return rng.pick(['PVP_PLAYER', 'HARDCORE', 'GUILD_PLAYER', 'LEADER'] as RoleFocus[]);
-  if (type === 'HARDCORE') return rng.pick(['HARDCORE', 'RAIDER', 'PVP_PLAYER', 'LEADER'] as RoleFocus[]);
-  if (type === 'PVE') return rng.pick(['RAIDER', 'PVE_FARMER', 'GUILD_PLAYER', 'HARDCORE'] as RoleFocus[]);
-  if (type === 'TRADE') return rng.pick(['TRADER', 'COLLECTOR', 'PVE_FARMER', 'CASUAL'] as RoleFocus[]);
-  if (type === 'CASUAL' || type === 'NEWBIE') return rng.pick(['CASUAL', 'GUILD_PLAYER', 'PVE_FARMER', 'COLLECTOR'] as RoleFocus[]);
-  return rng.pick(ROLE_FOCUSES);
+const focusForGuild = (guild: Guild, rng: ReturnType<typeof createRng>): RoleFocus => {
+  if (guild.type === 'PVP') return rng.pick(['pvp', 'pvp', 'mixed'] as RoleFocus[]);
+  if (guild.type === 'PVE') return rng.pick(['pve', 'pve', 'mixed'] as RoleFocus[]);
+  return rng.pick(['mixed', 'pve', 'pvp'] as RoleFocus[]);
 };
 
 const upgradeNpcForGuild = (npc: NpcPlayer, guild: Guild, seed: number, order = 0): NpcPlayer => {
@@ -108,28 +104,28 @@ const upgradeNpcForGuild = (npc: NpcPlayer, guild: Guild, seed: number, order = 
   let level = Math.max(normalizeLevelForGuildTier(npc.level, guild, rng), minLevel);
   if (tier === 'mid') level = Math.max(10, Math.min(20, level));
   if (tier === 'low') level = Math.max(1, Math.min(20, level));
-  const focus = ['PVP', 'HARDCORE'].includes(guild.type)
-    ? rng.pick(['PVP_PLAYER', 'HARDCORE', 'LEADER', 'GUILD_PLAYER'] as RoleFocus[])
+  const focus = ['PVP', 'pvp'].includes(guild.type)
+    ? rng.pick(['pvp', 'pvp', 'pvp', 'mixed'] as RoleFocus[])
     : guild.type === 'PVE'
-      ? rng.pick(['RAIDER', 'PVE_FARMER', 'HARDCORE', 'GUILD_PLAYER'] as RoleFocus[])
+      ? rng.pick(['pve', 'pve', 'pvp', 'mixed'] as RoleFocus[])
       : npc.roleFocus;
   const power = tier === 'high'
     ? 0.18 + rng.next() * 0.82
     : tier === 'mid'
       ? 0.18 + rng.next() * 0.48
       : 0.08 + rng.next() * 0.42;
-  const equipment = tier === 'high' || focus === 'PVP_PLAYER' || focus === 'HARDCORE'
+  const equipment = tier === 'high' || focus === 'pvp'
     ? generateScaledEquipmentForClassLevel(npc.classId, level, rng, power)
     : generateEquipmentForClassLevel(npc.classId, level, rng);
   const gearScore = getGearScore(equipment);
-  const arenaRating = estimateArenaRatingValue(level, gearScore, focus) * (focus === 'PVP_PLAYER' ? rng.int(105, 121) : rng.int(92, 109)) / 100;
+  const arenaRating = estimateArenaRatingValue(level, gearScore, focus) * (focus === 'pvp' ? rng.int(105, 121) : rng.int(92, 109)) / 100;
   const gold = estimateWealthValue(level, gearScore, focus) * rng.int(78, 142) / 100;
   return {
     ...npc,
     level,
     guildId: guild.id,
     roleFocus: focus,
-    currentGoal: focus === 'PVP_PLAYER' ? 'рейтинг арены' : focus === 'RAIDER' || focus === 'HARDCORE' ? 'рейдовый шмот' : npc.currentGoal,
+    currentGoal: focus === 'pvp' ? 'рейтинг арены' : focus === 'pve' ? 'рейдовый шмот' : npc.currentGoal,
     equipment,
     gearScore,
     arenaRating: Math.round(arenaRating),
@@ -150,7 +146,7 @@ export const createNpc = (index: number, guilds: Guild[], seed: number, forcedLe
     ? generateScaledEquipmentForClassLevel(classData.id, level, rng, guild?.tier === 'high' ? 0.18 + rng.next() * 0.82 : 0.55 + rng.next() * 0.35)
     : generateEquipmentForClassLevel(classData.id, level, rng);
   const gearScore = getGearScore(equipment);
-  const roleFocus = elite ? (rng.chance(0.55) ? 'PVP_PLAYER' : rng.chance(0.5) ? 'HARDCORE' : 'RAIDER') : focus;
+  const roleFocus: RoleFocus = elite ? (rng.chance(0.55) ? 'pvp' : rng.chance(0.5) ? 'pve' : 'mixed') : focus;
 
   return {
     id: `npc_${index + 1}`,
@@ -163,7 +159,7 @@ export const createNpc = (index: number, guilds: Guild[], seed: number, forcedLe
     gold: Math.round(estimateWealthValue(level, gearScore, roleFocus) * rng.int(65, 145) / 100),
     guildId: guild?.id,
     roleFocus,
-    currentGoal: roleFocus === 'COLLECTOR' ? 'редкая карта' : roleFocus === 'RAIDER' ? 'рейд или данж' : roleFocus === 'PVP_PLAYER' ? 'рейтинг арены' : 'уровень и шмот',
+    currentGoal: roleFocus === 'pvp' ? 'рейтинг арены' : roleFocus === 'pve' ? 'рейд или данж' : 'уровень и шмот',
     reputation: rng.int(0, 50),
     activityLevel: rng.int(1, 10),
     ambition: rng.int(1, 10),
@@ -277,8 +273,7 @@ const rebalanceGuildMemberships = (server: ServerState, guilds: Guild[], normali
       .filter(Boolean) as NpcPlayer[];
     const leaderScore = (npc: NpcPlayer) => {
       if (guild.type === 'PVP') return npc.arenaRating * 1.2 + npc.gearScore * 0.25 + npc.activityLevel * 75 + npc.gold * 0.006;
-      if (guild.type === 'HARDCORE') return npc.gearScore * 0.9 + npc.arenaRating * 0.45 + npc.activityLevel * 100 + npc.gold * 0.004;
-      if (guild.type === 'TRADE') return npc.gold * 0.025 + npc.gearScore * 0.35 + npc.activityLevel * 80;
+      if (guild.type === 'MIXED') return npc.gearScore * 0.55 + npc.arenaRating * 0.25 + npc.activityLevel * 80 + npc.gold * 0.006;
       return npc.gearScore * 0.75 + npc.level * 30 + npc.activityLevel * 85 + npc.reputation * 20;
     };
     const officers = [...sortedMembers].sort((a, b) => leaderScore(b) - leaderScore(a));
@@ -300,7 +295,7 @@ const redistributeMaxLevelGearSpread = (npcs: NpcPlayer[], seed: number): NpcPla
   const maxLevelNpcs = npcs
     .filter((npc) => npc.level >= 20)
     .sort((a, b) => {
-      const focusWeight = (npc: NpcPlayer) => npc.roleFocus === 'PVP_PLAYER' || npc.roleFocus === 'HARDCORE' ? 2 : npc.roleFocus === 'RAIDER' || npc.roleFocus === 'LEADER' ? 1 : 0;
+      const focusWeight = (npc: NpcPlayer) => npc.roleFocus === 'pvp' ? 2 : npc.roleFocus === 'pve' ? 1 : 0;
       return focusWeight(b) - focusWeight(a) || a.id.localeCompare(b.id);
     });
   if (maxLevelNpcs.length === 0) return npcs.map((npc) => ({ ...npc, gearScore: getGearScore(npc.equipment ?? {}) }));
@@ -309,7 +304,7 @@ const redistributeMaxLevelGearSpread = (npcs: NpcPlayer[], seed: number): NpcPla
   const count = Math.max(1, maxLevelNpcs.length - 1);
   maxLevelNpcs.forEach((npc, index) => {
     const base = maxLevelNpcs.length === 1 ? 0.55 : index / count;
-    const focusBoost = npc.roleFocus === 'PVP_PLAYER' || npc.roleFocus === 'HARDCORE' ? 0.08 : npc.roleFocus === 'RAIDER' || npc.roleFocus === 'LEADER' ? 0.04 : 0;
+    const focusBoost = npc.roleFocus === 'pvp' ? 0.08 : npc.roleFocus === 'pve' ? 0.04 : 0;
     const noise = (((seed + index * 37 + npc.id.length * 11) % 17) - 8) / 200;
     powerById.set(npc.id, Math.max(0.05, Math.min(1, base + focusBoost + noise)));
   });
@@ -359,7 +354,7 @@ const setNpcLevelTimer = (npc: NpcPlayer, seed: number, index: number): NpcPlaye
 const rebuildNpcForLevel = (npc: NpcPlayer, level: number, seed: number, index: number): NpcPlayer => {
   const rng = createRng(seed + 470000 + index * 131 + level * 17);
   const isCap = level >= 20;
-  const isStrong = npc.roleFocus === 'PVP_PLAYER' || npc.roleFocus === 'HARDCORE' || npc.roleFocus === 'RAIDER' || npc.roleFocus === 'LEADER';
+  const isStrong = npc.roleFocus === 'pvp' || npc.roleFocus === 'pve';
   const power = isCap ? Math.min(1, 0.22 + (index % 150) / 150 * 0.78 + (isStrong ? 0.08 : 0)) : 0.12 + rng.next() * 0.46;
   const equipment = isCap ? generateScaledEquipmentForClassLevel(npc.classId, 20, rng, power) : generateEquipmentForClassLevel(npc.classId, level, rng);
   const gearScore = getGearScore(equipment);
@@ -376,7 +371,7 @@ const enforceRosterLevelSpread = (npcs: NpcPlayer[], seed: number): NpcPlayer[] 
   const lowerLevels: number[] = [];
   for (let i = 0; i < lowerCount; i += 1) lowerLevels.push((i % 19) + 1);
   const sorted = [...npcs].sort((a, b) => {
-    const focus = (npc: NpcPlayer) => npc.roleFocus === 'PVP_PLAYER' || npc.roleFocus === 'HARDCORE' ? 4 : npc.roleFocus === 'RAIDER' || npc.roleFocus === 'LEADER' ? 3 : npc.roleFocus === 'GUILD_PLAYER' ? 2 : 1;
+    const focus = (npc: NpcPlayer) => npc.roleFocus === 'pvp' ? 4 : npc.roleFocus === 'pve' ? 3 : npc.roleFocus === 'mixed' ? 2 : 1;
     return focus(b) - focus(a) || b.gearScore - a.gearScore || a.id.localeCompare(b.id);
   });
   const capIds = new Set(sorted.slice(0, capCount).map((npc) => npc.id));
@@ -435,7 +430,7 @@ const assignGuildsByTier = (server: ServerState, guilds: Guild[], npcs: NpcPlaye
       .filter(Boolean) as NpcPlayer[];
     const leaderScore = (npc: NpcPlayer) => guild.type === 'PVP'
       ? npc.arenaRating * 1.3 + npc.gearScore * 0.25 + npc.activityLevel * 75
-      : guild.type === 'TRADE'
+      : guild.type === 'MIXED'
         ? npc.gold * 0.03 + npc.gearScore * 0.25 + npc.activityLevel * 80
         : npc.gearScore * 0.9 + npc.arenaRating * 0.25 + npc.activityLevel * 75;
     const officers = [...members].sort((a, b) => leaderScore(b) - leaderScore(a));

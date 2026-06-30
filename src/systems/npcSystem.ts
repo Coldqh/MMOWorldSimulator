@@ -16,16 +16,9 @@ import { refreshPartyFinderListings } from './partyFinderSystem';
 const levelingMinutesForNpcLevel = (level: number, rng: Rng) => Math.round((240 + level * level * 42) * (0.8 + rng.next() * 0.4));
 
 const goalByFocus: Record<string, string[]> = {
-  PVE_FARMER: ['редкий дроп', 'новый спот', 'шмот на уровень'],
-  RAIDER: ['данж-пати', 'рейдовый предмет', 'Вирмшпиль'],
-  PVP_PLAYER: ['рейтинг арены', 'дуэли', 'место в топе'],
-  GUILD_PLAYER: ['гильдейный данж', 'стабильный ростер'],
-  COLLECTOR: ['карта моба', 'маунт', 'редкий аксессуар'],
-  TRADER: ['дешёвый лот', 'перепродажа', 'камни усиления'],
-  CASUAL: ['пати на вечер', 'простой фарм'],
-  HARDCORE: ['быстрый прогресс', 'лучший гир', 'первый закрытый босс'],
-  LEADER: ['новые участники', 'сильный ростер', 'репутация гильдии'],
-  DRAMA: ['смена гильдии', 'конфликт в пати', 'новый клан']
+  pve: ['фарм', 'данж-пати', 'шмот на уровень'],
+  pvp: ['рейтинг арены', 'дуэли', 'место в топе'],
+  mixed: ['пати на вечер', 'гильдейный ростер', 'рынок']
 };
 
 const refreshGoal = (npc: NpcPlayer, rng: Rng): NpcPlayer => {
@@ -101,7 +94,7 @@ const maybeNpcLootUpgrade = (server: ServerState, npc: NpcPlayer, rng: Rng): { s
     }
   }
 
-  if (item.tradeable && rng.chance(npc.roleFocus === 'TRADER' ? 0.8 : 0.28)) {
+  if (item.tradeable && rng.chance(npc.roleFocus === 'mixed' ? 0.8 : 0.28)) {
     return { server: makeNpcListing(server, rng, npc, item.id), npc };
   }
 
@@ -109,7 +102,7 @@ const maybeNpcLootUpgrade = (server: ServerState, npc: NpcPlayer, rng: Rng): { s
 };
 
 const maybeNpcBuyUpgrade = (server: ServerState, npc: NpcPlayer, rng: Rng): { server: ServerState; npc: NpcPlayer } => {
-  if (!rng.chance(npc.roleFocus === 'TRADER' ? 0.02 : 0.045)) return { server, npc };
+  if (!rng.chance(npc.roleFocus === 'mixed' ? 0.02 : 0.045)) return { server, npc };
   const candidates = server.market
     .filter((listing) => listing.sellerId !== npc.id && listing.price <= npc.gold)
     .map((listing) => ({ listing, item: getItemById(listing.itemId) }))
@@ -159,7 +152,7 @@ const spawnLevelOneNpc = (server: ServerState, rng: Rng): ServerState => {
   const equipment = generateEquipmentForClassLevel(cls.id, 1, rng);
   const gearScore = getGearScore(equipment);
   const lowGuilds = server.guilds.filter((guild) => (guild.tier ?? 'low') === 'low');
-  const guild = lowGuilds.length > 0 ? rng.pick(lowGuilds) : undefined;
+  const guild = rng.chance(0.2) ? undefined : (lowGuilds.length > 0 ? rng.pick(lowGuilds) : undefined);
   const npc: NpcPlayer = {
     id: `npc_new_${server.serverDay}_${server.currentMinute}_${index}_${rng.int(1000, 9999)}`,
     name: `${rng.pick(NPC_NAMES)}${rng.int(1, 99)}`,
@@ -170,7 +163,7 @@ const spawnLevelOneNpc = (server: ServerState, rng: Rng): ServerState => {
     gearScore,
     gold: rng.int(20, 80),
     guildId: guild?.id,
-    roleFocus: rng.pick(['PVE_FARMER', 'CASUAL', 'GUILD_PLAYER', 'COLLECTOR'] as any),
+    roleFocus: rng.pick(['pve', 'pve', 'mixed', 'pve'] as any),
     currentGoal: 'первый уровень и шмот',
     reputation: 0,
     activityLevel: rng.int(1, 7),
@@ -179,7 +172,7 @@ const spawnLevelOneNpc = (server: ServerState, rng: Rng): ServerState => {
     socialWeight: rng.int(1, 8),
     inventory: [],
     equipment,
-    arenaRating: estimateArenaRatingValue(1, gearScore, 'PVE_FARMER'),
+    arenaRating: estimateArenaRatingValue(1, gearScore, 'pve'),
   };
   const scheduled = scheduleNextNpcLevel(server, npc, rng);
   return {
@@ -193,7 +186,7 @@ const simulateNpcAction = (server: ServerState, npc: NpcPlayer, rng: Rng): { ser
   let nextNpc = refreshGoal({ ...npc, gearScore: getGearScore(npc.equipment ?? {}) }, rng);
   let nextServer = server;
 
-  nextNpc.gold += rng.int(3, 18) + Math.floor(npc.level * 4) + (nextNpc.roleFocus === 'RAIDER' ? rng.int(20, 60) : 0) + (nextNpc.roleFocus === 'TRADER' ? rng.int(18, 95) : 0);
+  nextNpc.gold += rng.int(3, 18) + Math.floor(npc.level * 4) + (nextNpc.roleFocus === 'pve' ? rng.int(20, 60) : 0) + (nextNpc.roleFocus === 'mixed' ? rng.int(18, 95) : 0);
   if (nextNpc.level < 20 && targetTotalMinutes(nextNpc.nextLevelAtDay, nextNpc.nextLevelAtMinute) <= nowTotalMinutes(server)) {
     const before = nextNpc.level;
     nextNpc = { ...nextNpc, level: Math.min(20, nextNpc.level + 1), xp: 0 };
@@ -206,7 +199,7 @@ const simulateNpcAction = (server: ServerState, npc: NpcPlayer, rng: Rng): { ser
     nextNpc = scheduleNextNpcLevel(server, nextNpc, rng);
   }
 
-  if (nextNpc.roleFocus === 'PVP_PLAYER' && rng.chance(0.2)) {
+  if (nextNpc.roleFocus === 'pvp' && rng.chance(0.2)) {
     const before = nextNpc.arenaRating;
     nextNpc.arenaRating = Math.max(100, nextNpc.arenaRating + rng.int(-18, 30));
   }
@@ -225,13 +218,13 @@ const simulateNpcAction = (server: ServerState, npc: NpcPlayer, rng: Rng): { ser
   nextServer = buyResult.server;
   nextNpc = buyResult.npc;
 
-  if (nextNpc.roleFocus === 'RAIDER' && rng.chance(0.025)) {
+  if (nextNpc.roleFocus === 'pve' && rng.chance(0.025)) {
     nextNpc.reputation += 1;
     const guild = nextNpc.guildId ? nextServer.guilds.find((entry) => entry.id === nextNpc.guildId) : undefined;
     if (guild && rng.chance(0.12)) nextServer = addNews(nextServer, rng, 'raid', `${guild.name}: рейдовый прогресс.`, false);
   }
 
-  if (nextNpc.roleFocus === 'TRADER' && rng.chance(0.04)) {
+  if (nextNpc.roleFocus === 'mixed' && rng.chance(0.04)) {
     nextNpc.gold += rng.int(20, 90);
   }
 
@@ -243,7 +236,7 @@ const simulateGuildRoster = (server: ServerState, rng: Rng): ServerState => {
 
   if (rng.chance(0.08)) {
     const guild = rng.pick(next.guilds);
-    const freeNpcs = next.npcs.filter((npc) => !npc.guildId && npc.level >= (guild.minLevel ?? 1) && (npc.roleFocus === 'GUILD_PLAYER' || npc.roleFocus === 'RAIDER' || npc.roleFocus === 'PVP_PLAYER' || rng.chance(0.2)));
+    const freeNpcs = next.npcs.filter((npc) => !npc.guildId && npc.level >= (guild.minLevel ?? 1) && (npc.roleFocus === 'mixed' || npc.roleFocus === 'pve' || npc.roleFocus === 'pvp' || rng.chance(0.2)));
     const joiner = freeNpcs.length > 0 ? rng.pick(freeNpcs) : undefined;
     if (joiner) {
       next = {
@@ -277,11 +270,11 @@ const simulateGuildRoster = (server: ServerState, rng: Rng): ServerState => {
 
 
 const newGuildNames = ['Crownless', 'Morning Forge', 'Rabbit Hole', 'Oak Pact', 'Silent Bell', 'Northline', 'Amber Frame', 'Blue Hearth', 'Wolf Table', 'Soft Reset'];
-const guildTypes: GuildType[] = ['PVE', 'PVP', 'CASUAL', 'HARDCORE', 'TRADE', 'MIXED'];
+const guildTypes: GuildType[] = ['PVE', 'PVP', 'MIXED'];
 const createDynamicGuild = (server: ServerState, rng: Rng): Guild => {
   const tier = rng.chance(0.25) ? 'high' : rng.chance(0.45) ? 'mid' : 'low';
   const minLevel = tier === 'high' ? 20 : tier === 'mid' ? 10 : 1;
-  const type = tier === 'high' ? rng.pick(['PVP', 'PVE', 'HARDCORE'] as GuildType[]) : rng.pick(guildTypes);
+  const type = tier === 'high' ? rng.pick(['PVP', 'PVE', 'MIXED'] as GuildType[]) : rng.pick(guildTypes);
   return {
     id: `guild_dynamic_${server.serverDay}_${rng.int(1000, 9999)}`,
     name: `${rng.pick(newGuildNames)} ${rng.int(1, 99)}`,
@@ -291,7 +284,7 @@ const createDynamicGuild = (server: ServerState, rng: Rng): Guild => {
     level: 1,
     reputation: 0,
     memberIds: [],
-    focus: type === 'PVP' ? 'арена и рейтинг' : type === 'TRADE' ? 'рынок' : type === 'HARDCORE' ? 'топовый прогресс' : 'данжи и ростер',
+    focus: type === 'PVP' ? 'арена и рейтинг' : type === 'MIXED' ? 'рынок и пати' : 'данжи и ростер',
     raidProgress: 0,
     pvpRating: 0,
     stability: rng.int(38, 74),
