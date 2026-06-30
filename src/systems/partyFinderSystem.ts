@@ -614,7 +614,13 @@ export const acceptPartyApplicant = (server: ServerState, listingId: string, npc
         if (listing.id === listingId) return listing;
         if (listing.leaderType !== 'npc' || listing.visibility !== 'public' || !listing.memberIds.includes(npcId)) return listing;
         if (listing.leaderId === npcId) {
-          return { ...listing, status: 'cancelled' as PartyListingStatus, memberIds: [], applicantIds: [], log: [...(listing.log ?? []), `${acceptedName} ушёл в группу игрока.`].slice(-12) };
+          return {
+            ...listing,
+            status: 'cancelled' as PartyListingStatus,
+            memberIds: [],
+            applicantIds: [],
+            log: [...(listing.log ?? []), `${acceptedName} ушёл в группу игрока.`].slice(-12),
+          };
         }
         return withRebuiltRoles(server, {
           ...listing,

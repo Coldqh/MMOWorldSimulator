@@ -496,14 +496,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
   newGame: (name, raceId, classId) => {
     const cleanName = name.trim().slice(0, 18) || "Newbie";
     const next = createNewGame(cleanName, raceId, classId, Date.now(), true);
-    commit(set, next, null, null);
+    commitFast(set, next, null, null);
     set({ activeScreen: "world" });
   },
 
   resetGame: () => {
     clearSave();
     const next = createEmptyServer();
-    commit(set, next, null, null);
+    commitFast(set, next, null, null);
     set({ activeScreen: "start" });
   },
 
@@ -977,7 +977,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (combat || !server.characterCreated) return;
     const rng = createRng(server.seed + server.serverDay * 11900 + server.currentMinute);
     const next = simulateServerForMinutes(server, 60, rng);
-    commit(set, next, null, {
+    commitFast(set, next, null, {
       id: `modal_skip_hour_${server.serverDay}_${server.currentMinute}`,
       type: 'system',
       title: 'Час пропущен',
@@ -994,7 +994,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     let next = simulateServerForMinutes(server, minutes, rng);
     const stats = getPlayerStats(next.player);
     next = { ...next, player: { ...next.player, hp: stats.hp, mana: stats.mana } };
-    commit(set, next, null, {
+    commitFast(set, next, null, {
       id: `modal_skip_day_${server.serverDay}_${server.currentMinute}`,
       type: 'system',
       title: 'День пропущен',
@@ -1284,7 +1284,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const rng = createRng(server.seed + server.serverDay * 13000 + server.currentMinute);
     commitFast(set, refreshPartyFinderListings(server, rng));
   },
-
   createPartyListing: (dungeonId, visibility = "public") => {
     const { server } = get();
     const rng = createRng(server.seed + server.serverDay * 13100 + server.currentMinute);

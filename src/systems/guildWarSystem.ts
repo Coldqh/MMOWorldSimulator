@@ -167,6 +167,13 @@ export const recordGuildWarKill = (server: ServerState, warId: Id, record: Guild
 
 export const simulateActiveGuildWars = (server: ServerState, rng: Rng, maxDuelsPerWar = 1): ServerState => {
   let next = server;
+  const npcsByGuildId = new Map<Id, NpcPlayer[]>();
+  (server.npcs ?? []).forEach((npc) => {
+    if (!npc.guildId) return;
+    const bucket = npcsByGuildId.get(npc.guildId) ?? [];
+    bucket.push(npc);
+    npcsByGuildId.set(npc.guildId, bucket);
+  });
 
   for (const war of server.guildWars ?? []) {
     if (war.status !== 'active') continue;
@@ -183,8 +190,8 @@ export const simulateActiveGuildWars = (server: ServerState, rng: Rng, maxDuelsP
       const currentWar = next.guildWars.find((entry) => entry.id === war.id);
       if (!currentWar || currentWar.status !== 'active') break;
 
-      const attackers = next.npcs.filter((npc) => npc.guildId === currentWar.attackerGuildId);
-      const defenders = next.npcs.filter((npc) => npc.guildId === currentWar.defenderGuildId);
+      const attackers = npcsByGuildId.get(currentWar.attackerGuildId) ?? [];
+      const defenders = npcsByGuildId.get(currentWar.defenderGuildId) ?? [];
 
       if (attackers.length === 0 || defenders.length === 0) {
         next = {
