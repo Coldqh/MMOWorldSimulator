@@ -66,10 +66,13 @@ export const moveNpcPlayers = (server: ServerState, rng: Rng, minutes: number): 
   if (minutes <= 0) return server;
   const shouldMove = minutes >= 30 || server.currentMinute % 30 === 0;
   if (!shouldMove) return server;
+  const summaryStride = minutes >= 1440 ? 4 : minutes >= 360 ? 2 : 1;
+  const summaryOffset = Math.abs(server.serverDay + server.currentMinute) % summaryStride;
 
   return {
     ...server,
-    npcs: (server.npcs ?? []).map((npc) => {
+    npcs: (server.npcs ?? []).map((npc, index) => {
+      if (summaryStride > 1 && index % summaryStride !== summaryOffset) return npc;
       const repaired = repairNpcLocationIfIllegal(npc, rng);
       if (repaired !== npc) return { ...repaired, lastMovedDay: server.serverDay, lastMovedMinute: server.currentMinute };
 

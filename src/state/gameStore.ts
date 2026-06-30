@@ -635,7 +635,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     const result = createPlayerPartyListing(server, dungeonId, rng, "public");
-    commit(set, result.server, undefined, result.modal);
+    commitFast(set, result.server, undefined, result.modal);
     set({ activeScreen: "partyFinder" });
   },
 
@@ -1282,14 +1282,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
   refreshPartyFinder: () => {
     const { server } = get();
     const rng = createRng(server.seed + server.serverDay * 13000 + server.currentMinute);
-    commit(set, refreshPartyFinderListings(server, rng));
+    commitFast(set, refreshPartyFinderListings(server, rng));
   },
 
   createPartyListing: (dungeonId, visibility = "public") => {
     const { server } = get();
     const rng = createRng(server.seed + server.serverDay * 13100 + server.currentMinute);
     const result = createPlayerPartyListing(server, dungeonId, rng, visibility);
-    commit(set, result.server, undefined, result.modal);
+    commitFast(set, result.server, undefined, result.modal);
     if (result.server.currentPartyListingId) set({ activeScreen: "partyFinder" });
   },
 
@@ -1297,32 +1297,32 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { server } = get();
     const rng = createRng(server.seed + server.serverDay * 13200 + server.currentMinute);
     const result = joinPartyFinderListing(server, listingId, rng);
-    commit(set, result.server, undefined, result.modal);
+    commitFast(set, result.server, undefined, result.modal);
     if (result.server.currentPartyListingId) set({ activeScreen: "partyFinder" });
   },
 
   leavePartyListing: (listingId) => {
     const { server } = get();
-    commit(set, leavePartyFinderListing(server, listingId));
+    commitFast(set, leavePartyFinderListing(server, listingId));
   },
 
   cancelPartyListing: (listingId) => {
     const { server } = get();
-    commit(set, cancelPartyFinderListing(server, listingId));
+    commitFast(set, cancelPartyFinderListing(server, listingId));
   },
 
   waitPartyListing: (listingId) => {
     const { server } = get();
     const rng = createRng(server.seed + server.serverDay * 13400 + server.currentMinute + (server.partyFinderListings.find((listing) => listing.id === listingId)?.waitAttempts ?? 0) * 17);
     const result = waitPartyFinderListing(server, listingId, rng);
-    commit(set, result.server, undefined, result.modal);
+    commitFast(set, result.server, undefined, result.modal);
   },
 
   startPartyListing: (listingId) => {
     const { server } = get();
     const rng = createRng(server.seed + server.serverDay * 13300 + server.currentMinute);
     const result = startPartyFromListing(server, listingId, rng);
-    commit(set, result.server, null, result.modal);
+    commitFast(set, result.server, null, result.modal);
     if (result.server.currentDungeonRun) set({ activeScreen: result.server.currentDungeonRun.contentType === "raid" ? "raid" : "dungeon" });
   },
 
@@ -1330,14 +1330,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { server } = get();
     const rng = createRng(server.seed + server.serverDay * 13500 + server.currentMinute + npcId.length);
     const result = acceptPartyFinderApplicant(server, listingId, npcId, rng);
-    commit(set, result.server, undefined, result.modal);
+    commitFast(set, result.server, undefined, result.modal);
   },
 
   rejectPartyApplicant: (listingId, npcId) => {
     const { server } = get();
     const rng = createRng(server.seed + server.serverDay * 13600 + server.currentMinute + npcId.length);
     const result = rejectPartyFinderApplicant(server, listingId, npcId, rng);
-    commit(set, result.server, undefined, result.modal);
+    commitFast(set, result.server, undefined, result.modal);
   },
 
   joinGuild: (guildId) => get().applyToGuild(guildId),

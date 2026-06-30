@@ -1,4 +1,4 @@
-import type { GuildWar, GuildWarKillRecord, GuildWarTopKiller, GuildWarVote, Id, ServerState } from '../types/game';
+import type { GuildWar, GuildWarKillRecord, GuildWarTopKiller, GuildWarVote, Id, NpcPlayer, ServerState } from '../types/game';
 import type { Rng } from '../engine/rng';
 import { uid } from '../engine/rng';
 import { addNews } from '../engine/news';

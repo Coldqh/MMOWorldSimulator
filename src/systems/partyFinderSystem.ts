@@ -259,30 +259,34 @@ const isNpcBusyInBlockingListingForPlayerRequest = (server: ServerState, npcId: 
 const pickNpcApplicantForPlayerListing = (server: ServerState, listing: PartyFinderListing, rng: Rng) => {
   const dungeon = getDungeonById(listing.dungeonId);
   if (!dungeon) return undefined;
+  if (!ACTIVE_STATUSES.includes(listing.status)) return undefined;
+  if (listing.memberIds.length >= listingMemberLimit(listing)) return undefined;
 
-  const candidates = server.npcs
-    .filter((npc) => {
-      if (!ACTIVE_STATUSES.includes(listing.status)) return false;
-      if (listing.memberIds.includes(npc.id)) return false;
-      if ((listing.applicantIds ?? []).includes(npc.id)) return false;
-      if ((listing.rejectedIds ?? []).includes(npc.id)) return false;
-      if (listing.memberIds.length >= listingMemberLimit(listing)) return false;
-      if (npc.level < listing.requirements.minLevel || npc.level > listing.requirements.maxLevel + 1) return false;
-      if (listing.requirements.minGearScore && npc.gearScore < listing.requirements.minGearScore) return false;
-      if (isNpcBusyInBlockingListingForPlayerRequest(server, npc.id, listing.id)) return false;
-      if (dungeon.contentType === 'raid' && !['RAIDER', 'HARDCORE', 'GUILD_PLAYER', 'LEADER'].includes(npc.roleFocus)) return false;
-      return canMemberFillNeededRole(npc, listing, server);
-    })
-    .map((npc) => {
-      const role = getClassPartyRole(npc.classId);
-      const need = hasRoleSlot(listing, role) ? 10 : 0;
-      const levelFit = Math.max(0, 6 - Math.abs(npc.level - dungeon.levelRange[0]));
-      const score = need + levelFit + roleFocusWeight(npc) + npc.activityLevel * 0.6 + npc.socialWeight * 0.3 + npc.gearScore / 240 + rng.next() * 4;
-      return { npc, score };
-    })
-    .sort((a, b) => b.score - a.score);
+  let best: NpcPlayer | undefined;
+  let bestScore = -Infinity;
 
-  return candidates[0]?.npc;
+  for (const npc of server.npcs) {
+    if (listing.memberIds.includes(npc.id)) continue;
+    if ((listing.applicantIds ?? []).includes(npc.id)) continue;
+    if ((listing.rejectedIds ?? []).includes(npc.id)) continue;
+    if (npc.level < listing.requirements.minLevel || npc.level > listing.requirements.maxLevel + 1) continue;
+    if (listing.requirements.minGearScore && npc.gearScore < listing.requirements.minGearScore) continue;
+    if (isNpcBusyInBlockingListingForPlayerRequest(server, npc.id, listing.id)) continue;
+    if (dungeon.contentType === 'raid' && !['RAIDER', 'HARDCORE', 'GUILD_PLAYER', 'LEADER'].includes(npc.roleFocus)) continue;
+    if (!canMemberFillNeededRole(npc, listing, server)) continue;
+
+    const role = getClassPartyRole(npc.classId);
+    const need = hasRoleSlot(listing, role) ? 10 : 0;
+    const levelFit = Math.max(0, 6 - Math.abs(npc.level - dungeon.levelRange[0]));
+    const score = need + levelFit + roleFocusWeight(npc) + npc.activityLevel * 0.6 + npc.socialWeight * 0.3 + npc.gearScore / 240 + rng.next() * 4;
+
+    if (score > bestScore) {
+      best = npc;
+      bestScore = score;
+    }
+  }
+
+  return best;
 };
 
 const pickNpcForListing = (server: ServerState, listing: PartyFinderListing, rng: Rng) => {
@@ -458,7 +462,7 @@ export const joinPartyListing = (server: ServerState, listingId: string, rng: Rn
 
 export const waitPartyListing = (server: ServerState, listingId: string, rng: Rng) => {
   let nextServer = advanceServerClock(server, 8);
-  let resultModal = modal(rng, 'Ожидание группы', 'Новых заявок нет');
+  let resultModal: GameModal | undefined;
   let targetListing: PartyFinderListing | undefined;
 
   const listings = (nextServer.partyFinderListings ?? []).map((rawListing) => {
@@ -475,13 +479,15 @@ export const waitPartyListing = (server: ServerState, listingId: string, rng: Rn
       };
     }
 
-    const candidate = listing.leaderType === 'player' && listing.leaderId === nextServer.player.id
+    const playerLed = listing.leaderType === 'player' && listing.leaderId === nextServer.player.id;
+    const candidate = playerLed
       ? pickNpcApplicantForPlayerListing(nextServer, listing, rng)
       : pickNpcForListing({ ...nextServer, partyFinderListings: nextServer.partyFinderListings ?? [] }, listing, rng);
-    const forceJoin = (listing.waitAttempts ?? 0) >= 2;
-    const shouldApply = Boolean(candidate) && (forceJoin || rng.chance(0.58));
 
-    if (candidate && shouldApply && listing.leaderType === 'player' && listing.leaderId === nextServer.player.id) {
+    const forceJoin = (listing.waitAttempts ?? 0) >= 2;
+    const shouldApply = Boolean(candidate) && (forceJoin || rng.chance(0.72));
+
+    if (candidate && shouldApply && playerLed) {
       const line = `${candidate.name} отправил заявку`;
       const nextListing = withRebuiltRoles(nextServer, {
         ...listing,
@@ -493,10 +499,20 @@ export const waitPartyListing = (server: ServerState, listingId: string, rng: Rn
       return nextListing;
     }
 
+    if (candidate && shouldApply && listing.leaderType === 'npc') {
+      const line = `${candidate.name} присоединился`;
+      return withRebuiltRoles(nextServer, {
+        ...listing,
+        memberIds: unique([...listing.memberIds, candidate.id]),
+        waitAttempts: 0,
+        log: [...(listing.log ?? []), line].slice(-12),
+      });
+    }
+
     return {
       ...listing,
       waitAttempts: (listing.waitAttempts ?? 0) + 1,
-      log: [...(listing.log ?? []), 'Новых заявок нет'].slice(-12),
+      log: [...(listing.log ?? []), candidate ? 'Ждём ответа от игроков.' : 'Новых заявок нет'].slice(-12),
     };
   });
 
@@ -550,19 +566,33 @@ export const cancelPartyListing = (server: ServerState, listingId: string) => ({
 });
 
 export const acceptPartyApplicant = (server: ServerState, listingId: string, npcId: string, rng: Rng) => {
+  let accepted = false;
+  let acceptedName = npcById(server, npcId)?.name ?? npcId;
+
   const listings = (server.partyFinderListings ?? []).map((listing) => {
     if (listing.id !== listingId) return listing;
     if (listing.leaderId !== server.player.id || listing.leaderType !== 'player') return listing;
-    if (!listing.applicantIds.includes(npcId)) return listing;
+    if (!(listing.applicantIds ?? []).includes(npcId)) return listing;
 
     const npc = npcById(server, npcId);
     const dungeon = getDungeonById(listing.dungeonId);
     if (!npc || !dungeon) {
-      return { ...listing, applicantIds: listing.applicantIds.filter((id) => id !== npcId) };
+      return { ...listing, applicantIds: (listing.applicantIds ?? []).filter((id) => id !== npcId) };
     }
 
-    const candidateListing = { ...listing, applicantIds: listing.applicantIds.filter((id) => id !== npcId) };
-    if (!canNpcJoinListing(npc, candidateListing, dungeon, { ...server, partyFinderListings: server.partyFinderListings ?? [] })) {
+    acceptedName = npc.name;
+    const candidateListing = { ...listing, applicantIds: (listing.applicantIds ?? []).filter((id) => id !== npcId) };
+    const canJoin =
+      ACTIVE_STATUSES.includes(candidateListing.status) &&
+      candidateListing.memberIds.length < listingMemberLimit(candidateListing) &&
+      !candidateListing.memberIds.includes(npc.id) &&
+      npc.level >= candidateListing.requirements.minLevel &&
+      npc.level <= candidateListing.requirements.maxLevel + 1 &&
+      (!candidateListing.requirements.minGearScore || npc.gearScore >= candidateListing.requirements.minGearScore) &&
+      !isNpcBusyInBlockingListingForPlayerRequest(server, npc.id, candidateListing.id) &&
+      canMemberFillNeededRole(npc, candidateListing, server);
+
+    if (!canJoin) {
       return {
         ...candidateListing,
         rejectedIds: unique([...(listing.rejectedIds ?? []), npcId]),
@@ -570,6 +600,7 @@ export const acceptPartyApplicant = (server: ServerState, listingId: string, npc
       };
     }
 
+    accepted = true;
     return withRebuiltRoles(server, {
       ...candidateListing,
       memberIds: unique([...listing.memberIds, npcId]),
@@ -578,9 +609,24 @@ export const acceptPartyApplicant = (server: ServerState, listingId: string, npc
     });
   });
 
+  const cleanedListings = accepted
+    ? listings.map((listing) => {
+        if (listing.id === listingId) return listing;
+        if (listing.leaderType !== 'npc' || listing.visibility !== 'public' || !listing.memberIds.includes(npcId)) return listing;
+        if (listing.leaderId === npcId) {
+          return { ...listing, status: 'cancelled' as PartyListingStatus, memberIds: [], applicantIds: [], log: [...(listing.log ?? []), `${acceptedName} ушёл в группу игрока.`].slice(-12) };
+        }
+        return withRebuiltRoles(server, {
+          ...listing,
+          memberIds: listing.memberIds.filter((id) => id !== npcId),
+          log: [...(listing.log ?? []), `${acceptedName} ушёл в группу игрока.`].slice(-12),
+        });
+      })
+    : listings;
+
   return {
-    server: { ...server, partyFinderListings: listings },
-    modal: modal(rng, 'Заявка принята', npcById(server, npcId)?.name ?? npcId),
+    server: { ...server, partyFinderListings: cleanedListings },
+    modal: accepted ? modal(rng, 'Заявка принята', acceptedName) : modal(rng, 'Заявка не принята', acceptedName),
   };
 };
 

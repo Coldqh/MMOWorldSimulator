@@ -29,13 +29,12 @@ const pkg = JSON.parse(read('package.json'));
 const bottomNav = takeBetween(appShell, 'const bottomNav', 'const sideNav');
 const sideNav = takeBetween(appShell, 'const sideNav', 'const cityOnlyScreens');
 const simulateServer = takeBetween(gameStore, 'const simulateServerForMinutes', 'const normalizeServer');
-const skipHour = takeBetween(gameStore, 'skipHour:', 'skipDay:');
-const skipDay = takeBetween(gameStore, 'skipDay:', 'exportSave:');
+const partyActions = takeBetween(gameStore, 'refreshPartyFinder:', 'joinGuild:');
 
 const bottomNavIds = Array.from(bottomNav.matchAll(/id:\s*'([^']+)'/g)).map((match) => match[1]);
 
-assert(pkg.version === '0.7.30', 'package.json version is 0.7.30');
-assert(version.includes("APP_VERSION = '0.7.30'") || version.includes('APP_VERSION = "0.7.30"'), 'APP_VERSION is 0.7.30');
+assert(pkg.version === '0.7.31', 'package.json version is 0.7.31');
+assert(version.includes("APP_VERSION = '0.7.31'") || version.includes('APP_VERSION = "0.7.31"'), 'APP_VERSION is 0.7.31');
 
 assert(appShell.includes('GoalsScreen'), 'AppShell registers GoalsScreen');
 assert(sideNav.includes("{ id: 'goals', label: '🎯 Цели' }"), 'sideNav contains Goals tab');
@@ -45,15 +44,21 @@ assert(gameTypes.includes('| "goals"'), 'ScreenId contains goals');
 
 assert(simulateServer.includes('tickGuildWars('), 'simulateServerForMinutes runs tickGuildWars');
 assert(!simulateServer.includes('simulateGuildWarsEveryHalfHour('), 'simulateServerForMinutes does not run duplicate half-hour guild war simulator');
-assert(skipHour.includes('commitFast(set, next, null'), 'skipHour uses commitFast');
-assert(skipDay.includes('commitFast(set, next, null'), 'skipDay uses commitFast');
+assert(guildWarSystem.includes('npcsByGuildId'), 'guild war simulation indexes NPCs by guild');
 assert(guildWarSystem.includes('Math.min(6') || guildWarSystem.includes('Math.min(4'), 'guild war catch-up is capped');
 assert(guildRuntimeSystem.includes('Math.min(6') || guildRuntimeSystem.includes('Math.min(4'), 'legacy half-hour guild-war simulator is capped');
 
 assert(partyFinderSystem.includes('pickNpcApplicantForPlayerListing'), 'Party Finder has player-led applicant picker');
-assert(partyFinderSystem.includes('applicantIds: unique([...(listing.applicantIds ?? []), candidate.id])'), 'Party Finder wait can add NPC applicantIds');
+assert(!takeBetween(partyFinderSystem, 'const pickNpcApplicantForPlayerListing', 'const pickNpcForListing').includes('.sort('), 'player applicant picker does not sort all NPCs');
+assert(partyFinderSystem.includes('isNpcBusyInBlockingListingForPlayerRequest'), 'Party Finder only blocks static/guild-internal/player groups for applicants');
+assert(partyFinderSystem.includes("listing.leaderType !== 'npc' || listing.visibility !== 'public'"), 'accepted NPC is removed from public NPC listings');
 assert(partyFinderSystem.includes('ownsPlayerListing'), 'Party Finder preserves player-led listing without full refresh');
-assert(partyFinderSystem.includes("other.visibility === 'static'") && partyFinderSystem.includes("other.visibility === 'guild_internal'"), 'Party Finder does not pull NPCs from static/guild-internal groups');
+
+assert(partyActions.includes('commitFast(set, refreshPartyFinderListings'), 'refreshPartyFinder uses commitFast');
+assert(partyActions.includes('commitFast(set, result.server, undefined, result.modal)'), 'party create/join/wait/accept/reject use commitFast');
+assert(partyActions.includes('commitFast(set, leavePartyFinderListing'), 'leavePartyListing uses commitFast');
+assert(partyActions.includes('commitFast(set, cancelPartyFinderListing'), 'cancelPartyListing uses commitFast');
+assert(partyActions.includes('commitFast(set, result.server, null, result.modal)'), 'startPartyListing uses commitFast');
 
 assert(siegeSystem.includes('canUnregisterPlayerGuildFromCastle'), 'Siege unregister permission check exists');
 assert(siegeSystem.includes('Нужен ГМ, зам или офицер.'), 'Siege unregister requires leader/deputy/officer');
