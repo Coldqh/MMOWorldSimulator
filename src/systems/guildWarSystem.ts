@@ -11,6 +11,7 @@ import { normalizeGuildAndNpcIdentities } from './guildIdentitySystem';
 const clampDuration = (days: number) => Math.max(7, Math.min(30, Math.round(days)));
 const totalMinute = (day: number, minute: number) => (day - 1) * 1440 + minute;
 const reached = (server: ServerState, day: number, minute: number) => totalMinute(server.serverDay, server.currentMinute) >= totalMinute(day, minute);
+export type GuildWarTickMode = 'interactive' | 'summary';
 
 const activeCount = (server: ServerState, guildId: Id) => (server.guildWars ?? []).filter((war) => (war.status === 'active' || war.status === 'scheduled' || war.status === 'pending_votes') && (war.attackerGuildId === guildId || war.defenderGuildId === guildId)).length;
 export const getGuildActiveWars = (server: ServerState, guildId: Id) => (server.guildWars ?? []).filter((war) => war.status === 'active' && (war.attackerGuildId === guildId || war.defenderGuildId === guildId));
@@ -258,6 +259,129 @@ export const simulateActiveGuildWars = (server: ServerState, rng: Rng, maxDuelsP
   return next;
 };
 
+const addTopKillerKills = (
+  list: GuildWarTopKiller[] = [],
+  characterId: Id,
+  guildId: Id,
+  kills: number,
+): GuildWarTopKiller[] => {
+  if (kills <= 0) return list;
+  const map = new Map(list.map((entry) => [entry.characterId, { ...entry }]));
+  const current = map.get(characterId) ?? { characterId, guildId, kills: 0 };
+  current.kills += kills;
+  map.set(characterId, current);
+  return [...map.values()]
+    .sort((a, b) => b.kills - a.kills || a.characterId.localeCompare(b.characterId))
+    .slice(0, 5);
+};
+
+export const simulateActiveGuildWarsSummary = (server: ServerState, rng: Rng, maxDuelsPerWar = 1): ServerState => {
+  let next = server;
+  const npcsByGuildId = new Map<Id, NpcPlayer[]>();
+  (server.npcs ?? []).forEach((npc) => {
+    if (!npc.guildId) return;
+    const bucket = npcsByGuildId.get(npc.guildId) ?? [];
+    bucket.push(npc);
+    npcsByGuildId.set(npc.guildId, bucket);
+  });
+
+  const guildById = new Map((server.guilds ?? []).map((guild) => [guild.id, guild]));
+  const skillWinners = new Set<Id>();
+  const skillLosers = new Set<Id>();
+  let anyDuel = false;
+
+  const updatedWars = (next.guildWars ?? []).map((war) => {
+    if (war.status !== 'active') return war;
+
+    const last = totalMinute(war.lastSimulatedDay ?? war.declaredDay, war.lastSimulatedMinute ?? war.declaredMinute);
+    const now = Math.min(totalMinute(next.serverDay, next.currentMinute), totalMinute(war.endsDay, war.endsMinute));
+    const dueDuels = Math.max(0, Math.min(maxDuelsPerWar, Math.floor((now - last) / 30)));
+    if (dueDuels <= 0) return war;
+
+    const attackers = npcsByGuildId.get(war.attackerGuildId) ?? [];
+    const defenders = npcsByGuildId.get(war.defenderGuildId) ?? [];
+    const simulatedAtDay = Math.floor(now / 1440) + 1;
+    const simulatedAtMinute = now % 1440;
+
+    if (attackers.length === 0 || defenders.length === 0) {
+      return { ...war, lastSimulatedDay: simulatedAtDay, lastSimulatedMinute: simulatedAtMinute };
+    }
+
+    const attackerGuild = guildById.get(war.attackerGuildId);
+    const records: GuildWarKillRecord[] = [];
+    let attackerKills = 0;
+    let defenderKills = 0;
+    let attackerTopKillers = war.attackerTopKillers ?? [];
+    let defenderTopKillers = war.defenderTopKillers ?? [];
+
+    const sampleDuels = Math.max(1, Math.min(12, dueDuels));
+    const baseKills = Math.floor(dueDuels / sampleDuels);
+    const extraKills = dueDuels % sampleDuels;
+
+    for (let i = 0; i < sampleDuels; i += 1) {
+      const killAmount = baseKills + (i < extraKills ? 1 : 0);
+      if (killAmount <= 0) continue;
+
+      const fighterA = rng.pick(attackers);
+      const fighterB = rng.pick(defenders);
+      const duel = resolveNpcDuel(fighterA, fighterB, attackerGuild?.tier ?? 'low', rng);
+      const killerGuildId = duel.winner.guildId ?? war.attackerGuildId;
+      const victimGuildId = duel.loser.guildId ?? war.defenderGuildId;
+
+      if (killerGuildId === war.attackerGuildId) {
+        attackerKills += killAmount;
+        attackerTopKillers = addTopKillerKills(attackerTopKillers, duel.winner.id, killerGuildId, killAmount);
+      }
+      if (killerGuildId === war.defenderGuildId) {
+        defenderKills += killAmount;
+        defenderTopKillers = addTopKillerKills(defenderTopKillers, duel.winner.id, killerGuildId, killAmount);
+      }
+
+      skillWinners.add(duel.winner.id);
+      skillLosers.add(duel.loser.id);
+
+      records.push({
+        id: `war_kill_summary_${war.id}_${simulatedAtDay}_${simulatedAtMinute}_${i}_${duel.winner.id}_${duel.loser.id}_${killAmount}_${rng.int(1, 999999)}`,
+        day: simulatedAtDay,
+        minute: simulatedAtMinute,
+        killerId: duel.winner.id,
+        killerGuildId,
+        victimId: duel.loser.id,
+        victimGuildId,
+        locationId: next.location.spotId ?? next.location.zoneId,
+        source: 'simulated',
+      });
+    }
+
+    anyDuel = true;
+    return {
+      ...war,
+      attackerKills: war.attackerKills + attackerKills,
+      defenderKills: war.defenderKills + defenderKills,
+      killRecords: [...war.killRecords, ...records].slice(-250),
+      attackerTopKillers,
+      defenderTopKillers,
+      lastSimulatedDay: simulatedAtDay,
+      lastSimulatedMinute: simulatedAtMinute,
+    };
+  });
+
+  if (!anyDuel) return { ...next, guildWars: updatedWars };
+
+  const touched = new Set<Id>([...skillWinners, ...skillLosers]);
+  return {
+    ...next,
+    guildWars: updatedWars,
+    npcs: next.npcs.map((npc) => {
+      if (!touched.has(npc.id)) return npc;
+      let updated = npc;
+      if (skillWinners.has(npc.id)) updated = growNpcAfterDuel(updated, true, rng);
+      if (skillLosers.has(npc.id)) updated = growNpcAfterDuel(updated, false, rng);
+      return updated;
+    }),
+  };
+};
+
 export const finishExpiredGuildWars = (server: ServerState, rng: Rng): ServerState => {
   let changed = false;
   const wars = (server.guildWars ?? []).map((war) => {
@@ -308,9 +432,18 @@ export const normalizeGuildWarsCore = (server: ServerState, rng: Rng): ServerSta
   return next;
 };
 
-export const tickGuildWars = (server: ServerState, rng: Rng, minutes = 0): ServerState => {
-  let next = moveNpcPlayers(server, rng, minutes);
-  next = handleWarNpcEncountersAfterNpcMovement(next, rng);
+export const tickGuildWars = (
+  server: ServerState,
+  rng: Rng,
+  minutes = 0,
+  mode: GuildWarTickMode = 'interactive',
+): ServerState => {
+  let next = mode === 'summary' ? server : moveNpcPlayers(server, rng, minutes);
+
+  if (mode !== 'summary') {
+    next = handleWarNpcEncountersAfterNpcMovement(next, rng);
+  }
+
   if (minutes >= 30 || next.currentMinute % 30 === 0) {
     const rawDuelTicks = Math.floor(Math.max(0, minutes) / 30);
     const duelTicks = Math.max(1, rawDuelTicks);
@@ -318,8 +451,12 @@ export const tickGuildWars = (server: ServerState, rng: Rng, minutes = 0): Serve
     next = maybeCreateGuildWarVotes(next, rng);
     next = resolveGuildWarVotes(next, rng);
     next = maybeCreateWarExtensionVotes(next, rng);
-    next = simulateActiveGuildWars(next, rng, duelTicks);
+    next = mode === 'summary'
+      ? simulateActiveGuildWarsSummary(next, rng, duelTicks)
+      : simulateActiveGuildWars(next, rng, duelTicks);
     next = finishExpiredGuildWars(next, rng);
   }
+
   return next;
 };
+

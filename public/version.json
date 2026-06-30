@@ -1,6 +1,6 @@
 {
-  "version": "0.7.33",
+  "version": "0.7.34",
   "channel": "stable",
-  "build": "2026-06-30-v0733-content-generator-repair",
-  "buildTime": "2026-06-30T13:42:04.902Z"
+  "build": "2026-06-30-v0734-skip-day-performance-v3",
+  "buildTime": "2026-06-30T15:06:49.728Z"
 }

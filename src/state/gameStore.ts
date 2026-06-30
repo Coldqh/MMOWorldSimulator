@@ -256,6 +256,8 @@ const notificationToModal = (notification: ServerNotification): GameModal => ({
 });
 
 
+type ServerTickMode = 'interactive' | 'summary';
+
 const normalizeEquipmentItemIds = (equipment: any = {}) => {
   const next: any = {};
   Object.entries(equipment).forEach(([slot, instance]: [string, any]) => {
@@ -266,19 +268,41 @@ const normalizeEquipmentItemIds = (equipment: any = {}) => {
   return next;
 };
 
-const simulateServerForMinutes = (server: ServerState, minutes: number, rngInput?: unknown): ServerState => {
+const hasOpenGuildWarRuntime = (server: ServerState) =>
+  (server.guildWars ?? []).some((war) =>
+    war.status === 'active' || war.status === 'scheduled' || war.status === 'pending_votes',
+  );
+
+const simulateServerForMinutes = (
+  server: ServerState,
+  minutes: number,
+  rngInput?: unknown,
+  mode: ServerTickMode = 'interactive',
+): ServerState => {
   const rng = rngInput && typeof (rngInput as any).next === 'function'
     ? (rngInput as any)
     : createRng((server.seed ?? Date.now()) + server.serverDay * 47000 + server.currentMinute + Math.max(0, minutes));
+
   let next = advanceServerClock(server, minutes);
-  next = ensureSoloNpcPool(next);
-  next = seedActiveGuildWarsIfEmpty(next);
-  next = tickGuildWars(next, rng, minutes);
-  next = repairFreshPlayerGuildLeadership(next);
-  next = maybeGeneratePlayerGuildApplication(next, rng);
+
+  if (mode === 'interactive') {
+    next = ensureSoloNpcPool(next);
+    next = seedActiveGuildWarsIfEmpty(next);
+  } else if (!hasOpenGuildWarRuntime(next)) {
+    next = seedActiveGuildWarsIfEmpty(next);
+  }
+
+  next = tickGuildWars(next, rng, minutes, mode);
+
+  if (mode === 'interactive') {
+    next = repairFreshPlayerGuildLeadership(next);
+    next = maybeGeneratePlayerGuildApplication(next, rng);
+  }
+
   next = tickSieges(next, rng, minutes);
   return next;
 };
+
 
 const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): ServerState => {
   const needsMigration = server.version !== SAVE_VERSION;
@@ -421,6 +445,20 @@ const commitFast = (
   modal?: GameModal | null,
 ) => {
   saveGame(server);
+  set({
+    server,
+    ...(combat !== undefined ? { combat } : {}),
+    ...(modal !== undefined ? { modal } : {}),
+  });
+};
+
+const commitFastDeferredSave = (
+  set: (partial: Partial<GameStore>) => void,
+  server: ServerState,
+  combat?: CombatState | null,
+  modal?: GameModal | null,
+) => {
+  saveGame(server, { immediate: false });
   set({
     server,
     ...(combat !== undefined ? { combat } : {}),
@@ -991,10 +1029,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (combat || !server.characterCreated) return;
     const rng = createRng(server.seed + server.serverDay * 12000 + server.currentMinute);
     const minutes = Math.max(60, 1440 - server.currentMinute);
-    let next = simulateServerForMinutes(server, minutes, rng);
+    let next = simulateServerForMinutes(server, minutes, rng, 'summary');
     const stats = getPlayerStats(next.player);
     next = { ...next, player: { ...next.player, hp: stats.hp, mana: stats.mana } };
-    commitFast(set, next, null, {
+    commitFastDeferredSave(set, next, null, {
       id: `modal_skip_day_${server.serverDay}_${server.currentMinute}`,
       type: 'system',
       title: 'День пропущен',

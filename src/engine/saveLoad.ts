@@ -86,16 +86,24 @@ export const flushSaveGame = () => {
   writeCurrentSave(next);
 };
 
-export const saveGame = (server: ServerState) => {
+export const saveGame = (
+  server: ServerState,
+  options: { immediate?: boolean } = {},
+) => {
   if (!canUseStorage()) return;
 
   const normalized = normalizeForWrite(server);
   pendingSave = normalized;
-  writeCurrentSave(normalized);
+
+  if (options.immediate !== false) {
+    writeCurrentSave(normalized);
+  }
 
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(flushSaveGame, 150);
 };
+
+
 
 if (typeof window !== 'undefined') {
   window.addEventListener('beforeunload', flushSaveGame);
