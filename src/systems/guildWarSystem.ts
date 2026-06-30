@@ -275,7 +275,8 @@ export const tickGuildWars = (server: ServerState, rng: Rng, minutes = 0): Serve
   let next = moveNpcPlayers(server, rng, minutes);
   next = handleWarNpcEncountersAfterNpcMovement(next, rng);
   if (minutes >= 30 || next.currentMinute % 30 === 0) {
-    const duelTicks = Math.max(1, Math.floor(Math.max(0, minutes) / 30));
+    const rawDuelTicks = Math.floor(Math.max(0, minutes) / 30);
+    const duelTicks = Math.max(1, Math.min(6, rawDuelTicks));
     next = updateGuildRelations(next, rng);
     next = maybeCreateGuildWarVotes(next, rng);
     next = resolveGuildWarVotes(next, rng);

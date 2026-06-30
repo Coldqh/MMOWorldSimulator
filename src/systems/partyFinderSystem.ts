@@ -243,6 +243,48 @@ const makeListing = (
 
 export const createPartyFinderListing = makeListing;
 
+
+const isNpcBusyInBlockingListingForPlayerRequest = (server: ServerState, npcId: string, exceptListingId?: string) =>
+  (server.partyFinderListings ?? []).some((other) =>
+    other.id !== exceptListingId &&
+    ACTIVE_STATUSES.includes(other.status) &&
+    other.memberIds.includes(npcId) &&
+    (
+      other.leaderType === 'player' ||
+      other.visibility === 'static' ||
+      other.visibility === 'guild_internal'
+    ),
+  );
+
+const pickNpcApplicantForPlayerListing = (server: ServerState, listing: PartyFinderListing, rng: Rng) => {
+  const dungeon = getDungeonById(listing.dungeonId);
+  if (!dungeon) return undefined;
+
+  const candidates = server.npcs
+    .filter((npc) => {
+      if (!ACTIVE_STATUSES.includes(listing.status)) return false;
+      if (listing.memberIds.includes(npc.id)) return false;
+      if ((listing.applicantIds ?? []).includes(npc.id)) return false;
+      if ((listing.rejectedIds ?? []).includes(npc.id)) return false;
+      if (listing.memberIds.length >= listingMemberLimit(listing)) return false;
+      if (npc.level < listing.requirements.minLevel || npc.level > listing.requirements.maxLevel + 1) return false;
+      if (listing.requirements.minGearScore && npc.gearScore < listing.requirements.minGearScore) return false;
+      if (isNpcBusyInBlockingListingForPlayerRequest(server, npc.id, listing.id)) return false;
+      if (dungeon.contentType === 'raid' && !['RAIDER', 'HARDCORE', 'GUILD_PLAYER', 'LEADER'].includes(npc.roleFocus)) return false;
+      return canMemberFillNeededRole(npc, listing, server);
+    })
+    .map((npc) => {
+      const role = getClassPartyRole(npc.classId);
+      const need = hasRoleSlot(listing, role) ? 10 : 0;
+      const levelFit = Math.max(0, 6 - Math.abs(npc.level - dungeon.levelRange[0]));
+      const score = need + levelFit + roleFocusWeight(npc) + npc.activityLevel * 0.6 + npc.socialWeight * 0.3 + npc.gearScore / 240 + rng.next() * 4;
+      return { npc, score };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  return candidates[0]?.npc;
+};
+
 const pickNpcForListing = (server: ServerState, listing: PartyFinderListing, rng: Rng) => {
   const dungeon = getDungeonById(listing.dungeonId);
   if (!dungeon) return undefined;
@@ -433,7 +475,9 @@ export const waitPartyListing = (server: ServerState, listingId: string, rng: Rn
       };
     }
 
-    const candidate = pickNpcForListing({ ...nextServer, partyFinderListings: nextServer.partyFinderListings ?? [] }, listing, rng);
+    const candidate = listing.leaderType === 'player' && listing.leaderId === nextServer.player.id
+      ? pickNpcApplicantForPlayerListing(nextServer, listing, rng)
+      : pickNpcForListing({ ...nextServer, partyFinderListings: nextServer.partyFinderListings ?? [] }, listing, rng);
     const forceJoin = (listing.waitAttempts ?? 0) >= 2;
     const shouldApply = Boolean(candidate) && (forceJoin || rng.chance(0.58));
 
@@ -456,11 +500,27 @@ export const waitPartyListing = (server: ServerState, listingId: string, rng: Rn
     };
   });
 
-  const normalized = refreshPartyFinderListings({ ...nextServer, partyFinderListings: listings, currentPartyListingId: targetListing ? listingId : nextServer.currentPartyListingId }, rng);
-  nextServer = {
-    ...normalized,
-    currentPartyListingId: normalized.partyFinderListings.some((listing) => listing.id === listingId && listing.memberIds.includes(normalized.player.id)) ? listingId : undefined,
-  };
+  const ownsPlayerListing = listings.some((listing) =>
+    listing.id === listingId &&
+    listing.leaderType === 'player' &&
+    listing.leaderId === nextServer.player.id &&
+    listing.memberIds.includes(nextServer.player.id),
+  );
+
+  if (ownsPlayerListing) {
+    const keptListings = listings.map((listing) => listing.id === listingId ? withRebuiltRoles(nextServer, listing) : listing);
+    nextServer = {
+      ...nextServer,
+      partyFinderListings: keptListings,
+      currentPartyListingId: keptListings.some((listing) => listing.id === listingId && listing.memberIds.includes(nextServer.player.id)) ? listingId : undefined,
+    };
+  } else {
+    const normalized = refreshPartyFinderListings({ ...nextServer, partyFinderListings: listings, currentPartyListingId: targetListing ? listingId : nextServer.currentPartyListingId }, rng);
+    nextServer = {
+      ...normalized,
+      currentPartyListingId: normalized.partyFinderListings.some((listing) => listing.id === listingId && listing.memberIds.includes(normalized.player.id)) ? listingId : undefined,
+    };
+  }
 
   return { server: nextServer, modal: resultModal };
 };

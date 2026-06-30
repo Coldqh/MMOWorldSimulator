@@ -113,8 +113,7 @@ import {
   maybeGeneratePlayerGuildApplication,
   rejectPlayerGuildApplication,
   repairFreshPlayerGuildLeadership,
-  seedActiveGuildWarsIfEmpty,
-  simulateGuildWarsEveryHalfHour,
+  seedActiveGuildWarsIfEmpty,
 } from "../systems/guildRuntimeSystem";
 import {
   resolveArenaTeamRound,
@@ -274,8 +273,7 @@ const simulateServerForMinutes = (server: ServerState, minutes: number, rngInput
   let next = advanceServerClock(server, minutes);
   next = ensureSoloNpcPool(next);
   next = seedActiveGuildWarsIfEmpty(next);
-  next = tickGuildWars(next, rng, minutes);
-  next = simulateGuildWarsEveryHalfHour(next, rng, minutes);
+  next = tickGuildWars(next, rng, minutes);
   next = repairFreshPlayerGuildLeadership(next);
   next = maybeGeneratePlayerGuildApplication(next, rng);
   next = tickSieges(next, rng, minutes);

@@ -317,7 +317,7 @@ export const simulateGuildWarsEveryHalfHour = (server: ServerState, rng: Rng, mi
     const last = totalMinute(war.lastSimulatedDay ?? war.startsDay ?? war.declaredDay, war.lastSimulatedMinute ?? war.startsMinute ?? war.declaredMinute);
     const dueFromClock = Math.floor(Math.max(0, now - last) / 30);
     const dueFromAdvance = Math.floor(Math.max(0, minutesAdvanced) / 30);
-    const due = Math.max(dueFromClock, dueFromAdvance);
+    const due = Math.min(6, Math.max(dueFromClock, dueFromAdvance));
     if (due <= 0) return war;
     let current = war;
     for (let i = 0; i < Math.min(48, due); i += 1) current = resolveWarDuel(next, current, rng);

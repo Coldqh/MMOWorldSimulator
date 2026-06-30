@@ -295,6 +295,17 @@ const getPlayerGuildCastleRegistrationCheck = (server: ServerState, castleId: Id
 
 export const canRegisterPlayerGuildForCastle = getPlayerGuildCastleRegistrationCheck;
 
+export const canUnregisterPlayerGuildFromCastle = (server: ServerState, castleId: Id): { ok: boolean; reason?: string } => {
+  const normalized = normalizeSiegeState(server);
+  const guild = normalized.guilds.find((entry) => entry.id === normalized.player.guildId);
+  const roster = (normalized.siegeRosters ?? []).find((entry) => entry.castleId === castleId && entry.guildId === guild?.id);
+  if (!guild) return { ok: false, reason: 'Нет гильдии.' };
+  if (!roster) return { ok: false, reason: 'Гильдия не зарегистрирована.' };
+  if (!isOfficerOrLeader(guild, normalized.player.id)) return { ok: false, reason: 'Нужен ГМ, зам или офицер.' };
+  if (normalized.currentSiegeRun?.status === 'active' && normalized.currentSiegeRun.castleId === castleId) return { ok: false, reason: 'Осада уже идёт.' };
+  return { ok: true };
+};
+
 export const registerPlayerGuildForCastle = (server: ServerState, castleId: Id): ServerState => {
   const normalized = normalizeSiegeState(server);
   const check = getPlayerGuildCastleRegistrationCheck(normalized, castleId);
@@ -320,11 +331,37 @@ export const registerPlayerGuildForCastle = (server: ServerState, castleId: Id):
 
 export const unregisterPlayerGuildFromCastle = (server: ServerState, castleId: Id): ServerState => {
   const normalized = normalizeSiegeState(server);
-  const guildId = normalized.player.guildId;
-  if (!guildId) return normalized;
+  const check = canUnregisterPlayerGuildFromCastle(normalized, castleId);
+  if (!check.ok) {
+    return {
+      ...normalized,
+      notifications: [
+        ...(normalized.notifications ?? []),
+        {
+          id: `siege_unregister_fail_${castleId}_${normalized.serverDay}_${normalized.currentMinute}`,
+          type: 'guild',
+          title: 'Регистрация не снята',
+          text: check.reason ?? 'Недостаточно прав.',
+          lines: [check.reason ?? 'Недостаточно прав.'],
+        },
+      ],
+    };
+  }
+
+  const guildId = normalized.player.guildId!;
   return autoRegisterNpcGuildsForOpenSieges({
     ...normalized,
     siegeRosters: (normalized.siegeRosters ?? []).filter((roster) => !(roster.castleId === castleId && roster.guildId === guildId)),
+    notifications: [
+      ...(normalized.notifications ?? []),
+      {
+        id: `siege_unregister_${castleId}_${normalized.serverDay}_${normalized.currentMinute}`,
+        type: 'guild',
+        title: 'Регистрация снята',
+        text: 'Состав снят с осады.',
+        lines: ['Гильдия больше не зарегистрирована на эту осаду.'],
+      },
+    ],
   });
 };
 

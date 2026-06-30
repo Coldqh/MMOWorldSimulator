@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { SIEGE_MAPS } from '../../content/castles';
 import { useGameStore } from '../../state/gameStore';
-import { canRegisterPlayerGuildForCastle, isPlayerSiegeCommander } from '../../systems/siegeSystem';
+import { canRegisterPlayerGuildForCastle, canUnregisterPlayerGuildFromCastle, isPlayerSiegeCommander } from '../../systems/siegeSystem';
 import type { Castle, SiegeRun, SiegeUnit } from '../../types/game';
 
 const timeText = (day?: number, minute?: number) => {
@@ -100,6 +100,7 @@ export const CastlePanel = ({ onBack }: { onBack?: () => void } = {}) => {
           {castles.map((castle) => {
             const roster = (server.siegeRosters ?? []).find((entry) => entry.castleId === castle.id && entry.guildId === playerGuild?.id);
             const check = canRegisterPlayerGuildForCastle(server, castle.id);
+            const unregisterCheck = canUnregisterPlayerGuildFromCastle(server, castle.id);
             const allRosters = (server.siegeRosters ?? []).filter((entry) => entry.castleId === castle.id);
             const last = castle.history?.[0];
             return (
@@ -114,7 +115,9 @@ export const CastlePanel = ({ onBack }: { onBack?: () => void } = {}) => {
                 {roster && <span className="ready-line">Твой состав: {roster.memberIds.length}/10{roster.memberIds.includes(server.player.id) ? ' · ты в составе' : ''}</span>}
                 <div className="action-grid compact-actions">
                   {roster
-                    ? <button onClick={() => unregisterSiegeRoster(castle.id)}>Снять регистрацию</button>
+                    ? (unregisterCheck.ok
+                      ? <button onClick={() => unregisterSiegeRoster(castle.id)}>Снять регистрацию</button>
+                      : <button disabled>Гильдия зарегистрирована</button>)
                     : <button disabled={!check.ok} onClick={() => registerSiegeRoster(castle.id)}>{check.ok ? 'Зарегистрировать топ-10' : check.reason}</button>}
                 </div>
                 {allRosters.length > 0 && (
