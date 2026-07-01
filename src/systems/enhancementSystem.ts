@@ -1,4 +1,4 @@
-import { getItemById, rarityLabel, rarityScore } from '../content/items';
+import { getItemById } from '../content/items';
 import { addNews } from '../engine/news';
 import type { Rng } from '../engine/rng';
 import type { EquipmentSlot, GameModal, Rarity, ServerState } from '../types/game';
@@ -8,12 +8,11 @@ export type EnhanceTarget =
   | { source: 'equipment'; slot: EquipmentSlot }
   | { source: 'inventory'; itemId: string; enhancement?: number };
 
-export const enhanceStoneIds: Array<{ id: string; rarity: Rarity; chanceBonus: number }> = [
-  { id: 'sharpening_stone', rarity: 'common', chanceBonus: 0 },
-  { id: 'enhance_stone_uncommon', rarity: 'uncommon', chanceBonus: 0 },
-  { id: 'enhance_stone_rare', rarity: 'rare', chanceBonus: 0 },
-  { id: 'enhance_stone_epic', rarity: 'epic', chanceBonus: 0 },
-  { id: 'enhance_stone_legendary', rarity: 'legendary', chanceBonus: 0 },
+export const enhanceStoneIds: Array<{ id: string; rarity: Rarity; chanceBonus: number; tier: 'low' | 'mid' | 'high' | 'max'; minLevel: number; maxLevel: number }> = [
+  { id: 'sharpening_stone', rarity: 'common', chanceBonus: 0, tier: 'low', minLevel: 1, maxLevel: 20 },
+  { id: 'enhance_stone_uncommon', rarity: 'uncommon', chanceBonus: 0, tier: 'mid', minLevel: 21, maxLevel: 40 },
+  { id: 'enhance_stone_rare', rarity: 'rare', chanceBonus: 0, tier: 'high', minLevel: 41, maxLevel: 59 },
+  { id: 'enhance_stone_legendary', rarity: 'legendary', chanceBonus: 0, tier: 'max', minLevel: 60, maxLevel: 60 },
 ];
 
 const getEnhanceChance = (level: number, bonus = 0) => {
@@ -23,19 +22,17 @@ const getEnhanceChance = (level: number, bonus = 0) => {
   return { success: Math.min(0.58, 0.22 + bonus), breakChance: Math.max(0.015, 0.08 - bonus * 0.18), rollbackChance: Math.max(0.08, 0.28 - bonus * 0.35) };
 };
 
-const findUsableStone = (server: ServerState, itemRarity: Rarity) => {
-  const targetRank = rarityScore[itemRarity] ?? 1;
+const findUsableStone = (server: ServerState, itemLevel: number) => {
   return enhanceStoneIds
     .map((stone) => {
       const amount = server.player.inventory.find((entry) => entry.itemId === stone.id && (entry.enhancement ?? 0) === 0)?.amount ?? 0;
-      const rank = rarityScore[stone.rarity] ?? 1;
-      return { ...stone, amount, rank, bonus: Math.max(0, (rank - targetRank) * 0.035) };
+      return { ...stone, amount, bonus: stone.chanceBonus };
     })
-    .filter((stone) => stone.amount > 0 && stone.rank >= targetRank)
-    .sort((a, b) => a.rank - b.rank)[0];
+    .filter((stone) => stone.amount > 0 && itemLevel >= stone.minLevel && itemLevel <= stone.maxLevel)
+    .sort((a, b) => a.minLevel - b.minLevel)[0];
 };
 
-export const canEnhanceWithAnyStone = (server: ServerState, itemRarity: Rarity) => Boolean(findUsableStone(server, itemRarity));
+export const canEnhanceWithAnyStone = (server: ServerState, itemLevel: number) => Boolean(findUsableStone(server, itemLevel));
 
 export const enhanceItem = (server: ServerState, target: EnhanceTarget, rng: Rng): { server: ServerState; modal: GameModal } => {
   if (server.location.mode !== 'city') {
@@ -52,9 +49,9 @@ export const enhanceItem = (server: ServerState, target: EnhanceTarget, rng: Rng
     return { server, modal: { id: `modal_enhance_bad_${server.currentMinute}`, type: 'enhance', title: 'Заточка', text: 'Нельзя заточить.', lines: ['Только снаряжение.'] } };
   }
 
-  const stone = findUsableStone(server, item.rarity);
+  const stone = findUsableStone(server, item.levelReq);
   if (!stone) {
-    return { server, modal: { id: `modal_enhance_stone_${server.currentMinute}`, type: 'enhance', title: 'Заточка', text: 'Нет подходящего камня.', lines: [`Для ${rarityLabel[item.rarity]} предмета нужен камень той же редкости или выше.`] } };
+    return { server, modal: { id: `modal_enhance_stone_${server.currentMinute}`, type: 'enhance', title: 'Заточка', text: 'Нет подходящего камня.', lines: [`Для Lv. ${item.levelReq} нужен камень своего диапазона: low 1–20, mid 21–40, high 41–59, max 60.`] } };
   }
 
   if (target.source === 'inventory') {

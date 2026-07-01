@@ -68,7 +68,7 @@ export const EnhanceScreen = () => {
                   <button className="text-button" onClick={() => openItemProfile(instance.itemId, 'equipment', instance.enhancement, instance.cardIds ?? [])}><ItemLine itemId={instance.itemId} enhancement={instance.enhancement} cardIds={instance.cardIds ?? []} /></button>
                   <small>{slotLabel[slot]} · Gear {getInstanceGearScore(item, instance.enhancement)} · шанс {chanceLabel(instance.enhancement)}</small>
                 </span>
-                <button disabled={!canEnhanceWithAnyStone(server, item.rarity)} onClick={() => enhanceTarget({ source: 'equipment', slot })}>Заточить</button>
+                <button disabled={!canEnhanceWithAnyStone(server, item.levelReq)} onClick={() => enhanceTarget({ source: 'equipment', slot })}>Заточить</button>
               </div>
             ) : null;
           })}
@@ -88,7 +88,7 @@ export const EnhanceScreen = () => {
                   <button className="text-button" onClick={() => openItemProfile(entry.itemId, 'inventory', enhancement, entry.cardIds ?? [])}><ItemLine itemId={entry.itemId} amount={entry.amount} enhancement={enhancement} cardIds={entry.cardIds ?? []} /></button>
                   <small>Gear {getInstanceGearScore(item, enhancement)} · шанс {chanceLabel(enhancement)}</small>
                 </span>
-                <button disabled={!canEnhanceWithAnyStone(server, item.rarity)} onClick={() => enhanceTarget({ source: 'inventory', itemId: entry.itemId, enhancement })}>Заточить</button>
+                <button disabled={!canEnhanceWithAnyStone(server, item.levelReq)} onClick={() => enhanceTarget({ source: 'inventory', itemId: entry.itemId, enhancement })}>Заточить</button>
               </div>
             ) : null;
           })}

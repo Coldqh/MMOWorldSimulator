@@ -46,6 +46,12 @@ ok(createNewGameSource.includes("tier: 'max', ratio: 0.30"), 'NPC max tier targe
 ok(createNewGameSource.includes('NPC_UNGUILDED_RATIO = 0.20'), 'NPC unguilded target is 20% per tier');
 ok(createNewGameSource.includes('ensureNpcGuildCapacity'), 'NPC guild capacity helper is wired');
 
+const enhancementSource = read('src/systems/enhancementSystem.ts');
+ok(enhancementSource.includes("tier: 'low', minLevel: 1, maxLevel: 20"), 'low enhancement stone tier is wired');
+ok(enhancementSource.includes("tier: 'mid', minLevel: 21, maxLevel: 40"), 'mid enhancement stone tier is wired');
+ok(enhancementSource.includes("tier: 'high', minLevel: 41, maxLevel: 59"), 'high enhancement stone tier is wired');
+ok(enhancementSource.includes("tier: 'max', minLevel: 60, maxLevel: 60"), 'max enhancement stone tier is wired');
+
 const itemSystem = read('src/systems/itemSystem.ts');
 warning(!itemSystem.includes('const usable = ITEMS'), 'itemSystem still scans ITEMS directly for NPC gear');
 warning(!itemSystem.includes('const cards = ITEMS'), 'itemSystem still scans ITEMS directly for NPC cards');
