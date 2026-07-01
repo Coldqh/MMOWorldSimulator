@@ -37,6 +37,15 @@ ok(runtimeSource.includes('getNpcCardCandidates'), 'NPC card generation uses ite
 ok(runtimeSource.includes('ZONE_BY_ID.get'), 'NPC location access uses zone lookup map');
 ok(runtimeSource.includes('SPOT_BY_ID.get'), 'NPC location access uses spot lookup map');
 
+const createNewGameSource = read('src/engine/createNewGame.ts');
+ok(createNewGameSource.includes('NPC_TARGET_COUNT = 1000'), 'NPC roster target is 1000');
+ok(createNewGameSource.includes("tier: 'low', ratio: 0.15"), 'NPC low tier target is 15%');
+ok(createNewGameSource.includes("tier: 'mid', ratio: 0.25"), 'NPC mid tier target is 25%');
+ok(createNewGameSource.includes("tier: 'high', ratio: 0.30"), 'NPC high tier target is 30%');
+ok(createNewGameSource.includes("tier: 'max', ratio: 0.30"), 'NPC max tier target is 30%');
+ok(createNewGameSource.includes('NPC_UNGUILDED_RATIO = 0.20'), 'NPC unguilded target is 20% per tier');
+ok(createNewGameSource.includes('ensureNpcGuildCapacity'), 'NPC guild capacity helper is wired');
+
 const itemSystem = read('src/systems/itemSystem.ts');
 warning(!itemSystem.includes('const usable = ITEMS'), 'itemSystem still scans ITEMS directly for NPC gear');
 warning(!itemSystem.includes('const cards = ITEMS'), 'itemSystem still scans ITEMS directly for NPC cards');
