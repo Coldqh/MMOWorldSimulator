@@ -1,5 +1,5 @@
 import { ITEMS, getItemById, normalizeLegacyItemId } from "../content/items";
-import { calculateItemPrice } from "../balance";
+import { calculateItemPrice, MAX_LEVEL } from "../balance";
 import { createRng, type Rng, uid } from "../engine/rng";
 import type { Id, ItemDefinition, MarketListing, ServerState } from "../types/game";
 import { addInventoryItem, removeInventoryItem } from "./itemSystem";
@@ -113,7 +113,7 @@ export const generateFullMarket = (
   const playerLevel = Math.max(1, server.player?.level ?? 1);
   const playerBandEquipment = equipment.filter((item) => {
     const level = item.levelReq ?? 1;
-    return level >= Math.max(1, playerLevel - 4) && level <= Math.min(20, playerLevel + 4);
+    return level >= Math.max(1, playerLevel - 4) && level <= Math.min(MAX_LEVEL, playerLevel + 4);
   });
 
   const starterEquipment = equipment.filter((item) => (item.levelReq ?? 1) <= 5);

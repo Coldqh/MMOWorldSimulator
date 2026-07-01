@@ -1,27 +1,19 @@
-import type {
-  Guild,
-  GuildApplication,
-  GuildFocus,
-  GuildWar,
-  GuildWarKillRecord,
-  GuildWarTopKiller,
-  Id,
-  NpcPlayer,
-  ServerState,
-} from '../types/game';
+import type { Guild, GuildApplication, GuildFocus, GuildTier, GuildWar, GuildWarKillRecord, GuildWarTopKiller, Id, NpcPlayer, ServerState } from '../types/game';
 import type { Rng } from '../engine/rng';
 import { createRng } from '../engine/rng';
 import { getGuildRelationValue } from './guildRelationSystem';
 import { guildFocusLabel, normalizeGuildFocus } from './guildIdentitySystem';
 import { isPlayerCreatedGuild, protectPlayerCreatedGuilds } from './playerGuildProtection';
+import { LEVEL_BANDS } from '../balance';
 
 const SOLO_PREFIX = 'solo_pool_';
 const classIds = ['warrior', 'ranger', 'mage', 'priest'];
 const raceIds = ['human', 'elf', 'dwarf', 'beastkin'];
-const tierTargets: Array<{ tier: 'low' | 'mid' | 'high'; count: number; min: number; max: number; offset: number }> = [
-  { tier: 'low', count: 33, min: 1, max: 8, offset: 0 },
-  { tier: 'mid', count: 33, min: 9, max: 16, offset: 33 },
-  { tier: 'high', count: 34, min: 17, max: 20, offset: 66 },
+const tierTargets: Array<{ tier: GuildTier; count: number; min: number; max: number; offset: number }> = [
+  { tier: 'low', count: 30, min: LEVEL_BANDS.low.min, max: LEVEL_BANDS.low.max, offset: 0 },
+  { tier: 'mid', count: 30, min: LEVEL_BANDS.mid.min, max: LEVEL_BANDS.mid.max, offset: 30 },
+  { tier: 'high', count: 30, min: LEVEL_BANDS.high.min, max: LEVEL_BANDS.high.max, offset: 60 },
+  { tier: 'max', count: 10, min: LEVEL_BANDS.max.min, max: LEVEL_BANDS.max.max, offset: 90 },
 ];
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, Math.round(value)));
@@ -56,7 +48,7 @@ const dedupeRuntimeWarPairs = (server: ServerState): ServerState => {
 };
 
 
-const soloName = (tier: 'low' | 'mid' | 'high', index: number) => {
+const soloName = (tier: GuildTier, index: number) => {
   const low = ['Рик', 'Миро', 'Лана', 'Брен', 'Томми', 'Элла', 'Кайл', 'Нора', 'Дэн', 'Сайна', 'Финн'];
   const mid = ['Кай', 'Мел', 'Дора', 'Рей', 'Ник', 'Алис', 'Глен', 'Тея', 'Бруно', 'Лисса', 'Корин'];
   const high = ['Варн', 'Селин', 'Оскар', 'Рина', 'Маркус', 'Эш', 'Ника', 'Роланд', 'Джуна', 'Люк', 'Тара'];
@@ -185,7 +177,7 @@ const activeWarExists = (server: ServerState, a: string, b: string) =>
       (war.attackerGuildId === b && war.defenderGuildId === a)),
   );
 
-const sameTierWarCount = (server: ServerState, tier: 'low' | 'mid' | 'high') =>
+const sameTierWarCount = (server: ServerState, tier: GuildTier) =>
   (server.guildWars ?? []).filter((war) => {
     if (war.status !== 'active') return false;
     const a = server.guilds.find((guild) => guild.id === war.attackerGuildId);
@@ -219,7 +211,7 @@ const seedWar = (server: ServerState, attackerGuildId: string, defenderGuildId: 
   };
 }
 
-const pickTierWarPair = (server: ServerState, tier: 'low' | 'mid' | 'high', used: Set<string>) => {
+const pickTierWarPair = (server: ServerState, tier: GuildTier, used: Set<string>) => {
   const guilds = server.guilds
     .filter((guild) => guild.tier === tier)
     .sort((a, b) => {
@@ -252,7 +244,7 @@ export const seedActiveGuildWarsIfEmpty = (server: ServerState): ServerState => 
   let next = dedupeRuntimeWarPairs(finishExpiredWars(startScheduledRuntimeWars(normalizeGuildWarsRuntime(server))));
   const used = new Set<string>();
 
-  (['high', 'mid', 'low'] as const).forEach((tier) => {
+  (['max', 'high', 'mid', 'low'] as const).forEach((tier) => {
     while (sameTierWarCount(next, tier) < 2) {
       const pair = pickTierWarPair(next, tier, used);
       if (!pair) break;
@@ -326,7 +318,7 @@ export const simulateGuildWarsEveryHalfHour = (server: ServerState, rng: Rng, mi
   return seedActiveGuildWarsIfEmpty({ ...next, guildWars });
 };
 
-const makeSoloNpc = (index: number, level: number, tier: 'low' | 'mid' | 'high', rng: Rng): NpcPlayer => {
+const makeSoloNpc = (index: number, level: number, tier: GuildTier, rng: Rng): NpcPlayer => {
   const classId = ['warrior', 'ranger', 'mage', 'priest'][index % 4];
   const raceId = ['human', 'elf', 'dwarf', 'beastkin'][index % 4];
   return {
@@ -380,7 +372,7 @@ export const createPlayerGuildRuntime = (
   server: ServerState,
   name: string,
   focus: GuildFocus,
-  tier: "low" | "mid" | "high" = "low",
+  tier: GuildTier = 'low',
 ): { server: ServerState; ok: boolean; message: string } => {
   const cleanName = name.trim().slice(0, 32);
   if (!cleanName) return { server, ok: false, message: 'Название пустое.' };
@@ -388,8 +380,8 @@ export const createPlayerGuildRuntime = (
   if (server.player.gold < 50000) return { server, ok: false, message: 'Нужно 50 000 золота.' };
   if (server.guilds.some((guild) => guild.name.toLowerCase() === cleanName.toLowerCase())) return { server, ok: false, message: 'Гильдия с таким названием уже есть.' };
 
-  const normalizedTier = tier === 'mid' || tier === 'high' ? tier : 'low';
-  const minLevelByTier: Record<"low" | "mid" | "high", number> = { low: 1, mid: 10, high: 20 };
+  const normalizedTier: GuildTier = tier === 'mid' || tier === 'high' || tier === 'max' ? tier : 'low';
+  const minLevelByTier: Record<GuildTier, number> = { low: LEVEL_BANDS.low.min, mid: LEVEL_BANDS.mid.min, high: LEVEL_BANDS.high.min, max: LEVEL_BANDS.max.min };
   const requiredLevel = minLevelByTier[normalizedTier];
   if (server.player.level < requiredLevel) return { server, ok: false, message: `Для ${normalizedTier.toUpperCase()} гильдии нужен уровень ${requiredLevel}.` };
 
@@ -461,7 +453,7 @@ export const maybeGeneratePlayerGuildApplication = (server: ServerState, rng: Rn
   const eligible = withPool.npcs
     .filter((npc) => !npc.guildId)
     .filter((npc) => !npc.guildId || npc.id.startsWith(SOLO_PREFIX))
-    .filter((npc) => npc.level <= Math.max(20, (guild.minLevel ?? 1) + 6));
+    .filter((npc) => npc.level <= Math.max(LEVEL_BANDS.low.max, (guild.minLevel ?? 1) + 6));
   if (eligible.length === 0) return withPool;
   const applicant = rng.pick(eligible);
   const app: GuildApplication = {

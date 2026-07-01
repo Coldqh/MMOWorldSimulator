@@ -1,6 +1,6 @@
 {
-  "version": "0.7.37",
+  "version": "0.7.38",
   "channel": "stable",
-  "build": "2026-07-01-v0737-core-indexes-legacy-cleanup",
-  "buildTime": "2026-07-01T09:23:43.996Z"
+  "build": "2026-07-01-v0738-level-60-scaling",
+  "buildTime": "2026-07-01T09:44:09.319Z"
 }

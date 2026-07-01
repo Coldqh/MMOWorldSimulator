@@ -6,11 +6,11 @@ import { getPlayerGuildPendingApplications } from "../../systems/guildRuntimeSys
 import { guildFocusLabel } from "../../systems/guildIdentitySystem";
 import { GuildWarPanel, ServerGuildWarList } from "../components/GuildWarPanel";
 import { CastlePanel } from "../components/CastlePanel";
-import type { Guild, GuildFocus } from "../../types/game";
+import type { Guild, GuildFocus, GuildTier } from "../../types/game";
 
 type MainGuildTab = "guilds" | "wars" | "castles";
 type GuildTab = "profile" | "roster" | "applications" | "relations" | "events" | "castles";
-type PlayerGuildTier = "low" | "mid" | "high";
+type PlayerGuildTier = GuildTier;
 
 
 const getNpcName = (server: ReturnType<typeof useGameStore.getState>["server"], id?: string) => {
@@ -23,12 +23,13 @@ const getClassName = (classId: string) => CLASSES.find((entry) => entry.id === c
 const guildPower = (guild: Guild) => (guild.reputation ?? 0) + (guild.pvpRating ?? 0);
 const relationPercent = (value: number) => `${Math.max(0, Math.min(100, value + 100) / 2)}%`;
 const relationTone = (value: number) => value <= -40 ? "danger-line" : value >= 40 ? "ready-line" : "";
-const tierLabel: Record<string, string> = { all: "Все", high: "High", mid: "Mid", low: "Low" };
-const guildTierMinLevel: Record<PlayerGuildTier, number> = { low: 1, mid: 10, high: 20 };
+const tierLabel: Record<string, string> = { all: "Все", max: "Max", high: "High", mid: "Mid", low: "Low" };
+const guildTierMinLevel: Record<PlayerGuildTier, number> = { low: 1, mid: 21, high: 41, max: 60 };
 const guildTierOptions: { id: PlayerGuildTier; label: string; minLevel: number }[] = [
   { id: "low", label: "Low", minLevel: 1 },
-  { id: "mid", label: "Mid", minLevel: 10 },
-  { id: "high", label: "High", minLevel: 20 },
+  { id: "mid", label: "Mid", minLevel: 21 },
+  { id: "high", label: "High", minLevel: 41 },
+  { id: "max", label: "Max", minLevel: 60 },
 ];
 
 
@@ -51,7 +52,7 @@ export const GuildScreen = () => {
 
   const [mainTab, setMainTab] = useState<MainGuildTab>("guilds");
   const [showAllGuilds, setShowAllGuilds] = useState(false);
-  const [tierFilter, setTierFilter] = useState<"all" | "high" | "mid" | "low">("all");
+  const [tierFilter, setTierFilter] = useState<"all" | GuildTier>("all");
   const [tab, setTab] = useState<GuildTab>("profile");
   const [guildName, setGuildName] = useState("");
   const [guildFocus, setGuildFocus] = useState<GuildFocus>("pvp");
@@ -254,7 +255,7 @@ export const GuildScreen = () => {
           <h1>Список гильдий</h1>
           {playerGuild && <button onClick={() => setShowAllGuilds(false)}>Твоя гильдия</button>}
         </div>
-        <div className="chip-row">{(["all", "high", "mid", "low"] as const).map((tier) => <button key={tier} className={tierFilter === tier ? "active" : ""} onClick={() => setTierFilter(tier)}>{tierLabel[tier]}</button>)}</div>
+        <div className="chip-row">{(["all", "max", "high", "mid", "low"] as const).map((tier) => <button key={tier} className={tierFilter === tier ? "active" : ""} onClick={() => setTierFilter(tier)}>{tierLabel[tier]}</button>)}</div>
       </section>
 
       {!server.player.guildId && (
@@ -285,7 +286,7 @@ export const GuildScreen = () => {
                 );
               })}
             </div>
-            <p className="muted">Low доступна всегда. Mid с 10 уровня. High с 20 уровня.</p>
+            <p className="muted">Low доступна всегда. Mid с 21 уровня. High с 41 уровня. Max только на 60 уровне.</p>
             <button disabled={server.player.gold < 50000 || !guildName.trim() || !canCreateSelectedTier} onClick={() => createPlayerGuild(guildName, guildFocus, guildTier)}>
               {canCreateSelectedTier ? "Создать за 50 000" : `Нужен ${guildTierMinLevel[guildTier]} уровень`}
             </button>

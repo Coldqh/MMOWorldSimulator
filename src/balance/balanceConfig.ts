@@ -1,6 +1,22 @@
-import type { EquipmentSlot, ItemType, Rarity, RoleFocus } from '../types/game';
+import type { EquipmentSlot, GuildTier, ItemType, Rarity, RoleFocus } from '../types/game';
 
-export const MAX_LEVEL = 20;
+export const MAX_LEVEL = 60;
+
+export const LEVEL_BANDS: Record<GuildTier, { min: number; max: number }> = {
+  low: { min: 1, max: 20 },
+  mid: { min: 21, max: 40 },
+  high: { min: 41, max: 59 },
+  max: { min: 60, max: 60 },
+};
+
+export const LEVEL_BAND_ORDER: GuildTier[] = ['low', 'mid', 'high', 'max'];
+
+export const getLevelBandForLevel = (level: number): GuildTier => {
+  if (level >= LEVEL_BANDS.max.min) return 'max';
+  if (level >= LEVEL_BANDS.high.min) return 'high';
+  if (level >= LEVEL_BANDS.mid.min) return 'mid';
+  return 'low';
+};
 
 export const RARITY_POWER: Record<Rarity, number> = {
   common: 1,

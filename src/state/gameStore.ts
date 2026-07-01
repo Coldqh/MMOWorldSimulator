@@ -137,15 +137,7 @@ import {
   type SiegeMoveDirection,
 } from "../systems/siegeSystem";
 
-import type {
-  CombatState,
-  GameModal,
-  LootChoice,
-  ScreenId,
-  ServerNotification,
-  ServerState,
-  GuildFocus,
-} from "../types/game";
+import type { CombatState, GameModal, GuildFocus, GuildTier, LootChoice, ScreenId, ServerNotification, ServerState } from "../types/game";
 
 interface GameStore {
   server: ServerState;
@@ -211,7 +203,7 @@ interface GameStore {
   openGuildRoster: (guildId: string) => void;
   openGuildRelations: (guildId: string) => void;
   openGuildWarProfile: (warId: string) => void;
-  createPlayerGuild: (name: string, focus: GuildFocus, tier: "low" | "mid" | "high") => void;
+  createPlayerGuild: (name: string, focus: GuildFocus, tier: GuildTier) => void;
   acceptGuildApplicant: (applicationId: string) => void;
   rejectGuildApplicant: (applicationId: string) => void;
   acceptQuest: (questId: string) => void;

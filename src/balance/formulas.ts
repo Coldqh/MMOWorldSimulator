@@ -87,9 +87,10 @@ export const calculateGearScore = (item: ItemDefinition, enhancement = 0, cardId
 
 export const calculateXpForNextLevel = (level: number) => {
   const safe = clamp(level, 1, MAX_LEVEL);
-  const band = safe <= 5 ? XP_CURVE.early : safe <= 10 ? XP_CURVE.mid : safe <= 15 ? XP_CURVE.high : XP_CURVE.late;
+  const band = safe <= 10 ? XP_CURVE.early : safe <= 25 ? XP_CURVE.mid : safe <= 45 ? XP_CURVE.high : XP_CURVE.late;
   return Math.round(XP_CURVE.base + band * Math.pow(safe, XP_CURVE.exponent));
 };
+
 
 const tagMultiplier = (tags: string[] = []) => tags.reduce((value, tag) => value * (MOB_TAG_POWER[tag] ?? 1), 1);
 
@@ -130,10 +131,21 @@ export const calculateNpcWealth = (level: number, gearScore: number, roleFocus?:
 
 export const calculateNpcArenaRating = (level: number, gearScore: number, roleFocus?: string) => {
   const role = ROLE_ARENA_MULTIPLIER[roleFocus ?? 'mixed'] ?? 1;
-  let base = 620 + level * 34 + gearScore * 0.075;
-  if (level >= 20) base = 1680 + Math.max(0, gearScore - 1700) * 0.19;
-  else if (level >= 19) base = 1550 + gearScore * 0.09;
-  else if (level >= 15) base = 1240 + (level - 15) * 70 + gearScore * 0.058;
-  else if (level >= 10) base = 1000 + (level - 10) * 54 + gearScore * 0.042;
+  const safeLevel = clamp(level, 1, MAX_LEVEL);
+  let base = 620 + safeLevel * 34 + gearScore * 0.075;
+
+  if (safeLevel >= 60) {
+    base = 3000 + Math.max(0, gearScore - 5200) * 0.14;
+  } else if (safeLevel >= 41) {
+    base = 2150 + (safeLevel - 41) * 30 + Math.max(0, gearScore - 3000) * 0.12;
+  } else if (safeLevel >= 21) {
+    base = 1550 + (safeLevel - 21) * 28 + gearScore * 0.07;
+  } else if (safeLevel >= 15) {
+    base = 1240 + (safeLevel - 15) * 70 + gearScore * 0.058;
+  } else if (safeLevel >= 10) {
+    base = 1000 + (safeLevel - 10) * 54 + gearScore * 0.042;
+  }
+
   return Math.max(100, Math.round(base * role));
 };
+

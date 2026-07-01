@@ -1,7 +1,7 @@
 import type { MobDefinition, Player, ServerState } from '../types/game';
 import { calculateNpcArenaRating, calculateNpcWealth, calculateXpForNextLevel, calculateXpRewardForMob, MAX_LEVEL } from '../balance';
 import { getGearScore } from './itemSystem';
-import { arenaRankIcon, arenaRankName, arenaRankOrder, getArenaLadder, getGuildPvpRankIcon, getGuildPvpRankName } from './arenaBracketSystem';
+import { arenaRankIcon, arenaRankName, arenaRankOrder, getArenaBracketIdForPlayer, getArenaLadder, getGuildPvpRankIcon, getGuildPvpRankName } from './arenaBracketSystem';
 
 export const xpForNextLevel = (level: number) => calculateXpForNextLevel(level);
 
@@ -33,7 +33,7 @@ export const estimateWealthValue = (level: number, gearScore: number, focus?: st
 export { arenaRankIcon, arenaRankName, getGuildPvpRankIcon, getGuildPvpRankName };
 
 export const getPlayerArenaRank = (server: ServerState) => {
-  const bracket = server.player.level <= 8 ? 'low' : server.player.level <= 16 ? 'mid' : 'high';
+  const bracket = getArenaBracketIdForPlayer(server);
   return getArenaLadder(server, bracket).findIndex((entry) => entry.id === server.player.id) + 1;
 };
 
@@ -48,7 +48,7 @@ export const updateGuildDerivedStats = (server: ServerState): ServerState => {
     const pvpRating = memberRatings.length > 0
       ? Math.round(memberRatings.reduce((sum, rating) => sum + rating, 0) / memberRatings.length)
       : 1000;
-    const level = Math.max(1, Math.min(20, Math.floor(reputation / 6500) + 1));
+    const level = Math.max(1, Math.min(MAX_LEVEL, Math.floor(reputation / 6500) + 1));
     return { ...guild, reputation, pvpRating, level };
   });
   return { ...server, guilds };

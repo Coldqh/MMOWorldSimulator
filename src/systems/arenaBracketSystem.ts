@@ -1,6 +1,6 @@
 import type { Id, NpcPlayer, Player, ServerState } from '../types/game';
 
-export type ArenaBracketId = 'low' | 'mid' | 'high';
+export type ArenaBracketId = 'low' | 'mid' | 'high' | 'max';
 
 export interface ArenaBracketDefinition {
   id: ArenaBracketId;
@@ -9,9 +9,10 @@ export interface ArenaBracketDefinition {
 }
 
 export const ARENA_BRACKETS: ArenaBracketDefinition[] = [
-  { id: 'low', name: 'Лоу арена', levelRange: [1, 9] },
-  { id: 'mid', name: 'Мид арена', levelRange: [10, 19] },
-  { id: 'high', name: 'Хай арена', levelRange: [20, 20] },
+  { id: 'low', name: 'Лоу арена', levelRange: [1, 20] },
+  { id: 'mid', name: 'Мид арена', levelRange: [21, 40] },
+  { id: 'high', name: 'Хай арена', levelRange: [41, 59] },
+  { id: 'max', name: 'Макс арена', levelRange: [60, 60] },
 ];
 
 export const getArenaBracketByLevel = (level: number): ArenaBracketDefinition =>

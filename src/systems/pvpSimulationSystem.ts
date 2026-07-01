@@ -1,4 +1,4 @@
-import type { GuildWarKillRecord, Id, NpcPlayer, Player, ServerState } from '../types/game';
+import type { GuildTier, GuildWarKillRecord, Id, NpcPlayer, Player, ServerState } from '../types/game';
 import type { Rng } from '../engine/rng';
 import { getGearScore } from './itemSystem';
 import { getNpcSkillModifier, increaseNpcSkill } from './npcSkillSystem';
@@ -6,9 +6,9 @@ import { getNpcSkillModifier, increaseNpcSkill } from './npcSkillSystem';
 export const getPlayerPvpSkillModifier = (_player: Player) => getNpcSkillModifier(5);
 export const getNpcEffectivePower = (npc: NpcPlayer) => Math.max(1, (npc.gearScore ?? 1) * getNpcSkillModifier(npc.skill ?? 5));
 export const getPlayerEffectivePower = (player: Player) => Math.max(1, getGearScore(player.equipment) * getPlayerPvpSkillModifier(player));
-export const tierPowerStep = (tier?: 'low' | 'mid' | 'high') => tier === 'high' ? 200 : tier === 'mid' ? 100 : 50;
+export const tierPowerStep = (tier?: GuildTier) => tier === 'max' ? 260 : tier === 'high' ? 200 : tier === 'mid' ? 100 : 50;
 
-export const resolveNpcDuel = (npcA: NpcPlayer, npcB: NpcPlayer, tier: 'low' | 'mid' | 'high', rng: Rng) => {
+export const resolveNpcDuel = (npcA: NpcPlayer, npcB: NpcPlayer, tier: GuildTier, rng: Rng) => {
   const powerA = getNpcEffectivePower(npcA);
   const powerB = getNpcEffectivePower(npcB);
   const chanceA = Math.max(0.15, Math.min(0.85, 0.5 + Math.max(-0.35, Math.min(0.35, ((powerA - powerB) / tierPowerStep(tier)) * 0.08))));

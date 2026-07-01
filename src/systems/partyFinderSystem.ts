@@ -1,4 +1,5 @@
 import { DUNGEONS, RAIDS, getDungeonById } from '../content/world';
+import { LEVEL_BANDS } from '../balance';
 import { addNews } from '../engine/news';
 import { advanceServerClock } from '../engine/time';
 import type { Rng } from '../engine/rng';

@@ -1,7 +1,7 @@
 import { CLASSES } from '../content/classes';
 import { GUILD_TEMPLATES, NPC_NAMES, ROLE_FOCUSES } from '../content/npc';
 import { RACES } from '../content/races';
-import type { Guild, GuildType, NpcPlayer, Player, RoleFocus, ServerState } from '../types/game';
+import type { Guild, GuildTier, GuildType, NpcPlayer, Player, RoleFocus, ServerState } from '../types/game';
 import { SAVE_VERSION } from './saveLoad';
 import { APP_VERSION } from './version';
 import { createRng } from './rng';
@@ -11,6 +11,7 @@ import { refreshPartyFinderListings } from '../systems/partyFinderSystem';
 import { initializeGuildWarsCore } from '../systems/guildWarSystem';
 import { generateEquipmentForClassLevel, generateEliteEquipmentForClassLevel, generateScaledEquipmentForClassLevel, getGearScore, normalizeNpcEquipmentAndGear } from '../systems/itemSystem';
 import { isPlayerCreatedGuild, protectPlayerCreatedGuilds, sanitizePlayerCreatedGuild } from '../systems/playerGuildProtection';
+import { LEVEL_BANDS, MAX_LEVEL } from '../balance';
 
 export const NPC_TARGET_COUNT = 500;
 const TARGET_GUILD_MEMBER_DEVIATION = 0;
@@ -49,12 +50,24 @@ const createStarterPlayer = (name: string, raceId: string, classId: string, rngS
   };
 };
 
-const guildTierForIndex = (index: number): 'low' | 'mid' | 'high' => index < 5 ? 'low' : index < 12 ? 'mid' : 'high';
-const minLevelForTier = (tier: 'low' | 'mid' | 'high') => tier === 'high' ? 20 : tier === 'mid' ? 10 : 1;
+const guildTierForIndex = (index: number): GuildTier =>
+  index >= Math.max(0, GUILD_TEMPLATES.length - 1)
+    ? 'max'
+    : index < 5
+      ? 'low'
+      : index < 12
+        ? 'mid'
+        : 'high';
+
+const tierRange = (tier: GuildTier) => LEVEL_BANDS[tier] ?? LEVEL_BANDS.low;
+const minLevelForTier = (tier: GuildTier) => tierRange(tier).min;
+const maxLevelForTier = (tier: GuildTier) => tierRange(tier).max;
+const levelInTier = (level: number, tier: GuildTier) => level >= minLevelForTier(tier) && level <= maxLevelForTier(tier);
+const randomLevelInTier = (tier: GuildTier, rng: ReturnType<typeof createRng>) => rng.int(minLevelForTier(tier), maxLevelForTier(tier));
 
 const createGuilds = (): Guild[] => {
   return GUILD_TEMPLATES.map((template, index) => {
-    const tier = template.tier ?? guildTierForIndex(index);
+    const tier = (template.tier ?? guildTierForIndex(index)) as GuildTier;
     return {
       id: `guild_${index + 1}`,
       name: template.name,
@@ -73,21 +86,20 @@ const createGuilds = (): Guild[] => {
 };
 
 const npcLevelForGuild = (guild: Guild, rng: ReturnType<typeof createRng>) => {
-  const tier = guild.tier ?? 'low';
-  if (tier === 'high') return 20;
-  if (tier === 'mid') return rng.int(10, 20);
-  // Low guilds have the whole server spread, but most members are 1-10.
+  const tier = (guild.tier ?? 'low') as GuildTier;
+  if (tier === 'max') return MAX_LEVEL;
+  if (tier === 'high') return randomLevelInTier('high', rng);
+  if (tier === 'mid') return randomLevelInTier('mid', rng);
+
   const roll = rng.next();
-  if (roll < 0.70) return rng.int(1, 10);
+  if (roll < 0.70) return rng.int(LEVEL_BANDS.low.min, 10);
   if (roll < 0.90) return rng.int(11, 15);
-  return rng.int(16, 20);
+  return rng.int(16, LEVEL_BANDS.low.max);
 };
 
 const normalizeLevelForGuildTier = (currentLevel: number, guild: Guild, rng: ReturnType<typeof createRng>) => {
-  const tier = guild.tier ?? 'low';
-  if (tier === 'high') return 20;
-  if (tier === 'mid') return currentLevel >= 10 && currentLevel <= 20 ? currentLevel : rng.int(10, 20);
-  if (currentLevel >= 1 && currentLevel <= 20) return currentLevel;
+  const tier = (guild.tier ?? 'low') as GuildTier;
+  if (levelInTier(currentLevel, tier)) return currentLevel;
   return npcLevelForGuild(guild, rng);
 };
 
@@ -99,27 +111,34 @@ const focusForGuild = (guild: Guild, rng: ReturnType<typeof createRng>): RoleFoc
 
 const upgradeNpcForGuild = (npc: NpcPlayer, guild: Guild, seed: number, order = 0): NpcPlayer => {
   const rng = createRng(seed + order * 977 + npc.id.length * 23);
-  const tier = guild.tier ?? 'low';
+  const tier = (guild.tier ?? 'low') as GuildTier;
   const minLevel = guild.minLevel ?? minLevelForTier(tier);
+  const maxLevel = maxLevelForTier(tier);
   let level = Math.max(normalizeLevelForGuildTier(npc.level, guild, rng), minLevel);
-  if (tier === 'mid') level = Math.max(10, Math.min(20, level));
-  if (tier === 'low') level = Math.max(1, Math.min(20, level));
+  level = Math.max(minLevel, Math.min(maxLevel, level));
+
   const focus = ['PVP', 'pvp'].includes(guild.type)
     ? rng.pick(['pvp', 'pvp', 'pvp', 'mixed'] as RoleFocus[])
     : guild.type === 'PVE'
       ? rng.pick(['pve', 'pve', 'pvp', 'mixed'] as RoleFocus[])
       : npc.roleFocus;
-  const power = tier === 'high'
-    ? 0.18 + rng.next() * 0.82
-    : tier === 'mid'
-      ? 0.18 + rng.next() * 0.48
-      : 0.08 + rng.next() * 0.42;
-  const equipment = tier === 'high' || focus === 'pvp'
+
+  const power = tier === 'max'
+    ? 0.82 + rng.next() * 0.18
+    : tier === 'high'
+      ? 0.38 + rng.next() * 0.58
+      : tier === 'mid'
+        ? 0.20 + rng.next() * 0.48
+        : 0.08 + rng.next() * 0.42;
+
+  const equipment = tier === 'max' || tier === 'high' || focus === 'pvp'
     ? generateScaledEquipmentForClassLevel(npc.classId, level, rng, power)
     : generateEquipmentForClassLevel(npc.classId, level, rng);
+
   const gearScore = getGearScore(equipment);
   const arenaRating = estimateArenaRatingValue(level, gearScore, focus) * (focus === 'pvp' ? rng.int(105, 121) : rng.int(92, 109)) / 100;
   const gold = estimateWealthValue(level, gearScore, focus) * rng.int(78, 142) / 100;
+
   return {
     ...npc,
     level,
@@ -133,17 +152,19 @@ const upgradeNpcForGuild = (npc: NpcPlayer, guild: Guild, seed: number, order = 
   };
 };
 
+
 export const createNpc = (index: number, guilds: Guild[], seed: number, forcedLevel?: number, forcedGuild?: Guild): NpcPlayer => {
   const rng = createRng(seed + index * 7919);
   const classData = rng.pick(CLASSES);
   const raceData = rng.pick(RACES);
   const focus = forcedGuild ? focusForGuild(forcedGuild, rng) : rng.pick(ROLE_FOCUSES);
-  const level = forcedLevel ?? (forcedGuild ? npcLevelForGuild(forcedGuild, rng) : Math.max(1, Math.min(20, (index % 20) + 1)));
+  const level = forcedLevel ?? (forcedGuild ? npcLevelForGuild(forcedGuild, rng) : Math.max(1, Math.min(MAX_LEVEL, (index % MAX_LEVEL) + 1)));
   const guild = forcedGuild;
+  const tier = (guild?.tier ?? 'low') as GuildTier;
   const nameBase = rng.pick(NPC_NAMES);
-  const elite = (guild?.tier === 'high') || (forcedLevel === undefined && level >= 16 && (index % 23 === 0 || index % 37 === 0));
-  const equipment = elite && level >= 16
-    ? generateScaledEquipmentForClassLevel(classData.id, level, rng, guild?.tier === 'high' ? 0.18 + rng.next() * 0.82 : 0.55 + rng.next() * 0.35)
+  const elite = tier === 'max' || tier === 'high' || (forcedLevel === undefined && level >= LEVEL_BANDS.high.min && (index % 23 === 0 || index % 37 === 0));
+  const equipment = elite && level >= LEVEL_BANDS.mid.min
+    ? generateScaledEquipmentForClassLevel(classData.id, level, rng, tier === 'max' ? 0.82 + rng.next() * 0.18 : tier === 'high' ? 0.38 + rng.next() * 0.58 : 0.55 + rng.next() * 0.35)
     : generateEquipmentForClassLevel(classData.id, level, rng);
   const gearScore = getGearScore(equipment);
   const roleFocus: RoleFocus = elite ? (rng.chance(0.55) ? 'pvp' : rng.chance(0.5) ? 'pve' : 'mixed') : focus;
@@ -170,6 +191,7 @@ export const createNpc = (index: number, guilds: Guild[], seed: number, forcedLe
     arenaRating: Math.round(estimateArenaRatingValue(level, gearScore, roleFocus) * rng.int(92, 112) / 100)
   };
 };
+
 
 const generateBalancedNpcRoster = (guilds: Guild[], seed: number, startIndex = 0, targetCount = NPC_TARGET_COUNT): NpcPlayer[] => {
   const perGuild = Math.floor(targetCount / Math.max(1, guilds.length));
@@ -219,7 +241,7 @@ const rebalanceGuildMemberships = (server: ServerState, guilds: Guild[], normali
     let pool = npcs
       .filter((npc) => !assigned.has(npc.id))
       .filter((npc) => npc.level >= minLevel)
-      .filter((npc) => (guild.tier ?? 'low') === 'high' ? npc.level >= 20 : (guild.tier ?? 'low') === 'mid' ? npc.level >= 10 && npc.level <= 20 : npc.level >= 1 && npc.level <= 20)
+      .filter((npc) => (guild.tier ?? 'low') === 'max' ? npc.level >= MAX_LEVEL : (guild.tier ?? 'low') === 'high' ? npc.level >= LEVEL_BANDS.high.min && npc.level <= LEVEL_BANDS.high.max : (guild.tier ?? 'low') === 'mid' ? npc.level >= LEVEL_BANDS.mid.min && npc.level <= LEVEL_BANDS.mid.max : npc.level >= LEVEL_BANDS.low.min && npc.level <= LEVEL_BANDS.low.max)
       .sort((a, b) => {
         const hashA = (seed + guildIndex * 13007 + a.id.length * 97 + a.level * 31 + a.gearScore) % 100000;
         const hashB = (seed + guildIndex * 13007 + b.id.length * 97 + b.level * 31 + b.gearScore) % 100000;
@@ -258,7 +280,7 @@ const rebalanceGuildMemberships = (server: ServerState, guilds: Guild[], normali
         const gearScore = getGearScore(equipment);
         upgraded = { ...upgraded, level: forcedLevel, equipment, gearScore, arenaRating: Math.round(estimateArenaRatingValue(forcedLevel, gearScore, upgraded.roleFocus)), gold: Math.round(estimateWealthValue(forcedLevel, gearScore, upgraded.roleFocus)) };
       } else if (tier === 'mid') {
-        const forcedLevel = rng.int(10, 20);
+        const forcedLevel = randomLevelInTier('mid', rng);
         const equipment = generateScaledEquipmentForClassLevel(upgraded.classId, forcedLevel, rng, 0.22 + rng.next() * 0.45);
         const gearScore = getGearScore(equipment);
         upgraded = { ...upgraded, level: forcedLevel, equipment, gearScore, arenaRating: Math.round(estimateArenaRatingValue(forcedLevel, gearScore, upgraded.roleFocus)), gold: Math.round(estimateWealthValue(forcedLevel, gearScore, upgraded.roleFocus)) };
@@ -293,45 +315,54 @@ const rebalanceGuildMemberships = (server: ServerState, guilds: Guild[], normali
 
 const redistributeMaxLevelGearSpread = (npcs: NpcPlayer[], seed: number): NpcPlayer[] => {
   const maxLevelNpcs = npcs
-    .filter((npc) => npc.level >= 20)
+    .filter((npc) => npc.level >= MAX_LEVEL)
     .sort((a, b) => {
       const focusWeight = (npc: NpcPlayer) => npc.roleFocus === 'pvp' ? 2 : npc.roleFocus === 'pve' ? 1 : 0;
       return focusWeight(b) - focusWeight(a) || a.id.localeCompare(b.id);
     });
+
   if (maxLevelNpcs.length === 0) return npcs.map((npc) => ({ ...npc, gearScore: getGearScore(npc.equipment ?? {}) }));
 
   const powerById = new Map<string, number>();
   const count = Math.max(1, maxLevelNpcs.length - 1);
+
   maxLevelNpcs.forEach((npc, index) => {
-    const base = maxLevelNpcs.length === 1 ? 0.55 : index / count;
-    const focusBoost = npc.roleFocus === 'pvp' ? 0.08 : npc.roleFocus === 'pve' ? 0.04 : 0;
-    const noise = (((seed + index * 37 + npc.id.length * 11) % 17) - 8) / 200;
-    powerById.set(npc.id, Math.max(0.05, Math.min(1, base + focusBoost + noise)));
+    const base = maxLevelNpcs.length === 1 ? 0.86 : 0.72 + (index / count) * 0.28;
+    const focusBoost = npc.roleFocus === 'pvp' ? 0.05 : npc.roleFocus === 'pve' ? 0.03 : 0;
+    const noise = (((seed + index * 37 + npc.id.length * 11) % 17) - 8) / 240;
+    powerById.set(npc.id, Math.max(0.68, Math.min(1, base + focusBoost + noise)));
   });
 
   return npcs.map((npc, index) => {
     const rng = createRng(seed + 240000 + index * 97);
-    if (npc.level < 20) {
-      const normalized = npc.equipment && Object.keys(npc.equipment).length > 0 ? npc.equipment : generateEquipmentForClassLevel(npc.classId, npc.level, rng);
+
+    if (npc.level < MAX_LEVEL) {
+      const safeLevel = Math.max(1, Math.min(MAX_LEVEL - 1, npc.level));
+      const normalized = npc.equipment && Object.keys(npc.equipment).length > 0
+        ? npc.equipment
+        : generateEquipmentForClassLevel(npc.classId, safeLevel, rng);
       const gearScore = getGearScore(normalized);
-      return { ...npc, level: Math.min(19, npc.level), equipment: normalized, gearScore };
+      return { ...npc, level: safeLevel, equipment: normalized, gearScore };
     }
 
-    let power = powerById.get(npc.id) ?? 0.5;
-    let equipment = generateScaledEquipmentForClassLevel(npc.classId, 20, rng, power);
+    let power = powerById.get(npc.id) ?? 0.85;
+    let equipment = generateScaledEquipmentForClassLevel(npc.classId, MAX_LEVEL, rng, power);
     let gearScore = getGearScore(equipment);
     let guard = 0;
-    while (gearScore < 2000 && guard < 5) {
-      power = Math.min(1, power + 0.12);
-      equipment = generateScaledEquipmentForClassLevel(npc.classId, 20, rng, power);
+
+    while (gearScore < 5200 && guard < 5) {
+      power = Math.min(1, power + 0.08);
+      equipment = generateScaledEquipmentForClassLevel(npc.classId, MAX_LEVEL, rng, power);
       gearScore = getGearScore(equipment);
       guard += 1;
     }
-    const arenaRating = Math.round(estimateArenaRatingValue(20, gearScore, npc.roleFocus) * (0.94 + power * 0.18));
-    const gold = Math.round(estimateWealthValue(20, gearScore, npc.roleFocus) * (0.72 + power * 0.82));
-    return { ...npc, level: 20, equipment, gearScore, arenaRating, gold };
+
+    const arenaRating = Math.round(estimateArenaRatingValue(MAX_LEVEL, gearScore, npc.roleFocus) * (0.96 + power * 0.16));
+    const gold = Math.round(estimateWealthValue(MAX_LEVEL, gearScore, npc.roleFocus) * (0.82 + power * 0.82));
+    return { ...npc, level: MAX_LEVEL, equipment, gearScore, arenaRating, gold };
   });
 };
+
 
 
 const levelingMinutesForLevel = (level: number, rng: ReturnType<typeof createRng>) => {
@@ -340,7 +371,7 @@ const levelingMinutesForLevel = (level: number, rng: ReturnType<typeof createRng
 };
 
 const setNpcLevelTimer = (npc: NpcPlayer, seed: number, index: number): NpcPlayer => {
-  if (npc.level >= 20) return { ...npc, nextLevelAtDay: undefined, nextLevelAtMinute: undefined };
+  if (npc.level >= MAX_LEVEL) return { ...npc, nextLevelAtDay: undefined, nextLevelAtMinute: undefined };
   const rng = createRng(seed + 510000 + index * 113);
   const add = levelingMinutesForLevel(npc.level, rng);
   const total = add;
@@ -353,10 +384,10 @@ const setNpcLevelTimer = (npc: NpcPlayer, seed: number, index: number): NpcPlaye
 
 const rebuildNpcForLevel = (npc: NpcPlayer, level: number, seed: number, index: number): NpcPlayer => {
   const rng = createRng(seed + 470000 + index * 131 + level * 17);
-  const isCap = level >= 20;
+  const isCap = level >= MAX_LEVEL;
   const isStrong = npc.roleFocus === 'pvp' || npc.roleFocus === 'pve';
   const power = isCap ? Math.min(1, 0.22 + (index % 150) / 150 * 0.78 + (isStrong ? 0.08 : 0)) : 0.12 + rng.next() * 0.46;
-  const equipment = isCap ? generateScaledEquipmentForClassLevel(npc.classId, 20, rng, power) : generateEquipmentForClassLevel(npc.classId, level, rng);
+  const equipment = isCap ? generateScaledEquipmentForClassLevel(npc.classId, MAX_LEVEL, rng, power) : generateEquipmentForClassLevel(npc.classId, level, rng);
   const gearScore = getGearScore(equipment);
   const roleFocus = isCap && isStrong ? npc.roleFocus : npc.roleFocus;
   const arenaRating = Math.round(estimateArenaRatingValue(level, gearScore, roleFocus) * (0.92 + rng.next() * 0.18));
@@ -366,21 +397,26 @@ const rebuildNpcForLevel = (npc: NpcPlayer, level: number, seed: number, index: 
 
 const enforceRosterLevelSpread = (npcs: NpcPlayer[], seed: number): NpcPlayer[] => {
   const total = Math.max(NPC_TARGET_COUNT, npcs.length);
-  const capCount = Math.round(total * 0.30);
+  const capCount = Math.round(total * 0.12);
   const lowerCount = Math.max(0, total - capCount);
   const lowerLevels: number[] = [];
-  for (let i = 0; i < lowerCount; i += 1) lowerLevels.push((i % 19) + 1);
+
+  for (let i = 0; i < lowerCount; i += 1) lowerLevels.push((i % (MAX_LEVEL - 1)) + 1);
+
   const sorted = [...npcs].sort((a, b) => {
     const focus = (npc: NpcPlayer) => npc.roleFocus === 'pvp' ? 4 : npc.roleFocus === 'pve' ? 3 : npc.roleFocus === 'mixed' ? 2 : 1;
     return focus(b) - focus(a) || b.gearScore - a.gearScore || a.id.localeCompare(b.id);
   });
+
   const capIds = new Set(sorted.slice(0, capCount).map((npc) => npc.id));
   let lowerIndex = 0;
+
   return npcs.map((npc, index) => {
-    const level = capIds.has(npc.id) ? 20 : lowerLevels[lowerIndex++ % Math.max(1, lowerLevels.length)];
+    const level = capIds.has(npc.id) ? MAX_LEVEL : lowerLevels[lowerIndex++ % Math.max(1, lowerLevels.length)];
     return rebuildNpcForLevel(npc, level, seed, index);
   });
 };
+
 
 const assignGuildsByTier = (server: ServerState, guilds: Guild[], npcs: NpcPlayer[]): { guilds: Guild[]; npcs: NpcPlayer[] } => {
   const seed = server.seed ?? Date.now();
@@ -388,6 +424,7 @@ const assignGuildsByTier = (server: ServerState, guilds: Guild[], npcs: NpcPlaye
   const sourceGuilds = protectedBase.guilds;
   const protectedGuildIds = new Set(sourceGuilds.filter(isPlayerCreatedGuild).map((guild) => guild.id));
   const npcGuilds = sourceGuilds.filter((guild) => !isPlayerCreatedGuild(guild));
+  const maxGuilds = npcGuilds.filter((guild) => (guild.tier ?? 'low') === 'max');
   const highGuilds = npcGuilds.filter((guild) => (guild.tier ?? 'low') === 'high');
   const midGuilds = npcGuilds.filter((guild) => (guild.tier ?? 'low') === 'mid');
   const lowGuilds = npcGuilds.filter((guild) => (guild.tier ?? 'low') === 'low');
@@ -408,12 +445,12 @@ const assignGuildsByTier = (server: ServerState, guilds: Guild[], npcs: NpcPlaye
 
   shuffled.forEach((npc, index) => {
     const rng = createRng(seed + 880000 + index * 37 + npc.level * 17);
-    if (npc.level >= 20) {
+    if (npc.level >= LEVEL_BANDS.high.min) {
       const roll = rng.next();
       if (roll < 0.58 && highGuilds.length) pushToSmallest(highGuilds, npc);
       else if (roll < 0.78 && midGuilds.length) pushToSmallest(midGuilds, npc);
       else pushToSmallest(lowGuilds.length ? lowGuilds : (midGuilds.length ? midGuilds : highGuilds), npc);
-    } else if (npc.level >= 10) {
+    } else if (npc.level >= LEVEL_BANDS.mid.min) {
       if (rng.chance(0.72) && midGuilds.length) pushToSmallest(midGuilds, npc);
       else pushToSmallest(lowGuilds.length ? lowGuilds : midGuilds, npc);
     } else {

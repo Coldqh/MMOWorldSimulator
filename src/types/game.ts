@@ -30,6 +30,7 @@ export type EquipmentSlot =
 export type RoleFocus = "pve" | "pvp" | "mixed";
 export type GuildType = "PVE" | "PVP" | "MIXED";
 export type GuildFocus = "pvp" | "pve" | "hybrid";
+export type GuildTier = "low" | "mid" | "high" | "max";
 export type NpcPlaystyle = "pve" | "pvp" | "mixed";
 export type NpcLocationMode = "city" | "zone" | "spot";
 export type GuildWarVoteKind = "declare" | "accept" | "extend";
@@ -226,7 +227,7 @@ export interface Guild {
   leaderId?: Id;
   deputyId?: Id;
   officerIds?: Id[];
-  tier?: 'low' | 'mid' | 'high';
+  tier?: GuildTier;
   minLevel?: number;
   focus: string;
   castleControl?: Id;
@@ -664,7 +665,7 @@ export interface CastleHistoryEntry {
 export interface Castle {
   id: Id;
   name: string;
-  tier: "mid" | "high";
+  tier: "mid" | "high" | "max";
   ownerGuildId?: Id;
   levelRange: [number, number];
   nextSiegeDay: number;
