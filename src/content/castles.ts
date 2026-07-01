@@ -41,8 +41,8 @@ export const DEFAULT_CASTLES: Castle[] = [
   {
     id: 'virspire_citadel',
     name: 'Virspire Citadel',
-    tier: 'high',
-    levelRange: [20, 20],
+    tier: 'max',
+    levelRange: [60, 60],
     nextSiegeDay: 1,
     nextSiegeMinute: 0,
     registeredGuildIds: [],
@@ -52,8 +52,8 @@ export const DEFAULT_CASTLES: Castle[] = [
   {
     id: 'glass_crown_fortress',
     name: 'Glass Crown Fortress',
-    tier: 'high',
-    levelRange: [20, 20],
+    tier: 'max',
+    levelRange: [60, 60],
     nextSiegeDay: 3,
     nextSiegeMinute: 0,
     registeredGuildIds: [],
@@ -63,8 +63,8 @@ export const DEFAULT_CASTLES: Castle[] = [
   {
     id: 'dragonspire_hold',
     name: 'Dragonspire Hold',
-    tier: 'high',
-    levelRange: [20, 20],
+    tier: 'max',
+    levelRange: [60, 60],
     nextSiegeDay: 5,
     nextSiegeMinute: 0,
     registeredGuildIds: [],

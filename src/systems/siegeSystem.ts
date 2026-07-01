@@ -4,6 +4,7 @@ import type { Rng } from '../engine/rng';
 import { uid } from '../engine/rng';
 import type { Castle, CastleHistoryEntry, Guild, Id, NpcPlayer, ServerState, SiegeCell, SiegeRoster, SiegeRun, SiegeUnit } from '../types/game';
 import { getGearScore, getPlayerStats } from './itemSystem';
+import { LEVEL_BANDS } from '../balance';
 import { getNpcEffectiveGearScore, getNpcPlayerEquivalentStats } from './pvpStatSystem';
 
 const MAX_SIEGE_TURNS = 200;
@@ -32,9 +33,9 @@ const normalizeCastleSchedule = (server: ServerState, castle: Castle): Castle =>
   const dueAlreadyResolvedToday = castle.lastResolvedSiegeDay === server.serverDay;
   const scheduleIsOld = totalMinute(castle.nextSiegeDay, castle.nextSiegeMinute) < totalMinute(server.serverDay, server.currentMinute) && !dueAlreadyResolvedToday;
   const hasRegisteredRosters = (server.siegeRosters ?? []).some((roster) => roster.castleId === castle.id);
-  if (scheduleIsOld && hasRegisteredRosters) return { ...castle, tier: 'high', levelRange: [20, 20], nextSiegeMinute: SIEGE_MINUTE };
-  if (!scheduleIsWrongWeekday && !scheduleIsOld) return { ...castle, tier: 'high', levelRange: [20, 20], nextSiegeMinute: SIEGE_MINUTE };
-  return { ...castle, tier: 'high', levelRange: [20, 20], nextSiegeDay: nextDay, nextSiegeMinute: SIEGE_MINUTE };
+  if (scheduleIsOld && hasRegisteredRosters) return { ...castle, tier: 'max', levelRange: [LEVEL_BANDS.max.min, LEVEL_BANDS.max.max], nextSiegeMinute: SIEGE_MINUTE };
+  if (!scheduleIsWrongWeekday && !scheduleIsOld) return { ...castle, tier: 'max', levelRange: [LEVEL_BANDS.max.min, LEVEL_BANDS.max.max], nextSiegeMinute: SIEGE_MINUTE };
+  return { ...castle, tier: 'max', levelRange: [LEVEL_BANDS.max.min, LEVEL_BANDS.max.max], nextSiegeDay: nextDay, nextSiegeMinute: SIEGE_MINUTE };
 };
 
 const notifyOnce = (server: ServerState, id: string, title: string, text: string, lines: string[] = []): ServerState => {
@@ -49,11 +50,12 @@ const classRole = (classId?: string) => {
   return 'physicalDps' as const;
 };
 
-const castleTierAllowed = (guild: Guild | undefined, castle: Castle) => {
-  if (!guild) return false;
-  if (castle.tier === 'high') return guild.tier === 'high';
-  return guild.tier === 'mid' || guild.tier === 'high';
+const castleTierAllowed = (guild: Guild, castle: Castle) => {
+  if (castle.tier === 'max') return guild.tier === 'max';
+  if (castle.tier === 'high') return guild.tier === 'high' || guild.tier === 'max';
+  return guild.tier === 'mid' || guild.tier === 'high' || guild.tier === 'max';
 };
+
 
 const isOfficerOrLeader = (guild: Guild | undefined, id: Id) =>
   Boolean(guild && (guild.leaderId === id || guild.deputyId === id || (guild.officerIds ?? []).includes(id)));
