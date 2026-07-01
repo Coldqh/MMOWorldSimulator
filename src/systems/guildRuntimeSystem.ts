@@ -45,6 +45,8 @@ const addMinutesToClockRuntime = (day: number, minute: number, add: number) => {
   return { day: Math.floor(total / 1440) + 1, minute: total % 1440 };
 };
 const runtimePairKey = (a: Id, b: Id) => [a, b].sort().join('::');
+const isOpenWarStatus = (status: string) => status === 'active' || status === 'scheduled' || status === 'pending_votes';
+
 const openRuntimeWarExists = (server: ServerState, a: Id, b: Id) =>
   (server.guildWars ?? []).some((war) => (war.status === 'active' || war.status === 'scheduled' || war.status === 'pending_votes') && runtimePairKey(war.attackerGuildId, war.defenderGuildId) === runtimePairKey(a, b));
 const startScheduledRuntimeWars = (server: ServerState): ServerState => ({
@@ -199,12 +201,13 @@ const activeWarExists = (server: ServerState, a: string, b: string) =>
 const sameTierWarCount = (server: ServerState, tier: GuildTier) => {
   const guildById = new Map((server.guilds ?? []).map((guild) => [guild.id, guild]));
   return (server.guildWars ?? []).filter((war) => {
-    if (war.status !== 'active') return false;
+    if (!isOpenWarStatus(war.status)) return false;
     const a = guildById.get(war.attackerGuildId);
     const b = guildById.get(war.defenderGuildId);
     return a?.tier === tier && b?.tier === tier;
   }).length;
 };
+
 const seedWar = (server: ServerState, attackerGuildId: string, defenderGuildId: string, index: number): GuildWar => {
   const start = addMinutesToClockRuntime(server.serverDay, server.currentMinute, 60 + ((index * 173) % 720));
   const end = addMinutesToClockRuntime(start.day, start.minute, (3 + (index % 5)) * 1440 + ((index * 97) % 1440));
@@ -276,8 +279,55 @@ const pickTierWarPair = (server: ServerState, tier: GuildTier, used: Set<string>
 };
 
 
+const resolveWarDuel = (server: ServerState, war: GuildWar, rng: Rng): GuildWar => {
+  const attackers = (server.npcs ?? []).filter((npc) => npc.guildId === war.attackerGuildId);
+  const defenders = (server.npcs ?? []).filter((npc) => npc.guildId === war.defenderGuildId);
+
+  if (attackers.length === 0 || defenders.length === 0) {
+    return {
+      ...war,
+      lastSimulatedDay: server.serverDay,
+      lastSimulatedMinute: server.currentMinute,
+    };
+  }
+
+  const attacker = rng.pick(attackers);
+  const defender = rng.pick(defenders);
+  const attackerPower = attacker.gearScore + attacker.level * 120 + attacker.arenaRating * 0.35 + (attacker.skill ?? 5) * 70;
+  const defenderPower = defender.gearScore + defender.level * 120 + defender.arenaRating * 0.35 + (defender.skill ?? 5) * 70;
+  const attackerWins = attackerPower + rng.int(0, 1000) >= defenderPower + rng.int(0, 1000);
+  const killer = attackerWins ? attacker : defender;
+  const victim = attackerWins ? defender : attacker;
+  const killerGuildId = killer.guildId ?? (attackerWins ? war.attackerGuildId : war.defenderGuildId);
+  const victimGuildId = victim.guildId ?? (attackerWins ? war.defenderGuildId : war.attackerGuildId);
+  const record: GuildWarKillRecord = {
+    id: `runtime_war_kill_${war.id}_${server.serverDay}_${server.currentMinute}_${killer.id}_${victim.id}_${rng.int(1, 999999)}`,
+    day: server.serverDay,
+    minute: server.currentMinute,
+    killerId: killer.id,
+    killerGuildId,
+    victimId: victim.id,
+    victimGuildId,
+    locationId: server.location.spotId ?? server.location.zoneId,
+    source: 'simulated',
+  };
+
+  const killRecords = [...(war.killRecords ?? []), record].slice(-400);
+  return {
+    ...war,
+    attackerKills: war.attackerKills + (killerGuildId === war.attackerGuildId ? 1 : 0),
+    defenderKills: war.defenderKills + (killerGuildId === war.defenderGuildId ? 1 : 0),
+    killRecords,
+    lastSimulatedDay: server.serverDay,
+    lastSimulatedMinute: server.currentMinute,
+  };
+};
+
+export const advanceGuildWarLifecycle = (server: ServerState): ServerState =>
+  dedupeRuntimeWarPairs(finishExpiredWars(startScheduledRuntimeWars(normalizeGuildWarsRuntime(server))));
+
 export const seedActiveGuildWarsIfEmpty = (server: ServerState): ServerState => {
-  let next = dedupeRuntimeWarPairs(finishExpiredWars(startScheduledRuntimeWars(normalizeGuildWarsRuntime(server))));
+  let next = advanceGuildWarLifecycle(server);
   const used = new Set<string>();
 
   (['max', 'high', 'mid', 'low'] as const).forEach((tier) => {
@@ -291,50 +341,6 @@ export const seedActiveGuildWarsIfEmpty = (server: ServerState): ServerState => 
   });
 
   return next;
-};
-
-const updateTopKillers = (list: GuildWarTopKiller[], characterId: Id, guildId: Id): GuildWarTopKiller[] => {
-  const map = new Map(list.map((entry) => [entry.characterId, { ...entry }]));
-  const current = map.get(characterId) ?? { characterId, guildId, kills: 0 };
-  current.kills += 1;
-  map.set(characterId, current);
-  return [...map.values()].sort((a, b) => b.kills - a.kills || a.characterId.localeCompare(b.characterId)).slice(0, 10);
-};
-
-const recordKill = (server: ServerState, war: GuildWar, winner: NpcPlayer, loser: NpcPlayer): GuildWar => {
-  const attackerWon = winner.guildId === war.attackerGuildId;
-  const record: GuildWarKillRecord = {
-    id: `war_kill_${server.serverDay}_${server.currentMinute}_${winner.id}_${loser.id}_${war.killRecords.length}`,
-    day: server.serverDay,
-    minute: server.currentMinute,
-    killerId: winner.id,
-    killerGuildId: winner.guildId!,
-    victimId: loser.id,
-    victimGuildId: loser.guildId!,
-    locationId: server.location.spotId ?? server.location.zoneId,
-    source: 'simulated',
-  };
-  return {
-    ...war,
-    attackerKills: war.attackerKills + (attackerWon ? 1 : 0),
-    defenderKills: war.defenderKills + (attackerWon ? 0 : 1),
-    killRecords: [...war.killRecords, record].slice(-250),
-    attackerTopKillers: attackerWon ? updateTopKillers(war.attackerTopKillers, winner.id, winner.guildId!) : war.attackerTopKillers,
-    defenderTopKillers: attackerWon ? war.defenderTopKillers : updateTopKillers(war.defenderTopKillers, winner.id, winner.guildId!),
-  };
-};
-
-const resolveWarDuel = (server: ServerState, war: GuildWar, rng: Rng): GuildWar => {
-  const attackers = server.npcs.filter((npc) => npc.guildId === war.attackerGuildId);
-  const defenders = server.npcs.filter((npc) => npc.guildId === war.defenderGuildId);
-  if (attackers.length === 0 || defenders.length === 0) return war;
-  const a = rng.pick(attackers);
-  const b = rng.pick(defenders);
-  const pa = npcPower(a);
-  const pb = npcPower(b);
-  const chanceA = Math.max(0.15, Math.min(0.85, 0.5 + ((pa - pb) / Math.max(400, pa + pb))));
-  const attackerWon = rng.chance(chanceA);
-  return recordKill(server, war, attackerWon ? a : b, attackerWon ? b : a);
 };
 
 export const simulateGuildWarsEveryHalfHour = (server: ServerState, rng: Rng, minutesAdvanced: number): ServerState => {

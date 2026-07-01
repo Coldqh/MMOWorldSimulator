@@ -28,6 +28,15 @@ export const getGuildActiveWars = (server: ServerState, guildId: Id) => (server.
 export const getGuildWarEnemies = (server: ServerState, guildId: Id) => getGuildActiveWars(server, guildId).map((war) => war.attackerGuildId === guildId ? war.defenderGuildId : war.attackerGuildId);
 export const areGuildsAtWar = (server: ServerState, guildAId: Id, guildBId: Id) => (server.guildWars ?? []).some((war) => war.status === 'active' && ((war.attackerGuildId === guildAId && war.defenderGuildId === guildBId) || (war.attackerGuildId === guildBId && war.defenderGuildId === guildAId)));
 
+const startScheduledGuildWars = (server: ServerState): ServerState => ({
+  ...server,
+  guildWars: (server.guildWars ?? []).map((war) =>
+    war.status === 'scheduled' && reached(server, war.startsDay ?? war.declaredDay, war.startsMinute ?? war.declaredMinute)
+      ? { ...war, status: 'active' as const, lastSimulatedDay: server.serverDay, lastSimulatedMinute: server.currentMinute }
+      : war,
+  ),
+});
+
 const voteYesChance = (server: ServerState, vote: GuildWarVote, npcId: Id) => {
   const npc = server.npcs.find((entry) => entry.id === npcId);
   const guild = server.guilds.find((entry) => entry.id === vote.guildId);
@@ -471,6 +480,7 @@ export const tickGuildWars = (
   mode: GuildWarTickMode = 'interactive',
 ): ServerState => {
   let next = mode === 'summary' ? server : moveNpcPlayers(server, rng, minutes);
+  next = startScheduledGuildWars(next);
 
   if (mode !== 'summary') {
     next = handleWarNpcEncountersAfterNpcMovement(next, rng);

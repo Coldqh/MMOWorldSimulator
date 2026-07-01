@@ -12,6 +12,8 @@ const saveLoad = read('src/engine/saveLoad.ts');
 const elapsed = performance.now() - start;
 
 const checks = {
+  siegeMaxCastleNormalizer: siegeSystem.includes('tier: base.tier') && siegeSystem.includes('levelRange: base.levelRange'),
+  guildWarLifecycle: guildRuntimeSystem.includes('export const advanceGuildWarLifecycle') && guildRuntimeSystem.includes('isOpenWarStatus(war.status)'),
   guildTierRequirementNormalizer: gameStore.includes('normalizeGuildTierRequirements'),
   summaryMode: gameStore.includes("simulateServerForMinutes(server, minutes, rng, 'summary')"),
   deferredSave: gameStore.includes('commitFastDeferredSave(set, next'),

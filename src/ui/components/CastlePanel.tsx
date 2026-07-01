@@ -9,7 +9,11 @@ const timeText = (day?: number, minute?: number) => {
   return `День ${day ?? '?'} · ${Math.floor(value / 60).toString().padStart(2, '0')}:${(value % 60).toString().padStart(2, '0')}`;
 };
 
-const tierText = (tier: Castle['tier']) => tier === 'high' ? 'High · 20' : 'Mid · 10–19';
+const tierText = (tier: Castle['tier']) => {
+  if (tier === 'max') return 'Максимальный · 60';
+  if (tier === 'high') return 'Высокий · 41–59';
+  return 'Средний · 21–40';
+};
 
 const unitClass = (unit?: SiegeUnit) => {
   if (!unit) return 'siege-cell';
@@ -58,7 +62,7 @@ export const CastlePanel = ({ onBack }: { onBack?: () => void } = {}) => {
       <section className="panel hero-panel">
         <div className="title-row"><div className="section-title">🏰 Замки</div><button onClick={onBack ?? (() => setScreen('guild'))}>Назад</button></div>
         <h1>Осады замков</h1>
-        <p className="muted">За 3 дня до осады хай-гильдии выставляют 10 сильнейших. Если ты в топ-10 своей гильдии, тебе придёт уведомление.</p>
+        <p className="muted">За 3 дня до осады гильдии нужного уровня выставляют 10 сильнейших. Если ты в составе своей гильдии, тебе придёт уведомление.</p>
       </section>
 
       {currentRun && (
@@ -86,7 +90,7 @@ export const CastlePanel = ({ onBack }: { onBack?: () => void } = {}) => {
             {currentRun.units.slice(0, 40).map((unit) => (
               <div key={unit.id} className={`list-line ${unit.alive ? '' : 'danger-line'}`}>
                 <span>{unit.name} · {guildName(unit.guildId)} · {unit.x}:{unit.y}</span>
-                <strong>HP {unit.hp}/{unit.maxHp} · K {unit.kills} · DMG {unit.damageDealt}</strong>
+                <strong>HP {unit.hp}/{unit.maxHp} · убийства {unit.kills} · урон {unit.damageDealt}</strong>
               </div>
             ))}
           </div>

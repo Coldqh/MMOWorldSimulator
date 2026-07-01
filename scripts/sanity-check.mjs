@@ -19,6 +19,8 @@ const guildWar = read('src/systems/guildWarSystem.ts');
 const gameStore = read('src/state/gameStore.ts');
 const guildScreen = fs.existsSync(path.join(root, 'src/ui/screens/GuildScreen.tsx')) ? read('src/ui/screens/GuildScreen.tsx') : '';
 const balanceConfig = read('src/balance/balanceConfig.ts');
+const siegeSystem = read('src/systems/siegeSystem.ts');
+const castlePanel = read('src/ui/components/CastlePanel.tsx');
 
 assert(pkg.version === '0.7.39', 'package version is 0.7.39');
 assert(versionTs.includes("APP_VERSION = '0.7.39'") || versionTs.includes('APP_VERSION = "0.7.39"'), 'APP_VERSION is 0.7.39');
@@ -48,6 +50,20 @@ assert(guildWar.includes('const buildActiveWarCountMap'), 'guild war active coun
 assert(guildWar.includes('createGuildRelationValueMap(server)'), 'guild war vote creation uses relation map');
 assert(guildWar.includes('getGuildRelationValueFromMap(relationMap'), 'guild war vote creation uses relation map lookup');
 assert(!guildWar.includes('.sort((a, b) => getGuildRelationValue(server, guild.id, a.id) - getGuildRelationValue(server, guild.id, b.id))'), 'guild war target selection no longer sorts by repeated relation lookup');
+
+assert(!castlePanel.includes('High · 20'), 'CastlePanel has no old High 20 tier text');
+assert(!castlePanel.includes('Mid · 10–19'), 'CastlePanel has no old Mid 10-19 tier text');
+assert(!castlePanel.includes('хай-гильдии'), 'CastlePanel has no old хай-гильдии text');
+assert(!siegeSystem.includes("tier: 'high' as const"), 'normalizeCastles does not hardcode high tier');
+assert(!siegeSystem.includes('levelRange: [20, 20] as [number, number]'), 'normalizeCastles does not hardcode level 20 range');
+assert(!siegeSystem.includes('Нужна хай-гильдия'), 'siege registration has no old хай-гильдия reason');
+assert(siegeSystem.includes('tier: base.tier'), 'normalizeCastles uses base tier');
+assert(siegeSystem.includes('levelRange: base.levelRange'), 'normalizeCastles uses base level range');
+assert(guildRuntime.includes('export const advanceGuildWarLifecycle'), 'guild war lifecycle helper exists');
+assert(guildRuntime.includes('let next = advanceGuildWarLifecycle(server)'), 'seedActiveGuildWarsIfEmpty starts with lifecycle');
+assert(guildRuntime.includes('isOpenWarStatus(war.status)'), 'sameTierWarCount counts open war statuses');
+assert(guildWar.includes('const startScheduledGuildWars'), 'core guild war system starts scheduled wars');
+assert(guildWar.includes('next = startScheduledGuildWars(next);'), 'tickGuildWars advances scheduled wars');
 
 if (fail.length) {
   console.error('Sanity failed:');

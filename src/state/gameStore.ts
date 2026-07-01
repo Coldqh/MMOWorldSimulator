@@ -111,9 +111,10 @@ import {
   declareWarDirectRuntime,
   ensureSoloNpcPool,
   maybeGeneratePlayerGuildApplication,
+  normalizeGuildTierRequirements,
   rejectPlayerGuildApplication,
   repairFreshPlayerGuildLeadership,
-  seedActiveGuildWarsIfEmpty,
+  seedActiveGuildWarsIfEmpty,
 } from "../systems/guildRuntimeSystem";
 import {
   resolveArenaTeamRound,
@@ -369,7 +370,7 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
     currentSiegeRun: server.currentSiegeRun,
     siegeHistory: server.siegeHistory ?? [],
   };
-  const baseWithProgress = normalizeSiegeState(seedActiveGuildWarsIfEmpty(ensureSoloNpcPool(seedInitialGuildWarsIfNeeded(normalizeGuildAndNpcIdentities(addCollectionProgress(baseServer))))));
+  const baseWithProgress = normalizeSiegeState(seedActiveGuildWarsIfEmpty(ensureSoloNpcPool(seedInitialGuildWarsIfNeeded(normalizeGuildTierRequirements(normalizeGuildAndNpcIdentities(addCollectionProgress(baseServer)))))));
 
   if (mode === "light" && !needsMigration) {
     const repairedLight = repairMarketIfBroken(baseWithProgress, marketRng, "light");
@@ -392,7 +393,7 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
 const safeNormalizeServer = (server: ServerState | null | undefined, mode: "full" | "light" = "full"): ServerState => {
   try {
     const normalized = normalizeServer(server ?? createEmptyServer(), mode);
-    const repaired = seedActiveGuildWarsIfEmpty(ensureSoloNpcPool(seedInitialGuildWarsIfNeeded(repairFreshPlayerGuildLeadership(repairServerRuntime(normalized)))));
+    const repaired = seedActiveGuildWarsIfEmpty(ensureSoloNpcPool(seedInitialGuildWarsIfNeeded(repairFreshPlayerGuildLeadership(repairServerRuntime(normalizeGuildTierRequirements(normalized))))));
     const issues = validateServerRuntime(repaired);
     if (import.meta.env.DEV && issues.some((issue) => issue.severity === 'critical')) console.warn('[MMOWS] runtime issues', issues);
     return refreshContracts(repaired, createRng((server?.seed ?? Date.now()) + (server?.serverDay ?? 1) * 9010 + (server?.currentMinute ?? 0)));

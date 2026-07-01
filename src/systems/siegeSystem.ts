@@ -140,31 +140,54 @@ const eligibleNpcGuildsForCastle = (
 
 
 
-const buildRoster = (server: ServerState, castleId: Id, guild: Guild): SiegeRoster => ({
+const normalizeSiegeDisplayText = (value: string) => {
+  const oldHighGuildReason = `Нужна ${'хай'}-гильдия.`;
+  return value
+    .replace(/High · 20/g, 'Максимальный · 60')
+    .replace(/Mid · 10–19/g, 'Средний · 21–40')
+    .replace(new RegExp(`хай-${'гильдии'}`, 'g'), 'гильдии нужного уровня')
+    .replace(new RegExp(oldHighGuildReason, 'g'), 'Нужна гильдия максимального уровня.');
+};
+
+const normalizeCastleHistoryEntry = (entry: CastleHistoryEntry): CastleHistoryEntry => ({
+  ...entry,
+  scoreSummary: normalizeSiegeDisplayText(entry.scoreSummary),
+});
+
+const buildRoster = (
+  server: ServerState,
+  castleId: Id,
+  guild: Guild,
+  context: SiegeLookupContext = createSiegeLookupContext(server),
+): SiegeRoster => ({
   castleId,
   guildId: guild.id,
-  memberIds: chooseSiegeRosterMembers(server, guild, MAX_ROSTER_SIZE),
+  memberIds: chooseSiegeRosterMembers(server, guild, MAX_ROSTER_SIZE, context),
   registeredDay: server.serverDay,
   registeredMinute: server.currentMinute,
 });
 
 const normalizeCastles = (server: ServerState): Castle[] => {
   const existing = new Map((server.castles ?? []).map((castle) => [castle.id, castle]));
+  const guildIds = new Set((server.guilds ?? []).map((guild) => guild.id));
+
   return DEFAULT_CASTLES.map((base) => {
     const old = existing.get(base.id);
-    const merged = {
+    const history = (old?.history ?? base.history ?? []).map(normalizeCastleHistoryEntry);
+    const merged: Castle = {
       ...base,
       ...old,
       id: base.id,
       name: base.name,
-      tier: 'high' as const,
-      levelRange: [20, 20] as [number, number],
+      tier: base.tier,
+      levelRange: base.levelRange,
       mapId: base.mapId,
-      history: old?.history ?? [],
+      history,
     };
+
     return normalizeCastleSchedule(server, {
       ...merged,
-      registeredGuildIds: Array.from(new Set([...(old?.registeredGuildIds ?? [])])).filter((id) => server.guilds.some((guild) => guild.id === id)),
+      registeredGuildIds: Array.from(new Set([...(old?.registeredGuildIds ?? [])])).filter((id) => guildIds.has(id)),
     });
   });
 };
@@ -219,10 +242,10 @@ const selectSiegeGuildsForCastle = (
 const registerGuildsForCastleNow = (server: ServerState, castle: Castle): ServerState => {
   let next = { ...server, castles: normalizeCastles(server), siegeRosters: [...(server.siegeRosters ?? [])] };
   const rosters = [...(next.siegeRosters ?? [])];
-
+  const context = createSiegeLookupContext(next);
   const playerGuildAlreadyRegistered = rosters.some((entry) => entry.castleId === castle.id && entry.guildId === next.player.guildId);
-    const context = createSiegeLookupContext(next);
-selectSiegeGuildsForCastle(next, castle, context).forEach((guild) => {
+
+  selectSiegeGuildsForCastle(next, castle, context).forEach((guild) => {
     if (guild.id === next.player.guildId && !playerGuildAlreadyRegistered) return;
     const memberIds = chooseSiegeRosterMembers(next, guild, MAX_ROSTER_SIZE, context);
     if (memberIds.length < MIN_ROSTER_SIZE) return;
@@ -250,7 +273,6 @@ selectSiegeGuildsForCastle(next, castle, context).forEach((guild) => {
   return notifyPlayerIfRostered(next);
 };
 
-
 const autoRegisterNpcGuildsForOpenSieges = (server: ServerState): ServerState => {
   let next = { ...server, castles: normalizeCastles(server), siegeRosters: server.siegeRosters ?? [] };
   const rosters = [...(next.siegeRosters ?? [])];
@@ -258,17 +280,25 @@ const autoRegisterNpcGuildsForOpenSieges = (server: ServerState): ServerState =>
   for (const castle of next.castles ?? []) {
     if (!registrationWindowOpen(next, castle)) continue;
 
-      const context = createSiegeLookupContext(next);
-const selectedGuilds = selectSiegeGuildsForCastle(next, castle, context).filter((guild) => guild.id !== next.player.guildId);
+    const context = createSiegeLookupContext(next);
+    const selectedGuilds = selectSiegeGuildsForCastle(next, castle, context).filter((guild) => guild.id !== next.player.guildId);
+
     for (const guild of selectedGuilds) {
       const strongest = chooseSiegeRosterMembers(next, guild, MAX_ROSTER_SIZE, context);
       if (strongest.length < MIN_ROSTER_SIZE) continue;
+
       const existing = rosters.find((entry) => entry.castleId === castle.id && entry.guildId === guild.id);
       const same = existing && existing.memberIds.join('|') === strongest.join('|');
-      if (!same) {
-        const roster = { castleId: castle.id, guildId: guild.id, memberIds: strongest, registeredDay: next.serverDay, registeredMinute: next.currentMinute };
-        rosters.splice(0, rosters.length, ...upsertRoster(rosters, roster));
-      }
+      if (same) continue;
+
+      const roster = {
+        castleId: castle.id,
+        guildId: guild.id,
+        memberIds: strongest,
+        registeredDay: next.serverDay,
+        registeredMinute: next.currentMinute,
+      };
+      rosters.splice(0, rosters.length, ...upsertRoster(rosters, roster));
     }
   }
 
@@ -290,20 +320,28 @@ const selectedGuilds = selectSiegeGuildsForCastle(next, castle, context).filter(
 const notifyPlayerIfRostered = (server: ServerState): ServerState => {
   const guildId = server.player.guildId;
   if (!guildId) return server;
+
   let next = server;
   for (const roster of server.siegeRosters ?? []) {
     if (roster.guildId !== guildId) continue;
     if (!roster.memberIds.includes(server.player.id)) continue;
+
     const castle = (server.castles ?? []).find((entry) => entry.id === roster.castleId);
     if (!castle) continue;
+
     next = notifyOnce(
       next,
       `siege_rostered_${roster.castleId}_${roster.registeredDay}_${roster.registeredMinute}`,
       'Ты в составе на осаду',
       castle.name,
-      [`Замок: ${castle.name}`, `Старт: день ${castle.nextSiegeDay}, 00:00`, `Ты в топ-10 сильнейших бойцов гильдии.`],
+      [
+        `Замок: ${castle.name}`,
+        `Старт: день ${castle.nextSiegeDay}, 00:00`,
+        'Ты в составе сильнейших бойцов гильдии.',
+      ],
     );
   }
+
   return next;
 };
 
@@ -342,7 +380,7 @@ const getPlayerGuildCastleRegistrationCheck = (server: ServerState, castleId: Id
   if (!castle) return { ok: false, reason: 'Замок не найден.' };
   if (!guild) return { ok: false, reason: 'Нет гильдии.' };
   if (!isOfficerOrLeader(guild, server.player.id)) return { ok: false, reason: 'Нужен ГМ, зам или офицер.' };
-  if (!castleTierAllowed(guild, castle)) return { ok: false, reason: 'Нужна хай-гильдия.' };
+  if (!castleTierAllowed(guild, castle)) return { ok: false, reason: castle.tier === 'max' ? 'Нужна гильдия максимального уровня.' : 'Нужна гильдия подходящего уровня.' };
   if (!registrationWindowOpen(server, castle)) return { ok: false, reason: 'Регистрация откроется за 3 дня до осады.' };
   if ((server.siegeRosters ?? []).some((roster) => roster.castleId === castleId && roster.guildId === guild.id)) return { ok: false, reason: 'Гильдия уже зарегистрирована.' };
   const roster = chooseSiegeRosterMembers(server, guild, MAX_ROSTER_SIZE);
