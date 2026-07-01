@@ -19,13 +19,15 @@ const guildWar = read('src/systems/guildWarSystem.ts');
 const gameStore = read('src/state/gameStore.ts');
 const guildScreen = fs.existsSync(path.join(root, 'src/ui/screens/GuildScreen.tsx')) ? read('src/ui/screens/GuildScreen.tsx') : '';
 const balanceConfig = read('src/balance/balanceConfig.ts');
+const contentValidation = read('scripts/content-validation.mjs');
+const perfScale = read('scripts/perf-scale.mjs');
 const sw = read('public/sw.js');
 const siegeSystem = read('src/systems/siegeSystem.ts');
 const castlePanel = read('src/ui/components/CastlePanel.tsx');
 
-assert(pkg.version === '0.7.40', 'package version is 0.7.40');
-assert(versionTs.includes("APP_VERSION = '0.7.40'") || versionTs.includes('APP_VERSION = "0.7.40"'), 'APP_VERSION is 0.7.40');
-assert(publicVersion.version === '0.7.40', 'public version is 0.7.40');
+assert(pkg.version === '0.7.42', 'package version is 0.7.42');
+assert(versionTs.includes("APP_VERSION = '0.7.42'") || versionTs.includes('APP_VERSION = "0.7.42"'), 'APP_VERSION is 0.7.42');
+assert(publicVersion.version === '0.7.42', 'public version is 0.7.42');
 assert(saveLoad.includes("SAVE_VERSION = '0.7.0'") || saveLoad.includes('SAVE_VERSION = "0.7.0"'), 'SAVE_VERSION unchanged');
 assert(balanceConfig.includes('export const MAX_LEVEL = 60;'), 'MAX_LEVEL remains 60');
 assert(balanceConfig.includes("high: { min: 41, max: 59 }"), 'high band remains 41-59');
@@ -66,7 +68,7 @@ assert(guildRuntime.includes('isOpenWarStatus(war.status)'), 'sameTierWarCount c
 assert(guildWar.includes('const startScheduledGuildWars'), 'core guild war system starts scheduled wars');
 assert(guildWar.includes('next = startScheduledGuildWars(next);'), 'tickGuildWars advances scheduled wars');
 
-assert(sw.includes("mmows-v0.7.40"), 'service worker cache is 0.7.40');
+assert(sw.includes("mmows-v0.7.42"), 'service worker cache is 0.7.42');
 assert(siegeSystem.includes('никто не зарегистрировался на осаду'), 'siege no-roster text is readable Russian');
 assert(siegeSystem.includes('осада завершена. Победитель'), 'siege finish news is readable Russian');
 assert(siegeSystem.includes("castle.tier === 'max') return guild.tier === 'max' || guild.tier === 'high'"), 'max sieges can fallback to high NPC guilds');
@@ -77,6 +79,18 @@ assert(guildWar.includes("war.status === 'active' || war.status === 'scheduled'"
 assert(gameStore.indexOf('next = seedActiveGuildWarsIfEmpty(next);') < gameStore.indexOf('next = advanceServerClock(next, minutes);'), 'server tick seeds wars before advancing clock');
 
 assert(!/const\\s+([A-Za-z_$][A-Za-z0-9_$]*)\\s*=\\s*const\\s+\\1\\s*=/.test(gameStore + siegeSystem + guildRuntime + guildWar), 'no duplicated const assignment markers');
+
+assert(pkg.scripts?.['content:check'] === 'node scripts/content-validation.mjs', 'content:check script exists');
+assert(pkg.scripts?.['perf:scale'] === 'node scripts/perf-scale.mjs', 'perf:scale script exists');
+assert(contentValidation.includes('Content validation passed'), 'content validation script has pass output');
+assert(contentValidation.includes('unique(setDefinitions') || contentValidation.includes('set definition ids are unique'), 'content validation checks set ids');
+assert(contentValidation.includes('references existing loot table'), 'content validation checks loot tables');
+assert(contentValidation.includes('references existing mob'), 'content validation checks mob references');
+assert(contentValidation.includes('references existing zone'), 'content validation checks zone references');
+assert(contentValidation.includes('sourceId points to existing instance'), 'content validation checks set sourceId links');
+assert(perfScale.includes('Scale perf check passed'), 'perf scale script has pass output');
+assert(perfScale.includes('sets3x'), 'perf scale estimates 3x set growth');
+assert(perfScale.includes('instances3x'), 'perf scale estimates 3x instance growth');
 
 if (fail.length) {
   console.error('Smoke failed:');

@@ -1,6 +1,6 @@
 {
-  "version": "0.7.40",
+  "version": "0.7.42",
   "channel": "stable",
-  "build": "2026-07-01-v0740-siege-war-encoding-repair",
-  "buildTime": "2026-07-01T13:07:24.957Z"
+  "build": "2026-07-01-v0742-content-validation-layer",
+  "buildTime": "2026-07-01T14:03:37.892Z"
 }

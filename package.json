@@ -1,7 +1,7 @@
 {
   "name": "mmoworldsimulator",
   "private": true,
-  "version": "0.7.40",
+  "version": "0.7.42",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
@@ -13,7 +13,9 @@
     "smoke": "node scripts/smoke.mjs",
     "smoke:test": "node scripts/smoke-test.mjs",
     "import:graph": "node scripts/import-graph-check.mjs",
-    "perf:skip-day": "node scripts/perf-skip-day.mjs"
+    "perf:skip-day": "node scripts/perf-skip-day.mjs",
+    "content:check": "node scripts/content-validation.mjs",
+    "perf:scale": "node scripts/perf-scale.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
