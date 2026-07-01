@@ -1,33 +1,34 @@
 {
-  "name": "mmoworldsimulator",
-  "private": true,
-  "version": "0.7.42",
-  "type": "module",
-  "scripts": {
-    "dev": "vite --host 0.0.0.0",
-    "build": "vite build",
-    "typecheck": "tsc --noEmit",
-    "build:github": "vite build",
-    "preview": "vite preview --host 0.0.0.0",
-    "sanity": "node scripts/sanity-check.mjs",
-    "smoke": "node scripts/smoke.mjs",
-    "smoke:test": "node scripts/smoke-test.mjs",
-    "import:graph": "node scripts/import-graph-check.mjs",
-    "perf:skip-day": "node scripts/perf-skip-day.mjs",
-    "content:check": "node scripts/content-validation.mjs",
-    "perf:scale": "node scripts/perf-scale.mjs"
-  },
-  "dependencies": {
-    "@vitejs/plugin-react": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "zustand": "latest"
-  },
-  "devDependencies": {
-    "@types/node": "latest",
-    "@types/react": "latest",
-    "@types/react-dom": "latest",
-    "typescript": "latest",
-    "vite": "latest"
-  }
+    "name":  "mmoworldsimulator",
+    "private":  true,
+    "version":  "0.7.42",
+    "type":  "module",
+    "scripts":  {
+                    "dev":  "vite --host 0.0.0.0",
+                    "build":  "vite build",
+                    "typecheck":  "tsc --noEmit",
+                    "build:github":  "vite build",
+                    "preview":  "vite preview --host 0.0.0.0",
+                    "sanity":  "node scripts/sanity-check.mjs",
+                    "smoke":  "node scripts/smoke.mjs",
+                    "smoke:test":  "node scripts/smoke-test.mjs",
+                    "import:graph":  "node scripts/import-graph-check.mjs",
+                    "perf:skip-day":  "node scripts/perf-skip-day.mjs",
+                    "content:check":  "node scripts/content-validation.mjs",
+                    "perf:scale":  "node scripts/perf-scale.mjs",
+                    "perf:runtime":  "node scripts/perf-runtime-scale.mjs"
+                },
+    "dependencies":  {
+                         "@vitejs/plugin-react":  "latest",
+                         "react":  "latest",
+                         "react-dom":  "latest",
+                         "zustand":  "latest"
+                     },
+    "devDependencies":  {
+                            "@types/node":  "latest",
+                            "@types/react":  "latest",
+                            "@types/react-dom":  "latest",
+                            "typescript":  "latest",
+                            "vite":  "latest"
+                        }
 }

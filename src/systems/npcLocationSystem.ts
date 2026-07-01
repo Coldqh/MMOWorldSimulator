@@ -1,6 +1,6 @@
 import type { NpcPlayer, ServerState, WorldLocationState } from '../types/game';
 import type { Rng } from '../engine/rng';
-import { SPOTS, ZONES } from '../content/world';
+import { SPOT_BY_ID, SPOTS, ZONE_BY_ID, ZONES } from '../content/world';
 import { getGearScore } from './itemSystem';
 
 const totalMinute = (day: number, minute: number) => (Math.max(1, day) - 1) * 1440 + Math.max(0, minute);
@@ -8,11 +8,11 @@ const totalMinute = (day: number, minute: number) => (Math.max(1, day) - 1) * 14
 const npcCanAccessLocation = (npc: NpcPlayer, location: WorldLocationState) => {
   if (location.mode === 'city') return true;
   if (location.mode === 'zone') {
-    const zone = ZONES.find((entry) => entry.id === location.zoneId);
+    const zone = location.zoneId ? ZONE_BY_ID.get(location.zoneId) : undefined;
     return Boolean(zone && npc.level >= zone.levelRange[0]);
   }
   if (location.mode === 'spot') {
-    const spot = SPOTS.find((entry) => entry.id === location.spotId);
+    const spot = location.spotId ? SPOT_BY_ID.get(location.spotId) : undefined;
     return Boolean(spot && npc.level >= spot.levelRange[0]);
   }
   return false;
@@ -95,10 +95,10 @@ export const getWarAttackCooldownMinutes = (server: ServerState): number => {
 
 export const formatWarAttackCooldown = (minutes: number) => {
   const safe = Math.max(0, Math.ceil(minutes));
-  if (safe <= 0) return 'готово';
+  if (safe <= 0) return 'РіРѕС‚РѕРІРѕ';
   const h = Math.floor(safe / 60);
   const m = safe % 60;
-  return h > 0 ? `${h}ч ${m.toString().padStart(2, '0')}м` : `${m}м`;
+  return h > 0 ? `${h}С‡ ${m.toString().padStart(2, '0')}Рј` : `${m}Рј`;
 };
 
 export const getNpcPlayersInLocation = (server: ServerState, location: WorldLocationState = server.location) =>
@@ -154,14 +154,17 @@ export const handleWarNpcEncountersOnPlayerLocationEnter = (server: ServerState,
     const base = npc.playstyle === 'pvp' || guild?.guildFocus === 'pvp' ? 0.35 : guild?.guildFocus === 'hybrid' || npc.playstyle === 'mixed' ? 0.18 : 0.08;
     const diff = (npc.gearScore ?? 0) - playerGs;
     const attackChance = Math.max(0.02, Math.min(0.7, base + Math.max(-0.25, Math.min(0.25, diff / 4000))));
-    if (rng.chance(attackChance)) { lines.push(`${npc.name} ищет момент для нападения.`); return; }
+    if (rng.chance(attackChance)) { lines.push(`${npc.name} РёС‰РµС‚ РјРѕРјРµРЅС‚ РґР»СЏ РЅР°РїР°РґРµРЅРёСЏ.`); return; }
     const fleeChance = diff < -800 ? 0.65 : diff < -300 ? 0.35 : diff > 300 ? 0.06 : 0.15;
     if (rng.chance(fleeChance)) {
       npcs = npcs.map((entry) => entry.id === npc.id ? { ...entry, locationMode: 'city', currentZoneId: undefined, currentSpotId: undefined } : entry);
-      lines.push(`${npc.name} ушёл в город.`);
+      lines.push(`${npc.name} СѓС€С‘Р» РІ РіРѕСЂРѕРґ.`);
     }
   });
-  return lines.length === 0 ? server : { ...server, npcs, notifications: [...(server.notifications ?? []), { id: `war_location_${server.serverDay}_${server.currentMinute}_${rng.int(1, 999999)}`, type: 'guild', title: 'Враги рядом', text: 'Вражеские игроки в локации.', lines: lines.slice(0, 4) }] };
+  return lines.length === 0 ? server : { ...server, npcs, notifications: [...(server.notifications ?? []), { id: `war_location_${server.serverDay}_${server.currentMinute}_${rng.int(1, 999999)}`, type: 'guild', title: 'Р’СЂР°РіРё СЂСЏРґРѕРј', text: 'Р’СЂР°Р¶РµСЃРєРёРµ РёРіСЂРѕРєРё РІ Р»РѕРєР°С†РёРё.', lines: lines.slice(0, 4) }] };
 };
 
 export const handleWarNpcEncountersAfterNpcMovement = (server: ServerState, _rng: Rng): ServerState => server;
+
+
+

@@ -2,6 +2,7 @@ import type { MobDefinition, Player, ServerState } from '../types/game';
 import { calculateNpcArenaRating, calculateNpcWealth, calculateXpForNextLevel, calculateXpRewardForMob, MAX_LEVEL } from '../balance';
 import { getGearScore } from './itemSystem';
 import { arenaRankIcon, arenaRankName, arenaRankOrder, getArenaBracketIdForPlayer, getArenaLadder, getGuildPvpRankIcon, getGuildPvpRankName } from './arenaBracketSystem';
+import { createServerIndexes } from '../engine/serverIndexes';
 
 export const xpForNextLevel = (level: number) => calculateXpForNextLevel(level);
 
@@ -38,7 +39,7 @@ export const getPlayerArenaRank = (server: ServerState) => {
 };
 
 export const updateGuildDerivedStats = (server: ServerState): ServerState => {
-  const npcsById = new Map(server.npcs.map((npc) => [npc.id, npc]));
+  const { npcById: npcsById } = createServerIndexes(server);
   const playerGear = getGearScore(server.player.equipment);
   const getMemberGear = (id: string) => id === server.player.id ? playerGear : (npcsById.get(id)?.gearScore ?? 0);
   const getMemberPvp = (id: string) => id === server.player.id ? server.player.arenaRating : (npcsById.get(id)?.arenaRating ?? 0);
@@ -74,3 +75,5 @@ export const updateRankings = (server: ServerState): ServerState => {
     }
   };
 };
+
+
