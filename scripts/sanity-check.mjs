@@ -26,14 +26,15 @@ const guildRelationSystem = read('src/systems/guildRelationSystem.ts');
 const appShell = read('src/ui/layout/AppShell.tsx');
 
 const simulateBlock = between(gameStore, 'const simulateServerForMinutes =', 'const normalizeServer');
+const commitBlock = between(gameStore, 'const commit = (', 'const commitFast =');
 const skipDayBlock = between(gameStore, '  skipDay: () => {', '  exportSave:');
 const skipHourBlock = between(gameStore, '  skipHour: () => {', '  skipDay:');
 const tickGuildWarsBlock = between(guildWarSystem, 'export const tickGuildWars =', '};');
 const bottomNav = between(appShell, 'const bottomNav', 'const sideNav');
 
-assert(pkg.version === '0.7.34', 'package version is 0.7.34');
-assert(versionTs.includes("APP_VERSION = '0.7.34'") || versionTs.includes('APP_VERSION = "0.7.34"'), 'APP_VERSION is 0.7.34');
-assert(publicVersion.version === '0.7.34', 'public version is 0.7.34');
+assert(pkg.version === '0.7.35', 'package version is 0.7.35');
+assert(versionTs.includes("APP_VERSION = '0.7.35'") || versionTs.includes('APP_VERSION = "0.7.35"'), 'APP_VERSION is 0.7.35');
+assert(publicVersion.version === '0.7.35', 'public version is 0.7.35');
 assert(saveLoad.includes("SAVE_VERSION = '0.7.0'") || saveLoad.includes('SAVE_VERSION = "0.7.0"'), 'SAVE_VERSION unchanged');
 
 assert(gameStore.includes("type ServerTickMode = 'interactive' | 'summary'"), 'ServerTickMode exists');
@@ -41,6 +42,13 @@ assert(/mode:\s*ServerTickMode\s*=\s*'interactive'/.test(simulateBlock), 'simula
 assert(skipDayBlock.includes("simulateServerForMinutes(server, minutes, rng, 'summary')"), 'skipDay uses summary simulation');
 assert(skipDayBlock.includes('commitFastDeferredSave'), 'skipDay uses deferred save');
 assert(!skipHourBlock.includes("'summary'"), 'skipHour stays interactive');
+
+assert(commitBlock.includes('normalizeQuestStates(safeNormalizeServer(server, "light"))'), 'commit uses single light normalize pipeline');
+assert(!commitBlock.includes('seedActiveGuildWarsIfEmpty('), 'commit does not duplicate guild war seeding');
+assert(!commitBlock.includes('ensureSoloNpcPool('), 'commit does not duplicate solo NPC repair');
+assert(!commitBlock.includes('seedInitialGuildWarsIfNeeded('), 'commit does not duplicate initial guild war seed');
+assert(!commitBlock.includes('repairServerRuntime('), 'commit does not duplicate runtime repair');
+assert(!commitBlock.includes('refreshContracts('), 'commit does not duplicate contract refresh');
 
 assert(simulateBlock.includes("mode === 'interactive'"), 'simulateServerForMinutes has interactive branch');
 assert(simulateBlock.includes('!hasOpenGuildWarRuntime(next)'), 'summary guild war seeding has guard');

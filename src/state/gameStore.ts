@@ -420,7 +420,10 @@ const commit = (
   combat?: CombatState | null,
   modal?: GameModal | null,
 ) => {
-  let normalized = refreshContracts(seedActiveGuildWarsIfEmpty(ensureSoloNpcPool(seedInitialGuildWarsIfNeeded(repairServerRuntime(normalizeQuestStates(safeNormalizeServer(server, "light")))))), createRng((server.seed ?? Date.now()) + server.serverDay * 9020 + server.currentMinute));
+  // 0.7.35: keep full safety normalization, but avoid running the same heavy
+  // guild/runtime/contract repair chain twice. safeNormalizeServer already handles
+  // runtime repair, solo NPC pool, guild war seeding and contract refresh.
+  let normalized = normalizeQuestStates(safeNormalizeServer(server, "light"));
   let nextModal = modal;
 
   if (nextModal === undefined && normalized.notifications.length > 0) {
@@ -436,6 +439,7 @@ const commit = (
     ...(nextModal !== undefined ? { modal: nextModal } : {}),
   });
 };
+
 
 
 const commitFast = (

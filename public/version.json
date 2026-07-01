@@ -1,6 +1,6 @@
 {
-  "version": "0.7.34",
+  "version": "0.7.35",
   "channel": "stable",
-  "build": "2026-06-30-v0734-skip-day-performance-v3",
-  "buildTime": "2026-06-30T15:06:49.728Z"
+  "build": "2026-07-01-v0735-commit-pipeline-cleanup",
+  "buildTime": "2026-07-01T08:50:56.094Z"
 }
