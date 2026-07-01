@@ -373,6 +373,9 @@ ok(worldGlue.includes('EXTRA_RAIDS'), 'EXTRA_RAIDS hook is wired');
 ok(worldGlue.includes('EXTRA_RAID_PATCHES'), 'EXTRA_RAID_PATCHES hook is wired');
 ok(worldGlue.includes('EXPANSION_RAIDS'), 'EXPANSION_RAIDS hook is wired');
 ok(worldGlue.includes('EXPANSION_DUNGEONS'), 'EXPANSION_DUNGEONS hook is wired');
+ok(!worldRebalanceSource.includes('const zones = zoneDefs;'), 'world rebalance preserves expansion zones');
+ok(!worldRebalanceSource.includes('const spots = spotDefs;'), 'world rebalance preserves expansion spots');
+ok(!worldRebalanceSource.includes("['old_lantern_cellar', 'blackroot_watch', 'mire_depths', 'frost_vault', 'glass_catacomb'].includes(dungeon.id)"), 'world rebalance does not whitelist old dungeons only');
 
 warning(setDefinitions.some((definition) => definition.level > 20), 'No generated sets above level 20 yet; level 21-60 content ladder is still empty');
 warning(instances.some((instance) => instance.max > 20), 'No dungeon/raid content above level 20 yet');

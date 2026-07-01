@@ -155,8 +155,18 @@ const applyDungeonOverrides = (dungeon: DungeonDefinition): DungeonDefinition =>
 };
 
 export const rebalanceWorldContent = (world: WorldContentOutput): WorldContentOutput => {
-  const zones = zoneDefs;
-  const spots = spotDefs;
+  const rebalanceZoneIds = new Set(zoneDefs.map((zone) => zone.id));
+  const zones = [
+    ...zoneDefs,
+    ...world.zones.filter((zone) => !REMOVED_ZONE_IDS.has(zone.id) && !rebalanceZoneIds.has(zone.id)),
+  ].sort((a, b) => a.levelRange[0] - b.levelRange[0] || a.id.localeCompare(b.id));
+
+  const rebalanceSpotIds = new Set(spotDefs.map((spot) => spot.id));
+  const availableZoneIds = new Set(zones.map((zone) => zone.id));
+  const spots = [
+    ...spotDefs,
+    ...world.spots.filter((spot) => !rebalanceSpotIds.has(spot.id) && availableZoneIds.has(spot.zoneId)),
+  ].sort((a, b) => a.levelRange[0] - b.levelRange[0] || a.id.localeCompare(b.id));
   const mobs = cleanMobs(world.mobs)
     .filter((mob) => !REMOVED_MOB_IDS.has(mob.id))
     .sort((a, b) => a.level - b.level || a.id.localeCompare(b.id));
@@ -165,7 +175,6 @@ export const rebalanceWorldContent = (world: WorldContentOutput): WorldContentOu
     .filter((dungeon) => !REMOVED_DUNGEON_IDS.has(dungeon.id))
     .filter((dungeon) => dungeon.id !== 'thorn_crown_crypt')
     .map(applyDungeonOverrides)
-    .filter((dungeon) => ['old_lantern_cellar', 'blackroot_watch', 'mire_depths', 'frost_vault', 'glass_catacomb'].includes(dungeon.id))
     .sort((a, b) => a.levelRange[0] - b.levelRange[0] || a.id.localeCompare(b.id));
 
   const raids = world.raids.map((raid) => ({
