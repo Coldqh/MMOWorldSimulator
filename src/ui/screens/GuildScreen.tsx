@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { CLASSES } from "../../content/classes";
 import { useGameStore } from "../../state/gameStore";
 import { getGearScore } from "../../systems/itemSystem";
-import { getPlayerGuildPendingApplications } from "../../systems/guildRuntimeSystem";
+import { getGuildTierMinLevel, getPlayerGuildPendingApplications } from "../../systems/guildRuntimeSystem";
 import { guildFocusLabel } from "../../systems/guildIdentitySystem";
 import { GuildWarPanel, ServerGuildWarList } from "../components/GuildWarPanel";
 import { CastlePanel } from "../components/CastlePanel";
@@ -24,7 +24,7 @@ const guildPower = (guild: Guild) => (guild.reputation ?? 0) + (guild.pvpRating 
 const relationPercent = (value: number) => `${Math.max(0, Math.min(100, value + 100) / 2)}%`;
 const relationTone = (value: number) => value <= -40 ? "danger-line" : value >= 40 ? "ready-line" : "";
 const tierLabel: Record<string, string> = { all: "Все", max: "Max", high: "High", mid: "Mid", low: "Low" };
-const guildTierMinLevel: Record<PlayerGuildTier, number> = { low: 1, mid: 21, high: 41, max: 60 };
+const guildTierMinLevel: Record<PlayerGuildTier, number> = { low: getGuildTierMinLevel("low"), mid: getGuildTierMinLevel("mid"), high: getGuildTierMinLevel("high"), max: getGuildTierMinLevel("max") };
 const guildTierOptions: { id: PlayerGuildTier; label: string; minLevel: number }[] = [
   { id: "low", label: "Low", minLevel: 1 },
   { id: "mid", label: "Mid", minLevel: 21 },
@@ -299,15 +299,16 @@ export const GuildScreen = () => {
         <div className="card-grid">
           {guilds.map((guild) => {
             const pending = pendingByGuild.get(guild.id);
+            const requiredLevel = getGuildTierMinLevel(guild.tier ?? "low");
             return (
               <article key={guild.id} className="content-card guild-card">
                 <button className="text-button guild-title-button" onClick={() => openGuildProfile(guild.id)}><strong>{guild.name}</strong></button>
-                <span>{guildFocusLabel(guild.guildFocus)} · {guild.tier ?? "low"} · требование {guild.minLevel ?? 1}+</span>
+                <span>{guildFocusLabel(guild.guildFocus)} · {guild.tier ?? "low"} · требование {requiredLevel}+</span>
                 <span>ГМ: {renderNpcLink(guild.leaderId)}</span>
                 <span>Участников: {guild.memberIds.length}</span>
                 <span>Сила: {guildPower(guild)}</span>
                 <span>Репутация: {guild.reputation} · PvP: {guild.pvpRating}</span>
-                {server.player.guildId ? <button onClick={() => openGuildProfile(guild.id)}>Профиль</button> : pending ? <button disabled>Заявка отправлена</button> : <button disabled={server.player.level < (guild.minLevel ?? 1)} onClick={() => applyToGuild(guild.id)}>{server.player.level < (guild.minLevel ?? 1) ? `Нужен ${guild.minLevel ?? 1} ур.` : "Подать заявку"}</button>}
+                {server.player.guildId ? <button onClick={() => openGuildProfile(guild.id)}>Профиль</button> : pending ? <button disabled>Заявка отправлена</button> : <button disabled={server.player.level < requiredLevel} onClick={() => applyToGuild(guild.id)}>{server.player.level < requiredLevel ? `Нужен ${requiredLevel} ур.` : "Подать заявку"}</button>}
               </article>
             );
           })}

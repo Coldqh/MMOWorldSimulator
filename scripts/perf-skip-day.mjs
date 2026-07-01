@@ -12,6 +12,7 @@ const saveLoad = read('src/engine/saveLoad.ts');
 const elapsed = performance.now() - start;
 
 const checks = {
+  guildTierRequirementNormalizer: gameStore.includes('normalizeGuildTierRequirements'),
   summaryMode: gameStore.includes("simulateServerForMinutes(server, minutes, rng, 'summary')"),
   deferredSave: gameStore.includes('commitFastDeferredSave(set, next'),
   summaryWars: guildWarSystem.includes('simulateActiveGuildWarsSummary'),

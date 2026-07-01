@@ -48,6 +48,13 @@ export const initializeGuildRelations = (server: ServerState, rng: Rng): ServerS
   return { ...server, guildRelations: relations };
 };
 
+
+export const createGuildRelationValueMap = (server: ServerState) =>
+  new Map((server.guildRelations ?? []).map((entry) => [`${entry.fromGuildId}->${entry.toGuildId}`, entry.value]));
+
+export const getGuildRelationValueFromMap = (relationMap: Map<string, number>, fromGuildId: string, toGuildId: string) =>
+  relationMap.get(`${fromGuildId}->${toGuildId}`) ?? 0;
+
 export const updateGuildRelations = (server: ServerState, rng: Rng): ServerState => {
   const guildById = new Map((server.guilds ?? []).map((guild) => [guild.id, guild]));
 

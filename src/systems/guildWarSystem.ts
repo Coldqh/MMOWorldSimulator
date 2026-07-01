@@ -2,7 +2,7 @@ import type { GuildWar, GuildWarKillRecord, GuildWarTopKiller, GuildWarVote, Id,
 import type { Rng } from '../engine/rng';
 import { uid } from '../engine/rng';
 import { addNews } from '../engine/news';
-import { initializeGuildRelations, getGuildRelationValue, updateGuildRelations, changeGuildRelation } from './guildRelationSystem';
+import { initializeGuildRelations, getGuildRelationValue, updateGuildRelations, changeGuildRelation, createGuildRelationValueMap, getGuildRelationValueFromMap } from './guildRelationSystem';
 import { rebalanceGuildRoster } from './guildRosterSystem';
 import { assignInitialNpcLocations, moveNpcPlayers, handleWarNpcEncountersAfterNpcMovement, canPlayerAttackWarNpc } from './npcLocationSystem';
 import { growNpcAfterDuel, makeKillRecord, resolveNpcDuel, resolvePlayerNpcDuel } from './pvpSimulationSystem';
@@ -12,6 +12,16 @@ const clampDuration = (days: number) => Math.max(7, Math.min(30, Math.round(days
 const totalMinute = (day: number, minute: number) => (day - 1) * 1440 + minute;
 const reached = (server: ServerState, day: number, minute: number) => totalMinute(server.serverDay, server.currentMinute) >= totalMinute(day, minute);
 export type GuildWarTickMode = 'interactive' | 'summary';
+
+const buildActiveWarCountMap = (server: ServerState) => {
+  const map = new Map<Id, number>();
+  (server.guildWars ?? []).forEach((war) => {
+    if (war.status !== 'active' && war.status !== 'scheduled' && war.status !== 'pending_votes') return;
+    map.set(war.attackerGuildId, (map.get(war.attackerGuildId) ?? 0) + 1);
+    map.set(war.defenderGuildId, (map.get(war.defenderGuildId) ?? 0) + 1);
+  });
+  return map;
+};
 
 const activeCount = (server: ServerState, guildId: Id) => (server.guildWars ?? []).filter((war) => (war.status === 'active' || war.status === 'scheduled' || war.status === 'pending_votes') && (war.attackerGuildId === guildId || war.defenderGuildId === guildId)).length;
 export const getGuildActiveWars = (server: ServerState, guildId: Id) => (server.guildWars ?? []).filter((war) => war.status === 'active' && (war.attackerGuildId === guildId || war.defenderGuildId === guildId));
@@ -133,21 +143,43 @@ export const resolveGuildWarVotes = (server: ServerState, rng: Rng): ServerState
 export const maybeCreateGuildWarVotes = (server: ServerState, rng: Rng): ServerState => {
   let next = server;
   if (!rng.chance(0.08)) return next;
+
+  const relationMap = createGuildRelationValueMap(server);
+  const activeCounts = buildActiveWarCountMap(next);
   const candidates = [...server.guilds].sort((a, b) => (a.id + server.serverDay).localeCompare(b.id + server.serverDay));
+
   for (const guild of candidates) {
-    if (activeCount(next, guild.id) >= 2) continue;
+    if ((activeCounts.get(guild.id) ?? 0) >= 2) continue;
+
     const aggression = guild.guildFocus === 'pvp' ? 0.8 : guild.guildFocus === 'pve' ? 0.2 : 0.5;
     if (!rng.chance(aggression)) continue;
-    const targets = server.guilds.filter((target) => target.id !== guild.id && (target.tier ?? 'low') === (guild.tier ?? 'low') && activeCount(next, target.id) < 2).sort((a, b) => getGuildRelationValue(server, guild.id, a.id) - getGuildRelationValue(server, guild.id, b.id));
-    const target = targets[0];
+
+    let target: typeof guild | undefined;
+    let targetRelation = Number.POSITIVE_INFINITY;
+
+    for (const candidateTarget of server.guilds) {
+      if (candidateTarget.id === guild.id) continue;
+      if ((candidateTarget.tier ?? 'low') !== (guild.tier ?? 'low')) continue;
+      if ((activeCounts.get(candidateTarget.id) ?? 0) >= 2) continue;
+
+      const relation = getGuildRelationValueFromMap(relationMap, guild.id, candidateTarget.id);
+      if (relation < targetRelation || (relation === targetRelation && candidateTarget.id.localeCompare(target?.id ?? '') < 0)) {
+        target = candidateTarget;
+        targetRelation = relation;
+      }
+    }
+
     if (!target) continue;
-    const relation = getGuildRelationValue(server, guild.id, target.id);
-    if (relation > (guild.guildFocus === 'pvp' ? 10 : -25)) continue;
+    if (targetRelation > (guild.guildFocus === 'pvp' ? 10 : -25)) continue;
+
     next = createGuildWarDeclareVote(next, guild.id, target.id, rng, rng.int(7, 14));
     break;
   }
+
   return next;
 };
+
+
 
 const topKillers = (records: GuildWarKillRecord[], guildId: Id): GuildWarTopKiller[] => {
   const counts = new Map<Id, number>();

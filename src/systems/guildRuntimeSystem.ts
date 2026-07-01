@@ -16,6 +16,25 @@ const tierTargets: Array<{ tier: GuildTier; count: number; min: number; max: num
   { tier: 'max', count: 10, min: LEVEL_BANDS.max.min, max: LEVEL_BANDS.max.max, offset: 90 },
 ];
 
+export const normalizeGuildTier = (tier?: GuildTier): GuildTier =>
+  tier === 'max' || tier === 'high' || tier === 'mid' ? tier : 'low';
+
+export const getGuildTierMinLevel = (tier?: GuildTier) => LEVEL_BANDS[normalizeGuildTier(tier)].min;
+
+export const normalizeGuildTierRequirement = (guild: Guild): Guild => {
+  const tier = normalizeGuildTier(guild.tier);
+  return {
+    ...guild,
+    tier,
+    minLevel: getGuildTierMinLevel(tier),
+  };
+};
+
+export const normalizeGuildTierRequirements = (server: ServerState): ServerState => ({
+  ...server,
+  guilds: (server.guilds ?? []).map(normalizeGuildTierRequirement),
+});
+
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, Math.round(value)));
 const totalMinute = (day: number, minute: number) => (Math.max(1, day) - 1) * 1440 + Math.max(0, minute);
 const npcPower = (npc: NpcPlayer) => Math.max(1, (npc.gearScore ?? 1) * (0.55 + clamp(npc.skill ?? 5, 1, 10) * 0.11));
@@ -177,14 +196,15 @@ const activeWarExists = (server: ServerState, a: string, b: string) =>
       (war.attackerGuildId === b && war.defenderGuildId === a)),
   );
 
-const sameTierWarCount = (server: ServerState, tier: GuildTier) =>
-  (server.guildWars ?? []).filter((war) => {
+const sameTierWarCount = (server: ServerState, tier: GuildTier) => {
+  const guildById = new Map((server.guilds ?? []).map((guild) => [guild.id, guild]));
+  return (server.guildWars ?? []).filter((war) => {
     if (war.status !== 'active') return false;
-    const a = server.guilds.find((guild) => guild.id === war.attackerGuildId);
-    const b = server.guilds.find((guild) => guild.id === war.defenderGuildId);
+    const a = guildById.get(war.attackerGuildId);
+    const b = guildById.get(war.defenderGuildId);
     return a?.tier === tier && b?.tier === tier;
   }).length;
-
+};
 const seedWar = (server: ServerState, attackerGuildId: string, defenderGuildId: string, index: number): GuildWar => {
   const start = addMinutesToClockRuntime(server.serverDay, server.currentMinute, 60 + ((index * 173) % 720));
   const end = addMinutesToClockRuntime(start.day, start.minute, (3 + (index % 5)) * 1440 + ((index * 97) % 1440));
@@ -212,6 +232,14 @@ const seedWar = (server: ServerState, attackerGuildId: string, defenderGuildId: 
 }
 
 const pickTierWarPair = (server: ServerState, tier: GuildTier, used: Set<string>) => {
+  const relationMap = new Map((server.guildRelations ?? []).map((entry) => [`${entry.fromGuildId}->${entry.toGuildId}`, entry.value]));
+  const relation = (fromGuildId: Id, toGuildId: Id) => relationMap.get(`${fromGuildId}->${toGuildId}`) ?? 0;
+  const openPairs = new Set(
+    (server.guildWars ?? [])
+      .filter((war) => war.status === 'active' || war.status === 'scheduled' || war.status === 'pending_votes')
+      .map((war) => runtimePairKey(war.attackerGuildId, war.defenderGuildId)),
+  );
+
   const guilds = server.guilds
     .filter((guild) => guild.tier === tier)
     .sort((a, b) => {
@@ -221,24 +249,32 @@ const pickTierWarPair = (server: ServerState, tier: GuildTier, used: Set<string>
       return focusScore(bf) - focusScore(af) || (b.pvpRating ?? 0) - (a.pvpRating ?? 0);
     });
 
-  const candidates: Array<{ a: Guild; b: Guild; score: number }> = [];
-  for (const a of guilds) {
-    for (const b of guilds) {
-      if (a.id >= b.id) continue;
-      if (used.has(a.id) || used.has(b.id)) continue;
-      if (activeWarExists(server, a.id, b.id) || openRuntimeWarExists(server, a.id, b.id)) continue;
-      const avg = Math.round((getGuildRelationValue(server, a.id, b.id) + getGuildRelationValue(server, b.id, a.id)) / 2);
+  let best: { a: Guild; b: Guild; score: number } | undefined;
+
+  for (let ai = 0; ai < guilds.length; ai += 1) {
+    const a = guilds[ai];
+    if (used.has(a.id)) continue;
+
+    for (let bi = ai + 1; bi < guilds.length; bi += 1) {
+      const b = guilds[bi];
+      if (used.has(b.id)) continue;
+      if (openPairs.has(runtimePairKey(a.id, b.id))) continue;
+
+      const avg = Math.round((relation(a.id, b.id) + relation(b.id, a.id)) / 2);
       const af = normalizeGuildFocus(a.guildFocus ?? a.type ?? a.focus);
       const bf = normalizeGuildFocus(b.guildFocus ?? b.type ?? b.focus);
       let score = -avg;
       if (af === 'pvp' && bf === 'pvp') score += 50;
       if (af === 'pvp' || bf === 'pvp') score += 20;
       if (af === 'pve' && bf === 'pve') score -= 20;
-      candidates.push({ a, b, score });
+
+      if (!best || score > best.score) best = { a, b, score };
     }
   }
-  return candidates.sort((left, right) => right.score - left.score)[0];
+
+  return best;
 };
+
 
 export const seedActiveGuildWarsIfEmpty = (server: ServerState): ServerState => {
   let next = dedupeRuntimeWarPairs(finishExpiredWars(startScheduledRuntimeWars(normalizeGuildWarsRuntime(server))));
@@ -380,9 +416,8 @@ export const createPlayerGuildRuntime = (
   if (server.player.gold < 50000) return { server, ok: false, message: 'Нужно 50 000 золота.' };
   if (server.guilds.some((guild) => guild.name.toLowerCase() === cleanName.toLowerCase())) return { server, ok: false, message: 'Гильдия с таким названием уже есть.' };
 
-  const normalizedTier: GuildTier = tier === 'mid' || tier === 'high' || tier === 'max' ? tier : 'low';
-  const minLevelByTier: Record<GuildTier, number> = { low: LEVEL_BANDS.low.min, mid: LEVEL_BANDS.mid.min, high: LEVEL_BANDS.high.min, max: LEVEL_BANDS.max.min };
-  const requiredLevel = minLevelByTier[normalizedTier];
+  const normalizedTier = normalizeGuildTier(tier);
+  const requiredLevel = getGuildTierMinLevel(normalizedTier);
   if (server.player.level < requiredLevel) return { server, ok: false, message: `Для ${normalizedTier.toUpperCase()} гильдии нужен уровень ${requiredLevel}.` };
 
   const guild: Guild = {
