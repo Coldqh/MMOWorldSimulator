@@ -14,6 +14,8 @@ export const ITEMS: ItemDefinition[] = finalizeItems([
   ...createMobCardsForMobs(MOB_CARD_SOURCE_MOBS),
 ]);
 
-export const getItemById = (id: string) => ITEMS.find((entry) => entry.id === normalizeLegacyItemId(id));
+export const ITEM_BY_ID = new Map(ITEMS.map((entry) => [entry.id, entry]));
+
+export const getItemById = (id: string) => ITEM_BY_ID.get(normalizeLegacyItemId(id));
 
 export { normalizeLegacyItemId, normalizeLegacySetId, rarityLabel, rarityScore };

@@ -124,12 +124,12 @@ export const calculateDungeonDifficultyScore = (dungeon: DungeonDefinition) => {
 };
 
 export const calculateNpcWealth = (level: number, gearScore: number, roleFocus?: string) => {
-  const role = ROLE_WEALTH_MULTIPLIER[roleFocus ?? 'CASUAL'] ?? 1;
+  const role = ROLE_WEALTH_MULTIPLIER[roleFocus ?? 'mixed'] ?? 1;
   return Math.round((90 + level * level * 68 + gearScore * 9.2) * role);
 };
 
 export const calculateNpcArenaRating = (level: number, gearScore: number, roleFocus?: string) => {
-  const role = ROLE_ARENA_MULTIPLIER[roleFocus ?? 'CASUAL'] ?? 1;
+  const role = ROLE_ARENA_MULTIPLIER[roleFocus ?? 'mixed'] ?? 1;
   let base = 620 + level * 34 + gearScore * 0.075;
   if (level >= 20) base = 1680 + Math.max(0, gearScore - 1700) * 0.19;
   else if (level >= 19) base = 1550 + gearScore * 0.09;

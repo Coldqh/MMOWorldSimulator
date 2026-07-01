@@ -1,6 +1,6 @@
 {
-  "version": "0.7.35",
+  "version": "0.7.37",
   "channel": "stable",
-  "build": "2026-07-01-v0735-commit-pipeline-cleanup",
-  "buildTime": "2026-07-01T08:50:56.094Z"
+  "build": "2026-07-01-v0737-core-indexes-legacy-cleanup",
+  "buildTime": "2026-07-01T09:23:43.996Z"
 }

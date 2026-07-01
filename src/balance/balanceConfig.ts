@@ -119,28 +119,14 @@ export const DUNGEON_DIFFICULTY = {
 
 export const ROLE_WEALTH_MULTIPLIER: Record<RoleFocus | 'PLAYER' | string, number> = {
   PLAYER: 1,
-  PVE_FARMER: 1.04,
-  RAIDER: 1.2,
-  PVP_PLAYER: 1.12,
-  GUILD_PLAYER: 1.06,
-  COLLECTOR: 1.16,
-  TRADER: 1.55,
-  CASUAL: 0.72,
-  HARDCORE: 1.28,
-  LEADER: 1.22,
-  DRAMA: 0.84,
+  pve: 1.12,
+  pvp: 1.02,
+  mixed: 1.08,
 };
 
 export const ROLE_ARENA_MULTIPLIER: Record<RoleFocus | 'PLAYER' | string, number> = {
   PLAYER: 1,
-  PVE_FARMER: 0.86,
-  RAIDER: 1.08,
-  PVP_PLAYER: 1.18,
-  GUILD_PLAYER: 1.05,
-  COLLECTOR: 0.92,
-  TRADER: 0.78,
-  CASUAL: 0.8,
-  HARDCORE: 1.14,
-  LEADER: 1.07,
-  DRAMA: 0.88,
+  pve: 0.94,
+  pvp: 1.16,
+  mixed: 1.04,
 };

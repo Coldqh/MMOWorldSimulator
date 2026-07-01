@@ -759,7 +759,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     const bracketId = getArenaBracketIdForPlayer(server);
-    const bracketPool = getArenaBracketOpponentPool(server, bracketId).filter((npc) => ['PVP_PLAYER', 'HARDCORE', 'GUILD_PLAYER', 'LEADER'].includes(npc.roleFocus));
+    const bracketPool = getArenaBracketOpponentPool(server, bracketId).filter((npc) => npc.roleFocus === 'pvp' || npc.roleFocus === 'mixed');
     const ratingPool = bracketPool.filter((npc) => Math.abs(npc.arenaRating - server.player.arenaRating) <= 50);
     const pool = ratingPool.length > 0 ? ratingPool.slice(0, 18) : bracketPool.slice(0, 18);
     const bracketFallback = getArenaBracketOpponentPool(server, bracketId);

@@ -39,12 +39,21 @@ export const SPOTS = WORLD.spots;
 export const ZONES = WORLD.zones;
 export const DUNGEONS = WORLD.dungeons;
 export const RAIDS = WORLD.raids;
+export const ALL_INSTANCES = [...DUNGEONS, ...RAIDS];
 
-export const getMobById = (id: string) => MOBS.find((entry) => entry.id === id);
-export const getSpotById = (id: string) => SPOTS.find((entry) => entry.id === id);
-export const getZoneById = (id: string) => ZONES.find((entry) => entry.id === id);
-export const getLootTableById = (id: string) => LOOT_TABLES.find((entry) => entry.id === id);
-export const getDungeonById = (id: string) => [...DUNGEONS, ...RAIDS].find((entry) => entry.id === id);
-export const getRaidById = (id: string) => RAIDS.find((entry) => entry.id === id);
+export const MOB_BY_ID = new Map(MOBS.map((entry) => [entry.id, entry]));
+export const SPOT_BY_ID = new Map(SPOTS.map((entry) => [entry.id, entry]));
+export const ZONE_BY_ID = new Map(ZONES.map((entry) => [entry.id, entry]));
+export const LOOT_TABLE_BY_ID = new Map(LOOT_TABLES.map((entry) => [entry.id, entry]));
+export const DUNGEON_BY_ID = new Map(DUNGEONS.map((entry) => [entry.id, entry]));
+export const RAID_BY_ID = new Map(RAIDS.map((entry) => [entry.id, entry]));
+export const ALL_INSTANCES_BY_ID = new Map(ALL_INSTANCES.map((entry) => [entry.id, entry]));
+
+export const getMobById = (id: string) => MOB_BY_ID.get(id);
+export const getSpotById = (id: string) => SPOT_BY_ID.get(id);
+export const getZoneById = (id: string) => ZONE_BY_ID.get(id);
+export const getLootTableById = (id: string) => LOOT_TABLE_BY_ID.get(id);
+export const getDungeonById = (id: string) => ALL_INSTANCES_BY_ID.get(id);
+export const getRaidById = (id: string) => RAID_BY_ID.get(id);
 export const getDungeonsByZoneId = (zoneId: string) => DUNGEONS.filter((entry) => entry.zoneId === zoneId);
 export const getRaidsByZoneId = (zoneId: string) => RAIDS.filter((entry) => entry.zoneId === zoneId);
