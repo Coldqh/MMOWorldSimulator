@@ -11,7 +11,11 @@ const guildWarSystem = read('src/systems/guildWarSystem.ts');
 const saveLoad = read('src/engine/saveLoad.ts');
 const elapsed = performance.now() - start;
 
+const siegeSystem = read('src/systems/siegeSystem.ts');
+const guildRuntimeSystem = read('src/systems/guildRuntimeSystem.ts');
 const checks = {
+  warSeedBeforeClock: gameStore.includes('let next = server;') && gameStore.indexOf('next = seedActiveGuildWarsIfEmpty(next);') < gameStore.indexOf('next = advanceServerClock(next, minutes);'),
+  siegeTextNormalizer: siegeSystem.includes('const normalizeSiegeTextFields =') && siegeSystem.includes('никто не зарегистрировался на осаду'),
   siegeMaxCastleNormalizer: siegeSystem.includes('tier: base.tier') && siegeSystem.includes('levelRange: base.levelRange'),
   guildWarLifecycle: guildRuntimeSystem.includes('export const advanceGuildWarLifecycle') && guildRuntimeSystem.includes('isOpenWarStatus(war.status)'),
   guildTierRequirementNormalizer: gameStore.includes('normalizeGuildTierRequirements'),

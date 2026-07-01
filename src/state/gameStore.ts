@@ -276,7 +276,7 @@ const simulateServerForMinutes = (
     ? (rngInput as any)
     : createRng((server.seed ?? Date.now()) + server.serverDay * 47000 + server.currentMinute + Math.max(0, minutes));
 
-  let next = advanceServerClock(server, minutes);
+  let next = server;
 
   if (mode === 'interactive') {
     next = ensureSoloNpcPool(next);
@@ -285,7 +285,12 @@ const simulateServerForMinutes = (
     next = seedActiveGuildWarsIfEmpty(next);
   }
 
+  next = advanceServerClock(next, minutes);
   next = tickGuildWars(next, rng, minutes, mode);
+
+  if (!hasOpenGuildWarRuntime(next)) {
+    next = seedActiveGuildWarsIfEmpty(next);
+  }
 
   if (mode === 'interactive') {
     next = repairFreshPlayerGuildLeadership(next);
@@ -295,7 +300,6 @@ const simulateServerForMinutes = (
   next = tickSieges(next, rng, minutes);
   return next;
 };
-
 
 const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): ServerState => {
   const needsMigration = server.version !== SAVE_VERSION;

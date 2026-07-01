@@ -19,12 +19,13 @@ const guildWar = read('src/systems/guildWarSystem.ts');
 const gameStore = read('src/state/gameStore.ts');
 const guildScreen = fs.existsSync(path.join(root, 'src/ui/screens/GuildScreen.tsx')) ? read('src/ui/screens/GuildScreen.tsx') : '';
 const balanceConfig = read('src/balance/balanceConfig.ts');
+const sw = read('public/sw.js');
 const siegeSystem = read('src/systems/siegeSystem.ts');
 const castlePanel = read('src/ui/components/CastlePanel.tsx');
 
-assert(pkg.version === '0.7.39', 'package version is 0.7.39');
-assert(versionTs.includes("APP_VERSION = '0.7.39'") || versionTs.includes('APP_VERSION = "0.7.39"'), 'APP_VERSION is 0.7.39');
-assert(publicVersion.version === '0.7.39', 'public version is 0.7.39');
+assert(pkg.version === '0.7.40', 'package version is 0.7.40');
+assert(versionTs.includes("APP_VERSION = '0.7.40'") || versionTs.includes('APP_VERSION = "0.7.40"'), 'APP_VERSION is 0.7.40');
+assert(publicVersion.version === '0.7.40', 'public version is 0.7.40');
 assert(saveLoad.includes("SAVE_VERSION = '0.7.0'") || saveLoad.includes('SAVE_VERSION = "0.7.0"'), 'SAVE_VERSION unchanged');
 assert(balanceConfig.includes('export const MAX_LEVEL = 60;'), 'MAX_LEVEL remains 60');
 assert(balanceConfig.includes("high: { min: 41, max: 59 }"), 'high band remains 41-59');
@@ -64,6 +65,18 @@ assert(guildRuntime.includes('let next = advanceGuildWarLifecycle(server)'), 'se
 assert(guildRuntime.includes('isOpenWarStatus(war.status)'), 'sameTierWarCount counts open war statuses');
 assert(guildWar.includes('const startScheduledGuildWars'), 'core guild war system starts scheduled wars');
 assert(guildWar.includes('next = startScheduledGuildWars(next);'), 'tickGuildWars advances scheduled wars');
+
+assert(sw.includes("mmows-v0.7.40"), 'service worker cache is 0.7.40');
+assert(siegeSystem.includes('никто не зарегистрировался на осаду'), 'siege no-roster text is readable Russian');
+assert(siegeSystem.includes('осада завершена. Победитель'), 'siege finish news is readable Russian');
+assert(siegeSystem.includes("castle.tier === 'max') return guild.tier === 'max' || guild.tier === 'high'"), 'max sieges can fallback to high NPC guilds');
+assert(siegeSystem.includes('const normalizeSiegeTextFields ='), 'siege normalizes old saved text fields');
+assert(guildRuntime.includes('const isOpenWarStatus ='), 'guild runtime has open war status helper');
+assert(guildRuntime.includes('isOpenWarStatus(war.status)'), 'guild runtime uses open war status helper');
+assert(guildWar.includes("war.status === 'active' || war.status === 'scheduled'"), 'guild war finish handles scheduled wars');
+assert(gameStore.indexOf('next = seedActiveGuildWarsIfEmpty(next);') < gameStore.indexOf('next = advanceServerClock(next, minutes);'), 'server tick seeds wars before advancing clock');
+
+assert(!/const\\s+([A-Za-z_$][A-Za-z0-9_$]*)\\s*=\\s*const\\s+\\1\\s*=/.test(gameStore + siegeSystem + guildRuntime + guildWar), 'no duplicated const assignment markers');
 
 if (fail.length) {
   console.error('Smoke failed:');

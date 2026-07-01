@@ -51,7 +51,7 @@ const classRole = (classId?: string) => {
 };
 
 const castleTierAllowed = (guild: Guild, castle: Castle) => {
-  if (castle.tier === 'max') return guild.tier === 'max';
+  if (castle.tier === 'max') return guild.tier === 'max' || guild.tier === 'high';
   if (castle.tier === 'high') return guild.tier === 'high' || guild.tier === 'max';
   return guild.tier === 'mid' || guild.tier === 'high' || guild.tier === 'max';
 };
@@ -142,11 +142,19 @@ const eligibleNpcGuildsForCastle = (
 
 const normalizeSiegeDisplayText = (value: string) => {
   const oldHighGuildReason = `Нужна ${'хай'}-гильдия.`;
-  return value
-    .replace(/High · 20/g, 'Максимальный · 60')
-    .replace(/Mid · 10–19/g, 'Средний · 21–40')
-    .replace(new RegExp(`хай-${'гильдии'}`, 'g'), 'гильдии нужного уровня')
-    .replace(new RegExp(oldHighGuildReason, 'g'), 'Нужна гильдия максимального уровня.');
+  const replacements: Array<[string, string]> = [
+    ['High · 20', 'Максимальный · 60'],
+    ['Mid · 10–19', 'Средний · 21–40'],
+    [`хай-${'гильдии'}`, 'гильдии нужного уровня'],
+    [oldHighGuildReason, 'Нужна гильдия максимального уровня.'],
+    ['РЅРµС‚ РїРѕР±РµРґРёС‚РµР»СЏ', 'нет победителя'],
+    ['РѕСЃР°РґР° Р·Р°РІРµСЂС€РµРЅР°', 'осада завершена'],
+    ['РџРѕР±РµРґРёС‚РµР»СЊ', 'Победитель'],
+    ['РЅРёРєС‚Рѕ РЅРµ Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°Р»СЃСЏ РЅР° РѕСЃР°РґСѓ', 'никто не зарегистрировался на осаду'],
+    ['Р•РґРёРЅСЃС‚РІРµРЅРЅР°СЏ Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°РЅРЅР°СЏ РіРёР»СЊРґРёСЏ Р·Р°Р±РёСЂР°РµС‚ Р·Р°РјРѕРє.', 'Единственная зарегистрированная гильдия забирает замок.'],
+  ];
+
+  return replacements.reduce((next, [from, to]) => next.split(from).join(to), value);
 };
 
 const normalizeCastleHistoryEntry = (entry: CastleHistoryEntry): CastleHistoryEntry => ({
@@ -345,17 +353,43 @@ const notifyPlayerIfRostered = (server: ServerState): ServerState => {
   return next;
 };
 
-export const normalizeSiegeState = (server: ServerState): ServerState => {
-  const baseCastles = normalizeCastles(server);
-  const castleIds = new Set(baseCastles.map((castle) => castle.id));
-  const guildIds = new Set(server.guilds.map((guild) => guild.id));
-  const memberIds = new Set([server.player.id, ...server.npcs.map((npc) => npc.id)]);
+const normalizeSiegeTextFields = (server: ServerState): ServerState => ({
+  ...server,
+  castles: (server.castles ?? []).map((castle) => ({
+    ...castle,
+    history: (castle.history ?? []).map(normalizeCastleHistoryEntry),
+  })),
+  siegeHistory: (server.siegeHistory ?? []).map(normalizeCastleHistoryEntry),
+  worldNews: (server.worldNews ?? []).map((entry) => ({
+    ...entry,
+    text: normalizeSiegeDisplayText(entry.text),
+  })),
+  notifications: (server.notifications ?? []).map((entry) => ({
+    ...entry,
+    text: normalizeSiegeDisplayText(entry.text),
+    lines: (entry.lines ?? []).map(normalizeSiegeDisplayText),
+  })),
+  currentSiegeRun: server.currentSiegeRun
+    ? {
+        ...server.currentSiegeRun,
+        log: (server.currentSiegeRun.log ?? []).map(normalizeSiegeDisplayText),
+      }
+    : server.currentSiegeRun,
+});
 
-  const siegeRosters = (server.siegeRosters ?? [])
+export const normalizeSiegeState = (server: ServerState): ServerState => {
+  const textServer = normalizeSiegeTextFields(server);
+  const baseCastles = normalizeCastles(textServer);
+  const castleIds = new Set(baseCastles.map((castle) => castle.id));
+  const guildIds = new Set(textServer.guilds.map((guild) => guild.id));
+  const memberIds = new Set([textServer.player.id, ...textServer.npcs.map((npc) => npc.id)]);
+  const context = createSiegeLookupContext(textServer);
+
+  const siegeRosters = (textServer.siegeRosters ?? [])
     .filter((roster) => castleIds.has(roster.castleId) && guildIds.has(roster.guildId))
     .map((roster) => {
-      const guild = server.guilds.find((entry) => entry.id === roster.guildId);
-      const strongest = guild ? chooseSiegeRosterMembers(server, guild, MAX_ROSTER_SIZE) : [];
+      const guild = context.guildById.get(roster.guildId);
+      const strongest = guild ? chooseSiegeRosterMembers(textServer, guild, MAX_ROSTER_SIZE, context) : [];
       const nextMembers = strongest.length >= MIN_ROSTER_SIZE
         ? strongest
         : Array.from(new Set(roster.memberIds)).filter((id) => memberIds.has(id));
@@ -364,11 +398,11 @@ export const normalizeSiegeState = (server: ServerState): ServerState => {
     .filter((roster) => roster.memberIds.length >= MIN_ROSTER_SIZE && roster.memberIds.length <= MAX_ROSTER_SIZE);
 
   const base: ServerState = {
-    ...server,
+    ...textServer,
     castles: baseCastles,
     siegeRosters,
-    siegeHistory: server.siegeHistory ?? [],
-    currentSiegeRun: server.currentSiegeRun?.status === 'active' ? server.currentSiegeRun : server.currentSiegeRun,
+    siegeHistory: textServer.siegeHistory ?? [],
+    currentSiegeRun: textServer.currentSiegeRun?.status === 'active' ? textServer.currentSiegeRun : textServer.currentSiegeRun,
   };
   return notifyPlayerIfRostered(autoRegisterNpcGuildsForOpenSieges(base));
 };
@@ -768,8 +802,8 @@ const finishSiegeWithoutCombat = (server: ServerState, castle: Castle, winnerGui
     currentSiegeRun: run,
     siegeHistory: [entry, ...(server.siegeHistory ?? [])].slice(0, 60),
   };
-  const winnerName = winnerGuildId ? server.guilds.find((guild) => guild.id === winnerGuildId)?.name ?? winnerGuildId : 'РЅРµС‚ РїРѕР±РµРґРёС‚РµР»СЏ';
-  return addNews(next, rng, 'guild', `${castle.name}: РѕСЃР°РґР° Р·Р°РІРµСЂС€РµРЅР°. РџРѕР±РµРґРёС‚РµР»СЊ: ${winnerName}.`, true);
+  const winnerName = winnerGuildId ? server.guilds.find((guild) => guild.id === winnerGuildId)?.name ?? winnerGuildId : 'нет победителя';
+  return addNews(next, rng, 'guild', `${castle.name}: осада завершена. Победитель: ${winnerName}.`, true);
 };
 
 export const autoResolveSiegeRun = (server: ServerState, castle: Castle, run: SiegeRun, rng: Rng): ServerState => {
@@ -788,14 +822,14 @@ export const autoResolveSiegeRun = (server: ServerState, castle: Castle, run: Si
 const openDueSiege = (server: ServerState, castle: Castle, rosters: SiegeRoster[], rng: Rng): ServerState => {
   const dueRosters = rosters.slice(0, MAX_GUILDS_PER_SIEGE);
   if (dueRosters.length <= 0) {
-    return finishSiegeWithoutCombat(server, castle, castle.ownerGuildId, [], rng, `${castle.name}: РЅРёРєС‚Рѕ РЅРµ Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°Р»СЃСЏ РЅР° РѕСЃР°РґСѓ.`);
+    return finishSiegeWithoutCombat(server, castle, castle.ownerGuildId, [], rng, `${castle.name}: никто не зарегистрировался на осаду.`);
   }
 
   const run = createSiegeRun(server, castle, dueRosters, rng);
 
   if (dueRosters.length === 1) {
     const winnerGuildId = dueRosters[0].guildId;
-    return finishSiege(server, castle, { ...run, status: 'finished', winnerGuildId, log: [...run.log, 'Р•РґРёРЅСЃС‚РІРµРЅРЅР°СЏ Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°РЅРЅР°СЏ РіРёР»СЊРґРёСЏ Р·Р°Р±РёСЂР°РµС‚ Р·Р°РјРѕРє.'] }, winnerGuildId, rng);
+    return finishSiege(server, castle, { ...run, status: 'finished', winnerGuildId, log: [...run.log, 'Единственная зарегистрированная гильдия забирает замок.'] }, winnerGuildId, rng);
   }
 
   const withRun = {

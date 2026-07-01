@@ -426,7 +426,7 @@ export const simulateActiveGuildWarsSummary = (server: ServerState, rng: Rng, ma
 export const finishExpiredGuildWars = (server: ServerState, rng: Rng): ServerState => {
   let changed = false;
   const wars = (server.guildWars ?? []).map((war) => {
-    if (war.status === 'active' && reached(server, war.endsDay, war.endsMinute)) { changed = true; return { ...war, status: 'finished' as const }; }
+    if ((war.status === 'active' || war.status === 'scheduled') && reached(server, war.endsDay, war.endsMinute)) { changed = true; return { ...war, status: 'finished' as const }; }
     return war;
   });
   return changed ? addNews({ ...server, guildWars: wars }, rng, 'guild', 'Война завершена.', false) : server;

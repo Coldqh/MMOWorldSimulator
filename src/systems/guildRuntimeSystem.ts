@@ -193,7 +193,7 @@ const finishExpiredWars = (server: ServerState): ServerState => {
 
 const activeWarExists = (server: ServerState, a: string, b: string) =>
   (server.guildWars ?? []).some((war) =>
-    war.status === 'active' &&
+    isOpenWarStatus(war.status) &&
     ((war.attackerGuildId === a && war.defenderGuildId === b) ||
       (war.attackerGuildId === b && war.defenderGuildId === a)),
   );
