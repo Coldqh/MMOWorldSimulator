@@ -1,4 +1,5 @@
 import type { QuestDefinition } from '../types/game';
+import { EXPANSION_QUESTS } from './level60Expansion';
 
 export const QUESTS: QuestDefinition[] = [
   {
@@ -319,6 +320,7 @@ export const QUESTS: QuestDefinition[] = [
     progressText: 'Пройди Вирмшпиль.',
     completeText: 'Вирмшпиль пройден.',
   },
+  ...EXPANSION_QUESTS,
 ];
 
 export const getQuestById = (id: string) => QUESTS.find((quest) => quest.id === id);

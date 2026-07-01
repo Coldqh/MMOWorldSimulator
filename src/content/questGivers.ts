@@ -1,4 +1,5 @@
 import type { QuestGiverDefinition } from '../types/game';
+import { EXPANSION_QUEST_GIVERS } from './level60Expansion';
 
 export const QUEST_GIVERS: QuestGiverDefinition[] = [
   {
@@ -57,6 +58,7 @@ export const QUEST_GIVERS: QuestGiverDefinition[] = [
     shortText: 'Вершина Вирмшпиля',
     questIds: ['quest_wyrmspire_cultists', 'quest_wyrmspire_glassbound', 'quest_glass_catacomb', 'quest_wyrmspire_raid'],
   },
+  ...EXPANSION_QUEST_GIVERS,
 ];
 
 export const getQuestGiverById = (id: string) => QUEST_GIVERS.find((giver) => giver.id === id);

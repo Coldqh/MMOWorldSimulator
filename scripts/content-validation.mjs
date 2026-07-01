@@ -50,6 +50,7 @@ const worldBaseSource = read('src/content/worldBase.ts');
 const worldExtraSource = read('src/content/worldExtraContent.ts');
 const worldRebalanceSource = read('src/content/worldRebalance.ts');
 const worldExtraRaidsSource = read('src/content/worldExtraRaids.ts');
+const expansionSource = exists('src/content/level60Expansion.ts') ? read('src/content/level60Expansion.ts') : '';
 const worldGlue = source(
   'src/content/world.ts',
   'src/content/worldFinalize.ts',
@@ -233,11 +234,13 @@ const setDefinitions = objectsFromArrays([[itemSetSource, ['GENERAL_SET_DEFINITI
 const lootTables = objectsFromArrays([
   [worldBaseSource, ['BASE_LOOT_TABLES']],
   [worldExtraSource, ['EXTRA_LOOT_TABLES']],
+  [expansionSource, ['EXPANSION_LOOT_TABLES']],
 ]).map((raw) => ({ id: stringProp(raw, 'id'), raw })).filter((entry) => entry.id);
 
 const zones = objectsFromArrays([
   [worldBaseSource, ['BASE_ZONES']],
   [worldExtraSource, ['EXTRA_ZONES']],
+  [expansionSource, ['EXPANSION_ZONES']],
 ]).map((raw) => {
   const range = levelRangeProp(raw) ?? [NaN, NaN];
   return {
@@ -252,6 +255,7 @@ const zones = objectsFromArrays([
 const spots = objectsFromArrays([
   [worldBaseSource, ['BASE_SPOTS']],
   [worldExtraSource, ['EXTRA_SPOTS']],
+  [expansionSource, ['EXPANSION_SPOTS']],
 ]).map((raw) => {
   const range = levelRangeProp(raw) ?? [NaN, NaN];
   return {
@@ -268,6 +272,7 @@ const mobs = objectsFromArrays([
   [worldBaseSource, ['BASE_MOBS']],
   [worldExtraSource, ['EXTRA_MOBS']],
   [worldRebalanceSource, ['REBALANCE_MOBS']],
+  [expansionSource, ['EXPANSION_MOBS']],
 ]).map((raw) => ({
   id: stringProp(raw, 'id'),
   name: stringProp(raw, 'name'),
@@ -281,6 +286,7 @@ const instances = objectsFromArrays([
   [worldBaseSource, ['BASE_DUNGEONS', 'BASE_RAIDS']],
   [worldExtraSource, ['EXTRA_DUNGEONS']],
   [worldExtraRaidsSource, ['EXTRA_RAIDS']],
+  [expansionSource, ['EXPANSION_DUNGEONS', 'EXPANSION_RAIDS']],
 ]).map((raw) => {
   const range = levelRangeProp(raw) ?? [NaN, NaN];
   return {
@@ -365,6 +371,8 @@ ok(worldGlue.includes('finalizeWorldContent'), 'world content passes through fin
 ok(worldGlue.includes('finalizeLootTables'), 'loot tables pass through finalizeLootTables');
 ok(worldGlue.includes('EXTRA_RAIDS'), 'EXTRA_RAIDS hook is wired');
 ok(worldGlue.includes('EXTRA_RAID_PATCHES'), 'EXTRA_RAID_PATCHES hook is wired');
+ok(worldGlue.includes('EXPANSION_RAIDS'), 'EXPANSION_RAIDS hook is wired');
+ok(worldGlue.includes('EXPANSION_DUNGEONS'), 'EXPANSION_DUNGEONS hook is wired');
 
 warning(setDefinitions.some((definition) => definition.level > 20), 'No generated sets above level 20 yet; level 21-60 content ladder is still empty');
 warning(instances.some((instance) => instance.max > 20), 'No dungeon/raid content above level 20 yet');

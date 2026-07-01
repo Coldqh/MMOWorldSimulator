@@ -19,14 +19,15 @@ import { EXTRA_RAID_PATCHES, EXTRA_RAIDS } from './worldExtraRaids';
 import { finalizeWorldContent } from './worldFinalize';
 import { rebalanceWorldContent } from './worldRebalance';
 import { WORLD_MOB_DEFINITIONS, WORLD_SPOT_DEFINITIONS } from './mobDefinitions';
+import { EXPANSION_DUNGEONS, EXPANSION_LOOT_TABLES, EXPANSION_RAIDS, EXPANSION_ZONES } from './level60Expansion';
 
 const WORLD = rebalanceWorldContent(finalizeWorldContent({
-  lootTables: [...BASE_LOOT_TABLES, ...EXTRA_LOOT_TABLES],
+  lootTables: [...BASE_LOOT_TABLES, ...EXTRA_LOOT_TABLES, ...EXPANSION_LOOT_TABLES],
   mobs: WORLD_MOB_DEFINITIONS,
   spots: WORLD_SPOT_DEFINITIONS,
-  zones: [...BASE_ZONES, ...EXTRA_ZONES],
-  dungeons: [...BASE_DUNGEONS, ...EXTRA_DUNGEONS],
-  raids: [...BASE_RAIDS, ...EXTRA_RAIDS],
+  zones: [...BASE_ZONES, ...EXTRA_ZONES, ...EXPANSION_ZONES],
+  dungeons: [...BASE_DUNGEONS, ...EXTRA_DUNGEONS, ...EXPANSION_DUNGEONS],
+  raids: [...BASE_RAIDS, ...EXTRA_RAIDS, ...EXPANSION_RAIDS],
   items: ITEMS,
   spotPatches: EXTRA_SPOT_PATCHES,
   dungeonPatches: EXTRA_DUNGEON_PATCHES,

@@ -80,7 +80,8 @@ assert(gameStore.indexOf('next = seedActiveGuildWarsIfEmpty(next);') < gameStore
 
 assert(!/const\\s+([A-Za-z_$][A-Za-z0-9_$]*)\\s*=\\s*const\\s+\\1\\s*=/.test(gameStore + siegeSystem + guildRuntime + guildWar), 'no duplicated const assignment markers');
 
-assert(pkg.scripts?.['content:check'] === 'node scripts/content-validation.mjs', 'content:check script exists');
+assert(pkg.scripts?.['content:check']?.includes('scripts/content-validation.mjs'), 'content:check script runs content validation');
+assert(pkg.scripts?.['content:check']?.includes('scripts/expansion-rule-validation.mjs'), 'content:check script runs expansion rule validation');
 assert(pkg.scripts?.['perf:scale'] === 'node scripts/perf-scale.mjs', 'perf:scale script exists');
 assert(contentValidation.includes('Content validation passed'), 'content validation script has pass output');
 assert(contentValidation.includes('unique(setDefinitions') || contentValidation.includes('set definition ids are unique'), 'content validation checks set ids');
