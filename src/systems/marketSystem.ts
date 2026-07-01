@@ -11,11 +11,11 @@ export const SYSTEM_MARKET_SELLER_IDS = [
   "system_market_cards",
 ] as const;
 
-export const MARKET_MIN_LISTINGS = 200;
-export const MARKET_MIN_ITEM_GROUPS = 60;
-export const MARKET_MIN_EQUIPMENT_LISTINGS = 100;
-export const MARKET_MIN_CONSUMABLE_MATERIAL_LISTINGS = 30;
-export const MARKET_MIN_PLAYER_LEVEL_LISTINGS = 30;
+export const MARKET_MIN_LISTINGS = 420;
+export const MARKET_MIN_ITEM_GROUPS = 140;
+export const MARKET_MIN_EQUIPMENT_LISTINGS = 190;
+export const MARKET_MIN_CONSUMABLE_MATERIAL_LISTINGS = 60;
+export const MARKET_MIN_PLAYER_LEVEL_LISTINGS = 70;
 
 export const estimateItemPrice = (item: ItemDefinition): number => calculateItemPrice(item);
 
@@ -123,11 +123,11 @@ export const generateFullMarket = (
 
   const out: MarketListing[] = [];
 
-  addListingsForPool(out, uniqueById([...starterEquipment, ...playerBandEquipment, ...generalEquipment.slice(0, 80)]), npcSellerIds, rng, server.serverDay, 2, 0, 120);
-  addListingsForPool(out, uniqueById(dungeonEquipment.slice(0, 80)), npcSellerIds, rng, server.serverDay, 1, 30, 220);
-  addListingsForPool(out, uniqueById(raidEquipment.slice(0, 40)), npcSellerIds, rng, server.serverDay, 1, 80, 260);
+  addListingsForPool(out, uniqueById([...starterEquipment, ...playerBandEquipment, ...generalEquipment]), npcSellerIds, rng, server.serverDay, 2, 0, 120);
+  addListingsForPool(out, uniqueById(dungeonEquipment), npcSellerIds, rng, server.serverDay, 1, 30, 220);
+  addListingsForPool(out, uniqueById(raidEquipment), npcSellerIds, rng, server.serverDay, 1, 80, 260);
   addListingsForPool(out, consumablesMaterials, npcSellerIds, rng, server.serverDay, 5, 0, 90);
-  addListingsForPool(out, cards.slice(0, 50), npcSellerIds, rng, server.serverDay, 1, 80, 260);
+  addListingsForPool(out, cards, npcSellerIds, rng, server.serverDay, 1, 80, 260);
 
   const playerLevelItems = tradeable.filter((item) => isPlayerLevelItem(item, playerLevel));
   let guard = 0;
