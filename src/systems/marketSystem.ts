@@ -117,19 +117,15 @@ export const generateFullMarket = (
   });
 
   const starterEquipment = equipment.filter((item) => (item.levelReq ?? 1) <= 5);
-  const generalEquipment = equipment.filter((item) => !String(item.id).includes('raid') && !String(item.id).includes('thorn'));
-  const dungeonEquipment = equipment.filter((item) =>
-    String(item.id).includes('old_lantern') ||
-    String(item.id).includes('blackroot') ||
-    String(item.id).includes('mire_depths') ||
-    String(item.id).includes('frost_vault') ||
-    String(item.id).includes('glass_catacomb'),
-  );
+  const generalEquipment = equipment.filter((item) => item.sourceType === undefined || item.sourceType === 'general' || item.sourceType === 'world');
+  const dungeonEquipment = equipment.filter((item) => item.sourceType === 'dungeon');
+  const raidEquipment = equipment.filter((item) => item.sourceType === 'raid');
 
   const out: MarketListing[] = [];
 
   addListingsForPool(out, uniqueById([...starterEquipment, ...playerBandEquipment, ...generalEquipment.slice(0, 80)]), npcSellerIds, rng, server.serverDay, 2, 0, 120);
   addListingsForPool(out, uniqueById(dungeonEquipment.slice(0, 80)), npcSellerIds, rng, server.serverDay, 1, 30, 220);
+  addListingsForPool(out, uniqueById(raidEquipment.slice(0, 40)), npcSellerIds, rng, server.serverDay, 1, 80, 260);
   addListingsForPool(out, consumablesMaterials, npcSellerIds, rng, server.serverDay, 5, 0, 90);
   addListingsForPool(out, cards.slice(0, 50), npcSellerIds, rng, server.serverDay, 1, 80, 260);
 

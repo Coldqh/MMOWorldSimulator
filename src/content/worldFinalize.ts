@@ -13,6 +13,7 @@ export interface WorldContentInput {
   items: ItemDefinition[];
   spotPatches?: SpotPatch[];
   dungeonPatches?: DungeonPatch[];
+  raidPatches?: DungeonPatch[];
   mobPatches?: MobPatch[];
 }
 
@@ -178,7 +179,7 @@ export const finalizeWorldContent = (input: WorldContentInput): WorldContentOutp
       description: dungeon.description.replace(/пати\s*\d+/i, 'пати 5'),
     }))
     .sort((a, b) => a.id.localeCompare(b.id));
-  const raids = uniqueById(input.raids.map(cloneDungeon))
+  const raids = applyDungeonPatches(uniqueById(input.raids.map(cloneDungeon)), input.raidPatches)
     .map(normalizeBossFloors)
     .sort((a, b) => a.id.localeCompare(b.id));
   const forcedBossMobIds = bossFloorMobIds([...dungeons, ...raids]);

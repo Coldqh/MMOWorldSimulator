@@ -30,6 +30,7 @@ const requiredFiles = [
   'src/content/lootFinalize.ts',
   'src/content/mobDefinitions.ts',
   'src/content/worldRebalance.ts',
+  'src/content/worldExtraRaids.ts',
 ];
 
 requiredFiles.forEach((filePath) => ok(exists(filePath), `required content file exists: ${filePath}`));
@@ -48,11 +49,13 @@ const itemContentSource = source(
 const worldBaseSource = read('src/content/worldBase.ts');
 const worldExtraSource = read('src/content/worldExtraContent.ts');
 const worldRebalanceSource = read('src/content/worldRebalance.ts');
+const worldExtraRaidsSource = read('src/content/worldExtraRaids.ts');
 const worldGlue = source(
   'src/content/world.ts',
   'src/content/worldFinalize.ts',
   'src/content/lootFinalize.ts',
   'src/content/worldRebalance.ts',
+  'src/content/worldExtraRaids.ts',
 );
 
 const findArrayBody = (text, name) => {
@@ -277,6 +280,7 @@ const mobs = objectsFromArrays([
 const instances = objectsFromArrays([
   [worldBaseSource, ['BASE_DUNGEONS', 'BASE_RAIDS']],
   [worldExtraSource, ['EXTRA_DUNGEONS']],
+  [worldExtraRaidsSource, ['EXTRA_RAIDS']],
 ]).map((raw) => {
   const range = levelRangeProp(raw) ?? [NaN, NaN];
   return {
@@ -359,8 +363,9 @@ ok(itemContentSource.includes('finalizeItems'), 'items pass through finalizeItem
 ok(itemContentSource.includes('buildGeneratedItems'), 'generated item factory is wired');
 ok(worldGlue.includes('finalizeWorldContent'), 'world content passes through finalizeWorldContent');
 ok(worldGlue.includes('finalizeLootTables'), 'loot tables pass through finalizeLootTables');
+ok(worldGlue.includes('EXTRA_RAIDS'), 'EXTRA_RAIDS hook is wired');
+ok(worldGlue.includes('EXTRA_RAID_PATCHES'), 'EXTRA_RAID_PATCHES hook is wired');
 
-warning(worldGlue.includes('EXTRA_RAIDS'), 'EXTRA_RAIDS hook is not wired yet; raid expansion still needs a content hook');
 warning(setDefinitions.some((definition) => definition.level > 20), 'No generated sets above level 20 yet; level 21-60 content ladder is still empty');
 warning(instances.some((instance) => instance.max > 20), 'No dungeon/raid content above level 20 yet');
 

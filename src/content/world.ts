@@ -15,6 +15,7 @@ import {
   EXTRA_SPOT_PATCHES,
   EXTRA_ZONES,
 } from './worldExtraContent';
+import { EXTRA_RAID_PATCHES, EXTRA_RAIDS } from './worldExtraRaids';
 import { finalizeWorldContent } from './worldFinalize';
 import { rebalanceWorldContent } from './worldRebalance';
 import { WORLD_MOB_DEFINITIONS, WORLD_SPOT_DEFINITIONS } from './mobDefinitions';
@@ -25,10 +26,11 @@ const WORLD = rebalanceWorldContent(finalizeWorldContent({
   spots: WORLD_SPOT_DEFINITIONS,
   zones: [...BASE_ZONES, ...EXTRA_ZONES],
   dungeons: [...BASE_DUNGEONS, ...EXTRA_DUNGEONS],
-  raids: [...BASE_RAIDS],
+  raids: [...BASE_RAIDS, ...EXTRA_RAIDS],
   items: ITEMS,
   spotPatches: EXTRA_SPOT_PATCHES,
   dungeonPatches: EXTRA_DUNGEON_PATCHES,
+  raidPatches: EXTRA_RAID_PATCHES,
   mobPatches: EXTRA_MOB_PATCHES,
 }));
 

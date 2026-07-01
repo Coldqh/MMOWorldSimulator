@@ -444,24 +444,17 @@ const finishArenaVictory = (server: ServerState, combat: CombatState, rng: Rng):
 };
 
 
-const instanceSetIds: Record<string, string[]> = {
-  old_lantern_cellar: ['dungeon_old_lantern'],
-  thorn_crown_crypt: ['dungeon_thorn_crypt'],
-  blackroot_watch: ['dungeon_blackroot'],
-  mire_depths: ['dungeon_mire_depths'],
-  frost_vault: ['dungeon_frost_vault'],
-  glass_catacomb: ['dungeon_glass_catacomb'],
-  wyrmspire_first_raid: ['raid_wyrmspire', 'raid_wyrmspire_legendary'],
-};
-
 const pickBossPartyDrop = (combat: CombatState, mobIds: string[], rng: Rng, forcePlayerClass = false): ItemDefinition | undefined => {
-  const setIds = instanceSetIds[combat.sourceId] ?? [];
   const playerClassId = combat.player.classId;
   const playerLevel = combat.player.level;
   const sourceLevel = mobIds.map((id) => getMobById(id)?.level ?? playerLevel).sort((a, b) => b - a)[0] ?? playerLevel;
+  const sourceType = combat.source === 'raid' ? 'raid' : combat.source === 'dungeon' ? 'dungeon' : undefined;
 
   const setItems = ITEMS.filter((item) => {
-    if (!item.slot || !item.setId || !setIds.includes(item.setId)) return false;
+    if (!item.slot || !item.setId) return false;
+    if (!sourceType) return false;
+    if (item.sourceType !== sourceType) return false;
+    if (item.sourceId !== combat.sourceId) return false;
     if (item.levelReq > Math.max(playerLevel + 2, sourceLevel + 2)) return false;
     return true;
   });
