@@ -125,3 +125,11 @@ ok(marketSource.includes('MARKET_MIN_ENHANCEMENT_STONE_GROUPS'), 'market enhance
 var marketSelectorSource = read('src/ui/selectors/marketSelectors.ts');
 ok(marketSelectorSource.includes('MarketLevelBand'), 'market level band filter is wired');
 ok(marketSelectorSource.includes('marketBandForLevelReq'), 'market level band selector is wired');
+
+
+var marketSource = read('src/systems/marketSystem.ts');
+ok(marketSource.includes('addListingsForPool(out, enhancementStones'), 'market explicit enhancement stone pool is wired');
+ok(marketSource.includes('addListingsForPool(out, uniqueById(midPlusItems)'), 'market explicit mid-plus pool is wired');
+ok(marketSource.includes('addListingsForPool(out, uniqueById(highPlusItems)'), 'market explicit high-plus pool is wired');
+ok(marketSource.includes('addListingsForPool(out, uniqueById(maxItems)'), 'market explicit max pool is wired');
+ok(marketSource.includes('availableMarketCoverage'), 'market dynamic coverage thresholds are wired');

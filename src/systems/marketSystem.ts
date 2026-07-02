@@ -218,6 +218,17 @@ export const getMarketDiagnostics = (server: ServerState): MarketDiagnostics => 
     if (isEnhancementStone(item)) enhancementStoneGroups.add(item.id);
 });
 
+  const availableMarketCoverage = ITEMS.filter(isMarketTradeableItem);
+  const availableMidPlusGroups = new Set(availableMarketCoverage.filter((item) => (item.levelReq ?? 1) >= 21).map((item) => item.id)).size;
+  const availableHighPlusGroups = new Set(availableMarketCoverage.filter((item) => (item.levelReq ?? 1) >= 41).map((item) => item.id)).size;
+  const availableMaxGroups = new Set(availableMarketCoverage.filter((item) => (item.levelReq ?? 1) >= 60).map((item) => item.id)).size;
+  const availableEnhancementStoneGroups = new Set(availableMarketCoverage.filter(isEnhancementStone).map((item) => item.id)).size;
+
+  const minMidPlusGroups = Math.min(MARKET_MIN_MID_PLUS_GROUPS, availableMidPlusGroups);
+  const minHighPlusGroups = Math.min(MARKET_MIN_HIGH_PLUS_GROUPS, availableHighPlusGroups);
+  const minMaxGroups = Math.min(MARKET_MIN_MAX_GROUPS, availableMaxGroups);
+  const minEnhancementStoneGroups = Math.min(MARKET_MIN_ENHANCEMENT_STONE_GROUPS, availableEnhancementStoneGroups);
+
   const brokenReasons: string[] = [];
   if ((server.market ?? []).length < MARKET_MIN_LISTINGS) brokenReasons.push("too_few_listings");
   if (groups.size < MARKET_MIN_ITEM_GROUPS) brokenReasons.push("too_few_item_groups");
@@ -226,10 +237,10 @@ export const getMarketDiagnostics = (server: ServerState): MarketDiagnostics => 
   if (playerLevelListings < MARKET_MIN_PLAYER_LEVEL_LISTINGS) brokenReasons.push("too_few_player_level_listings");
   if (invalidItemRefs > 0) brokenReasons.push("invalid_item_refs");
   if (invalidSellerRefs > 0) brokenReasons.push("invalid_seller_refs");
-  if (midPlusGroups.size < MARKET_MIN_MID_PLUS_GROUPS) brokenReasons.push("too_few_mid_plus_groups");
-  if (highPlusGroups.size < MARKET_MIN_HIGH_PLUS_GROUPS) brokenReasons.push("too_few_high_plus_groups");
-  if (maxGroups.size < MARKET_MIN_MAX_GROUPS) brokenReasons.push("too_few_max_groups");
-  if (enhancementStoneGroups.size < MARKET_MIN_ENHANCEMENT_STONE_GROUPS) brokenReasons.push("too_few_enhancement_stones");
+  if (midPlusGroups.size < minMidPlusGroups) brokenReasons.push("too_few_mid_plus_groups");
+  if (highPlusGroups.size < minHighPlusGroups) brokenReasons.push("too_few_high_plus_groups");
+  if (maxGroups.size < minMaxGroups) brokenReasons.push("too_few_max_groups");
+  if (enhancementStoneGroups.size < minEnhancementStoneGroups) brokenReasons.push("too_few_enhancement_stones");
 
   return {
     listings: (server.market ?? []).length,
