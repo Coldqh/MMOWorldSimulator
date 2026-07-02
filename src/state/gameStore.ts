@@ -138,7 +138,7 @@ import {
   type SiegeMoveDirection,
 } from "../systems/siegeSystem";
 
-import type { CombatState, GameModal, GuildFocus, GuildTier, LootChoice, ScreenId, ServerNotification, ServerState } from "../types/game";
+import type { CombatState, DungeonDifficulty, GameModal, GuildFocus, GuildTier, LootChoice, ScreenId, ServerNotification, ServerState } from "../types/game";
 
 interface GameStore {
   server: ServerState;
@@ -164,7 +164,7 @@ interface GameStore {
   enterSpot: (spotId: string) => void;
   leaveSpot: () => void;
   startFarm: (spotId: string, mobId?: string) => void;
-  startDungeon: (dungeonId: string) => void;
+  startDungeon: (dungeonId: string, difficulty?: DungeonDifficulty) => void;
   refreshPartyFinder: () => void;
   createPartyListing: (dungeonId: string, visibility?: "public" | "guild_internal") => void;
   joinPartyListing: (listingId: string) => void;
@@ -636,7 +636,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     commit(set, server, combat, null);
   },
 
-  startDungeon: (dungeonId) => {
+  startDungeon: (dungeonId, difficulty = "normal") => {
     const { server, combat } = get();
     if (combat || !server.characterCreated || server.currentDungeonRun) return;
     const dungeon = getDungeonById(dungeonId);
@@ -673,7 +673,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
 
-    const result = createPlayerPartyListing(server, dungeonId, rng, "public");
+    const result = createPlayerPartyListing(server, dungeonId, rng, "public", difficulty);
     commitFast(set, result.server, undefined, result.modal);
     set({ activeScreen: "partyFinder" });
   },

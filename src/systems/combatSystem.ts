@@ -583,7 +583,7 @@ const finishDefeat = (server: ServerState, combat: CombatState, rng: Rng): { ser
     ...server,
     location: isGroupInstance ? server.location : { mode: 'city' },
     player,
-    currentDungeonRun: isGroupInstance && server.currentDungeonRun ? { ...server.currentDungeonRun, currentEncounterIndex: 0, status: 'betweenFloors' } : server.currentDungeonRun,
+    currentDungeonRun: isGroupInstance && server.currentDungeonRun ? { ...server.currentDungeonRun, deaths: (server.currentDungeonRun.deaths ?? 0) + 1, currentEncounterIndex: 0, status: 'betweenFloors' } : server.currentDungeonRun,
     npcs: combat.source === 'arena' && combat.enemyNpcId ? server.npcs.map((npc) => npc.id === combat.enemyNpcId ? { ...npc, arenaRating: npc.arenaRating + rng.int(10, 22) } : npc) : server.npcs
   };
   if (!isGroupInstance) nextServer = addNews(nextServer, rng, 'system', `${server.player.name}: смерть. Город.`, false);

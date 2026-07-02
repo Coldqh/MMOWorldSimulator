@@ -183,6 +183,9 @@ export interface Player {
   arenaRating: number;
   lastWarAttackDay?: number;
   lastWarAttackMinute?: number;
+  dungeonMarks?: number;
+  lastDailyDungeonBonusDay?: number;
+  lastWeeklyDungeonChestWeek?: number;
 }
 
 export interface NpcPlayer {
@@ -386,6 +389,7 @@ export interface PartyFinderListing {
   note?: string;
   waitAttempts?: number;
   log?: string[];
+  difficulty?: DungeonDifficulty;
 }
 
 export type ContractCategory = "daily" | "weekly";
@@ -582,6 +586,29 @@ export interface DungeonDefinition {
   floors: DungeonFloorDefinition[];
 }
 
+export type DungeonDifficulty = "normal" | "hard" | "mythic";
+export type DungeonRunRank = "S" | "A" | "B" | "C" | "Fail";
+
+export interface DungeonRunResult {
+  id: Id;
+  dungeonId: Id;
+  difficulty: DungeonDifficulty;
+  rank: DungeonRunRank;
+  success: boolean;
+  deaths: number;
+  encountersCleared: number;
+  totalEncounters: number;
+  durationMinutes: number;
+  marks: number;
+  dailyBonus: boolean;
+  weeklyBonus: boolean;
+  gold: number;
+  lootItemIds: Id[];
+  lines: string[];
+  completedDay: number;
+  completedMinute: number;
+}
+
 export interface DungeonRunState {
   id: Id;
   dungeonId: Id;
@@ -595,6 +622,9 @@ export interface DungeonRunState {
   playerClassBossLootDropped?: boolean;
   startedDay: number;
   startedMinute: number;
+  difficulty?: DungeonDifficulty;
+  encountersCleared?: number;
+  deaths?: number;
 }
 
 export interface NewsEntry {
@@ -772,6 +802,7 @@ export interface ServerState {
   siegeRosters?: SiegeRoster[];
   currentSiegeRun?: SiegeRun;
   siegeHistory?: CastleHistoryEntry[];
+  lastDungeonRunResult?: DungeonRunResult;
 }
 
 export type CombatTeamId = "teamA" | "teamB";

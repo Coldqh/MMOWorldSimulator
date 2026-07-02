@@ -133,3 +133,14 @@ ok(marketSource.includes('addListingsForPool(out, uniqueById(midPlusItems)'), 'm
 ok(marketSource.includes('addListingsForPool(out, uniqueById(highPlusItems)'), 'market explicit high-plus pool is wired');
 ok(marketSource.includes('addListingsForPool(out, uniqueById(maxItems)'), 'market explicit max pool is wired');
 ok(marketSource.includes('availableMarketCoverage'), 'market dynamic coverage thresholds are wired');
+
+
+var dungeonSource = read('src/systems/dungeonSystem.ts');
+ok(dungeonSource.includes('DUNGEON_DIFFICULTY_CONFIG'), 'dungeon run difficulty is wired');
+ok(dungeonSource.includes('completeDungeonRunReward'), 'dungeon completion reward is wired');
+ok(dungeonSource.includes('Dungeon Marks'), 'dungeon marks reward is wired');
+ok(dungeonSource.includes('lastDungeonRunResult'), 'dungeon last result state is wired');
+
+var dungeonScreenSource = read('src/ui/screens/DungeonScreen.tsx');
+ok(dungeonScreenSource.includes('Dungeon Run 2.0'), 'dungeon run 2.0 screen is wired');
+ok(dungeonScreenSource.includes('Dungeon Marks'), 'dungeon marks UI is wired');

@@ -6,6 +6,7 @@ import type { Rng } from '../engine/rng';
 import { uid } from '../engine/rng';
 import type {
   DungeonDefinition,
+  DungeonDifficulty,
   GameModal,
   NpcPlayer,
   PartyFinderListing,
@@ -207,6 +208,7 @@ const makeListing = (
   visibility: PartyListingVisibility,
   guildId?: string,
   note?: string,
+  difficulty: DungeonDifficulty = 'normal',
 ): PartyFinderListing => {
   const expires = addMinutes(server, visibility === 'public' ? rng.int(90, 240) : rng.int(160, 420));
   const requirements = getDungeonPartyRequirement(dungeon);
@@ -229,6 +231,7 @@ const makeListing = (
     expiresDay: expires.day,
     expiresMinute: expires.minute,
     note,
+    difficulty,
     waitAttempts: 0,
     log: leaderType === 'player' ? ['Группа создана. Ждём отклики.'] : ['Группа появилась в поиске.'],
   };
@@ -461,7 +464,7 @@ const modal = (rng: Rng, title: string, text: string, lines: string[] = []): Gam
   lines,
 });
 
-export const createPlayerPartyListing = (server: ServerState, dungeonId: string, rng: Rng, visibility: PartyListingVisibility = 'public') => {
+export const createPlayerPartyListing = (server: ServerState, dungeonId: string, rng: Rng, visibility: PartyListingVisibility = 'public', difficulty: DungeonDifficulty = 'normal') => {
   const dungeon = getDungeonById(dungeonId);
   if (!dungeon) return { server, modal: modal(rng, 'Поиск пати', 'Контент не найден.') };
 
@@ -470,7 +473,7 @@ export const createPlayerPartyListing = (server: ServerState, dungeonId: string,
 
   const guild = guildById(server, server.player.guildId);
   const finalVisibility: PartyListingVisibility = visibility === 'guild_internal' && guild ? 'guild_internal' : 'public';
-  const listing = makeListing(server, rng, dungeon, server.player.id, 'player', finalVisibility, finalVisibility === 'guild_internal' ? guild?.id : server.player.guildId, finalVisibility === 'guild_internal' ? 'Гильдейский забег.' : 'Группа игрока.');
+  const listing = makeListing(server, rng, dungeon, server.player.id, 'player', finalVisibility, finalVisibility === 'guild_internal' ? guild?.id : server.player.guildId, finalVisibility === 'guild_internal' ? 'Гильдейский забег.' : 'Группа игрока.', difficulty);
 
   const withoutOldPlayerListings = (server.partyFinderListings ?? []).filter((entry) => entry.leaderId !== server.player.id && !entry.memberIds.includes(server.player.id));
   const next = {
@@ -731,6 +734,9 @@ export const startPartyFromListing = (server: ServerState, listingId: string, rn
     startedDay: server.serverDay,
     startedMinute: server.currentMinute,
     contentType: (dungeon.contentType ?? 'dungeon') as 'dungeon' | 'raid',
+    difficulty: listing.difficulty ?? 'normal',
+    encountersCleared: 0,
+    deaths: 0,
   };
 
   const next = {
