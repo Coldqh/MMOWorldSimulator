@@ -5,7 +5,7 @@ import { useGameStore } from "../../state/gameStore";
 import { getSellPrice, estimateItemPrice } from "../../systems/marketSystem";
 import type { EquipmentSlot } from "../../types/game";
 import { ItemLine } from "../components/ItemLine";
-import { buildMarketViewModel, type MarketCategory } from "../selectors/marketSelectors";
+import { buildMarketViewModel, type MarketCategory, type MarketLevelBand } from "../selectors/marketSelectors";
 
 const priceMark = (percent: number) =>
   percent === 0 ? "0%" : percent > 0 ? `+${percent}%` : `${percent}%`;
@@ -30,6 +30,14 @@ const categoryLabel: Record<MarketCategory, string> = {
   card: "Карты",
 };
 
+const levelBandLabel: Record<MarketLevelBand, string> = {
+  all: "Все уровни",
+  low: "Low 1–20",
+  mid: "Mid 21–40",
+  high: "High 41–59",
+  max: "Max 60",
+};
+
 export const MarketScreen = () => {
   const server = useGameStore((state) => state.server);
   const buy = useGameStore((state) => state.buyMarketListing);
@@ -42,16 +50,17 @@ export const MarketScreen = () => {
   const [category, setCategory] = useState<MarketCategory>("all");
   const [classFilter, setClassFilter] = useState("all");
   const [slotFilter, setSlotFilter] = useState<EquipmentSlot | "">("");
-  const [visibleLimit, setVisibleLimit] = useState(80);
+  const [visibleLimit, setVisibleLimit] = useState(160);
+  const [levelBand, setLevelBand] = useState<MarketLevelBand>("all");
   const inCity = server.location.mode === "city";
 
   useEffect(() => {
-    setVisibleLimit(80);
-  }, [category, classFilter, slotFilter]);
+    setVisibleLimit(160);
+  }, [category, classFilter, slotFilter, levelBand]);
 
   const marketView = useMemo(
-    () => buildMarketViewModel(server, { category, classFilter, slotFilter, visibleLimit }),
-    [server, category, classFilter, slotFilter, visibleLimit],
+    () => buildMarketViewModel(server, { category, classFilter, slotFilter, visibleLimit, levelBand }),
+    [server, category, classFilter, slotFilter, visibleLimit, levelBand],
   );
 
   useEffect(() => {
@@ -97,7 +106,11 @@ export const MarketScreen = () => {
             <div className="list-line"><span>materials</span><strong>{marketDiagnostics.consumableMaterial}</strong></div>
             <div className="list-line"><span>cards</span><strong>{marketDiagnostics.cards}</strong></div>
             <div className="list-line"><span>playerLevelListings</span><strong>{marketDiagnostics.playerLevelListings}</strong></div>
-            <div className="list-line"><span>filter</span><strong>{category} / {classFilter} / {slotFilter || "all"}</strong></div>
+            <div className="list-line"><span>midPlusGroups</span><strong>{marketDiagnostics.midPlusGroups}</strong></div>
+            <div className="list-line"><span>highPlusGroups</span><strong>{marketDiagnostics.highPlusGroups}</strong></div>
+            <div className="list-line"><span>maxGroups</span><strong>{marketDiagnostics.maxGroups}</strong></div>
+            <div className="list-line"><span>stoneGroups</span><strong>{marketDiagnostics.enhancementStoneGroups}</strong></div>
+            <div className="list-line"><span>filter</span><strong>{category} / {levelBand} / {classFilter} / {slotFilter || "all"}</strong></div>
             <div className="list-line"><span>broken</span><strong>{marketDiagnostics.brokenReasons.join(", ") || "no"}</strong></div>
           </div>
         </section>
@@ -166,8 +179,8 @@ export const MarketScreen = () => {
               })}
             </div>
             {marketView.hasMore && (
-              <button className="wide-button" onClick={() => setVisibleLimit((value) => value + 80)}>
-                Показать ещё 80
+              <button className="wide-button" onClick={() => setVisibleLimit((value) => value + 160)}>
+                Показать ещё 160
               </button>
             )}
           </section>

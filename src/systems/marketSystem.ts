@@ -11,11 +11,15 @@ export const SYSTEM_MARKET_SELLER_IDS = [
   "system_market_cards",
 ] as const;
 
-export const MARKET_MIN_LISTINGS = 420;
-export const MARKET_MIN_ITEM_GROUPS = 140;
-export const MARKET_MIN_EQUIPMENT_LISTINGS = 190;
-export const MARKET_MIN_CONSUMABLE_MATERIAL_LISTINGS = 60;
-export const MARKET_MIN_PLAYER_LEVEL_LISTINGS = 70;
+export const MARKET_MIN_LISTINGS = 620;
+export const MARKET_MIN_ITEM_GROUPS = 210;
+export const MARKET_MIN_EQUIPMENT_LISTINGS = 260;
+export const MARKET_MIN_CONSUMABLE_MATERIAL_LISTINGS = 120;
+export const MARKET_MIN_PLAYER_LEVEL_LISTINGS = 100;
+export const MARKET_MIN_MID_PLUS_GROUPS = 90;
+export const MARKET_MIN_HIGH_PLUS_GROUPS = 45;
+export const MARKET_MIN_MAX_GROUPS = 20;
+export const MARKET_MIN_ENHANCEMENT_STONE_GROUPS = 20;
 
 export const estimateItemPrice = (item: ItemDefinition): number => calculateItemPrice(item);
 
@@ -33,6 +37,9 @@ const isConsumableMaterialMarketItem = (item: ItemDefinition) =>
 
 const isPlayerLevelItem = (item: ItemDefinition, playerLevel: number) =>
   (item.levelReq ?? 1) <= Math.max(1, playerLevel + 2);
+
+const isEnhancementStone = (item: ItemDefinition) =>
+  ((item.type === "material" && item.id.includes("enhance_stone")) || item.id === "sharpening_stone");
 
 export const isSystemMarketSeller = (sellerId: Id) =>
   (SYSTEM_MARKET_SELLER_IDS as readonly string[]).includes(sellerId);
@@ -109,6 +116,10 @@ export const generateFullMarket = (
   const equipment = tradeable.filter(isEquipmentMarketItem);
   const consumablesMaterials = tradeable.filter(isConsumableMaterialMarketItem);
   const cards = tradeable.filter((item) => item.type === "card");
+  const enhancementStones = tradeable.filter(isEnhancementStone);
+  const midPlusItems = tradeable.filter((item) => (item.levelReq ?? 1) >= 21);
+  const highPlusItems = tradeable.filter((item) => (item.levelReq ?? 1) >= 41);
+  const maxItems = tradeable.filter((item) => (item.levelReq ?? 1) >= 60);
 
   const playerLevel = Math.max(1, server.player?.level ?? 1);
   const playerBandEquipment = equipment.filter((item) => {
@@ -160,6 +171,10 @@ export type MarketDiagnostics = {
   invalidItemRefs: number;
   invalidSellerRefs: number;
   playerLevelListings: number;
+  midPlusGroups: number;
+  highPlusGroups: number;
+  maxGroups: number;
+  enhancementStoneGroups: number;
   brokenReasons: string[];
 };
 
@@ -173,6 +188,10 @@ export const getMarketDiagnostics = (server: ServerState): MarketDiagnostics => 
   let invalidItemRefs = 0;
   let invalidSellerRefs = 0;
   let playerLevelListings = 0;
+  const midPlusGroups = new Set<string>();
+  const highPlusGroups = new Set<string>();
+  const maxGroups = new Set<string>();
+  const enhancementStoneGroups = new Set<string>();
 
   (server.market ?? []).forEach((listing) => {
     const itemId = normalizeLegacyItemId(listing.itemId);
@@ -192,7 +211,12 @@ export const getMarketDiagnostics = (server: ServerState): MarketDiagnostics => 
     if (isConsumableMaterialMarketItem(item)) consumableMaterial += 1;
     if (item.type === "card") cards += 1;
     if (isPlayerLevelItem(item, server.player.level)) playerLevelListings += 1;
-  });
+  
+    if ((item.levelReq ?? 1) >= 21) midPlusGroups.add(item.id);
+    if ((item.levelReq ?? 1) >= 41) highPlusGroups.add(item.id);
+    if ((item.levelReq ?? 1) >= 60) maxGroups.add(item.id);
+    if (isEnhancementStone(item)) enhancementStoneGroups.add(item.id);
+});
 
   const brokenReasons: string[] = [];
   if ((server.market ?? []).length < MARKET_MIN_LISTINGS) brokenReasons.push("too_few_listings");
@@ -202,6 +226,10 @@ export const getMarketDiagnostics = (server: ServerState): MarketDiagnostics => 
   if (playerLevelListings < MARKET_MIN_PLAYER_LEVEL_LISTINGS) brokenReasons.push("too_few_player_level_listings");
   if (invalidItemRefs > 0) brokenReasons.push("invalid_item_refs");
   if (invalidSellerRefs > 0) brokenReasons.push("invalid_seller_refs");
+  if (midPlusGroups.size < MARKET_MIN_MID_PLUS_GROUPS) brokenReasons.push("too_few_mid_plus_groups");
+  if (highPlusGroups.size < MARKET_MIN_HIGH_PLUS_GROUPS) brokenReasons.push("too_few_high_plus_groups");
+  if (maxGroups.size < MARKET_MIN_MAX_GROUPS) brokenReasons.push("too_few_max_groups");
+  if (enhancementStoneGroups.size < MARKET_MIN_ENHANCEMENT_STONE_GROUPS) brokenReasons.push("too_few_enhancement_stones");
 
   return {
     listings: (server.market ?? []).length,
@@ -213,6 +241,10 @@ export const getMarketDiagnostics = (server: ServerState): MarketDiagnostics => 
     invalidItemRefs,
     invalidSellerRefs,
     playerLevelListings,
+    midPlusGroups: midPlusGroups.size,
+    highPlusGroups: highPlusGroups.size,
+    maxGroups: maxGroups.size,
+    enhancementStoneGroups: enhancementStoneGroups.size,
     brokenReasons,
   };
 };

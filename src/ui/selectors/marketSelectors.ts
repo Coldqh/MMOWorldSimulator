@@ -3,12 +3,14 @@ import { estimateItemPrice, getMarketDiagnostics, isSystemMarketSeller } from ".
 import type { EquipmentSlot, ServerState } from "../../types/game";
 
 export type MarketCategory = "all" | "equipment" | "consumable" | "material" | "card";
+export type MarketLevelBand = "all" | "low" | "mid" | "high" | "max";
 
 export type MarketFilters = {
   category: MarketCategory;
   classFilter: string;
   slotFilter: EquipmentSlot | "";
   visibleLimit: number;
+  levelBand?: MarketLevelBand;
 };
 
 type MarketListing = ServerState["market"][number];
@@ -43,6 +45,13 @@ const systemSellerLabel: Record<string, string> = {
   system_market_cards: "Карточный рынок",
 };
 
+const marketBandForLevelReq = (levelReq = 1): MarketLevelBand => {
+  if (levelReq >= 60) return "max";
+  if (levelReq >= 41) return "high";
+  if (levelReq >= 21) return "mid";
+  return "low";
+};
+
 const marketLevelSort = (playerLevel: number, levelA: number, levelB: number) => {
   const aUsable = levelA <= playerLevel;
   const bUsable = levelB <= playerLevel;
@@ -58,6 +67,8 @@ const passesMarketFilter = (listing: MarketListing, server: ServerState, filters
   if (listing.sellerId === server.player.id) return false;
   const item = getItemById(listing.itemId);
   if (!item) return false;
+
+  if (filters.levelBand && filters.levelBand !== "all" && marketBandForLevelReq(item.levelReq ?? 1) !== filters.levelBand) return false;
 
   if (filters.category === "all") return true;
   if (filters.category === "consumable") return item.type === "consumable";

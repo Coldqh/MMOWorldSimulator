@@ -114,3 +114,14 @@ if (warn.length) {
   console.log('Warnings:');
   warn.forEach((message) => console.log('- ' + message));
 }
+
+
+var marketSource = read('src/systems/marketSystem.ts');
+ok(marketSource.includes('MARKET_MIN_MID_PLUS_GROUPS'), 'market mid-plus coverage diagnostics are wired');
+ok(marketSource.includes('MARKET_MIN_HIGH_PLUS_GROUPS'), 'market high-plus coverage diagnostics are wired');
+ok(marketSource.includes('MARKET_MIN_MAX_GROUPS'), 'market max coverage diagnostics are wired');
+ok(marketSource.includes('MARKET_MIN_ENHANCEMENT_STONE_GROUPS'), 'market enhancement stone coverage diagnostics are wired');
+
+var marketSelectorSource = read('src/ui/selectors/marketSelectors.ts');
+ok(marketSelectorSource.includes('MarketLevelBand'), 'market level band filter is wired');
+ok(marketSelectorSource.includes('marketBandForLevelReq'), 'market level band selector is wired');
