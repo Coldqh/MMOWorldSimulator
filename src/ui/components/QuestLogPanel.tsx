@@ -1,7 +1,7 @@
 import { getQuestById, QUESTS } from '../../content/quests';
 import type { QuestDefinition } from '../../types/game';
 import { getQuestGiverById } from '../../content/questGivers';
-import { getDungeonById } from '../../content/world';
+import { getDungeonById, getMobById } from '../../content/world';
 import { useGameStore } from '../../state/gameStore';
 import { getQuestProgressText, getQuestState, getQuestTurnInGiverId } from '../../systems/questSystem';
 import type { QuestStatus } from '../../types/game';
@@ -22,6 +22,30 @@ const unlockTargetText = (quest: QuestDefinition) => {
   if (!quest.unlockTargetId) return '';
   const instance = getDungeonById(quest.unlockTargetId);
   return unlockTypeText(quest.unlockTargetType) + ': ' + (instance?.name ?? quest.unlockTargetId);
+};
+
+const objectiveTargetText = (quest: QuestDefinition) => {
+  const lines = quest.objectives
+    .map((objective) => {
+      if (objective.type === 'kill' && objective.targetIds?.length) {
+        const names = objective.targetIds.map((id) => getMobById(id)?.name ?? id).join(', ');
+        return 'Цели: ' + names;
+      }
+
+      if (objective.type === 'dungeon' && objective.dungeonId) {
+        const dungeon = getDungeonById(objective.dungeonId);
+        return 'Цель: пройти ' + (dungeon?.name ?? objective.dungeonId);
+      }
+
+      if (objective.type === 'talk' && objective.targetId) {
+        return 'Цель: поговорить с NPC';
+      }
+
+      return '';
+    })
+    .filter(Boolean);
+
+  return lines.join(' · ');
 };
 
 const statusText: Record<QuestStatus, string> = {
@@ -65,6 +89,7 @@ export const QuestLogPanel = ({ mode }: { mode: 'active' | 'completed' }) => {
                 <strong>{isUnlockQuest(quest) ? '🛡️ ! ' : ''}{cleanQuestTitle(quest.title)}</strong>
                 <small>{statusText[state.status]} · Lv. {quest.levelReq} · {giver?.name ?? quest.giverId}</small>
                 {isUnlockQuest(quest) && unlockText && <small>Открывает: {unlockText}</small>}
+                {objectiveTargetText(quest) && <small>{objectiveTargetText(quest)}</small>}
                 {state.status !== 'completed' && <small>Задача: {quest.progressText ?? quest.introText ?? 'Выполни условия задания.'}</small>}
                 {state.status !== 'completed' && <small>Прогресс: {getQuestProgressText(server, quest)}</small>}
                 {state.status === 'readyToTurnIn' && <small>Вернись к: {turnIn?.name ?? getQuestTurnInGiverId(quest)}</small>}

@@ -164,3 +164,14 @@ ok(questGiverCardSource.includes('locationText.trim() !=='), 'quest giver avoids
 var questLogSource = read('src/ui/components/QuestLogPanel.tsx');
 ok(questLogSource.includes('Открывает:'), 'quest log explains unlock target');
 ok(questLogSource.includes('Задача:'), 'quest log explains what to do');
+
+
+var unlockQuestlinesSource = read('src/content/unlockQuestlines.ts');
+ok(unlockQuestlinesSource.includes('Цели: '), 'unlock quests include explicit target names');
+ok(unlockQuestlinesSource.includes('getMobById'), 'unlock quests resolve mob names');
+
+var questLogSource = read('src/ui/components/QuestLogPanel.tsx');
+ok(questLogSource.includes('objectiveTargetText'), 'quest log shows objective target names');
+
+var questGiverCardSource = read('src/ui/components/QuestGiverCard.tsx');
+ok(questGiverCardSource.includes('objectiveTargetText'), 'quest giver shows objective target names');

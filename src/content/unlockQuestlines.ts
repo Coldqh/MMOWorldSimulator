@@ -1,4 +1,4 @@
-import { DUNGEONS, RAIDS, SPOTS, getZoneById } from './world';
+import { DUNGEONS, RAIDS, SPOTS, getMobById, getZoneById } from './world';
 import { QUEST_GIVERS } from './questGivers';
 import type { DungeonDefinition, QuestDefinition, QuestObjective } from '../types/game';
 
@@ -25,12 +25,14 @@ const targetTypeText = (instance: DungeonDefinition) =>
 const targetLabel = (instance: DungeonDefinition) =>
   targetTypeText(instance) + ' «' + instance.name + '»';
 
-const buildProbeObjective = (instance: DungeonDefinition, giverId: string): QuestObjective => {
-  const mobs = zoneMobIds(instance.zoneId).slice(0, 3);
-  if (mobs.length > 0) {
+const mobNames = (ids: string[]) =>
+  ids.map((id) => getMobById(id)?.name ?? id).join(', ');
+
+const buildProbeObjective = (mobIds: string[], instance: DungeonDefinition, giverId: string): QuestObjective => {
+  if (mobIds.length > 0) {
     return {
       type: 'kill',
-      targetIds: mobs,
+      targetIds: mobIds,
       required: instance.contentType === 'raid' ? 18 : 10,
     };
   }
@@ -54,6 +56,10 @@ const buildUnlockQuestsForInstance = (instance: DungeonDefinition): QuestDefinit
   const cleanName = cleanInstanceName(instance.name);
   const label = targetLabel(instance);
   const requiredKills = instance.contentType === 'raid' ? 18 : 10;
+  const probeMobIds = zoneMobIds(instance.zoneId).slice(0, 3);
+  const probeObjective = buildProbeObjective(probeMobIds, instance, giver.id);
+  const targetNames = probeMobIds.length > 0 ? mobNames(probeMobIds) : giver.name;
+  const zoneName = zone?.name ?? instance.zoneId;
 
   return [
     {
@@ -62,17 +68,19 @@ const buildUnlockQuestsForInstance = (instance: DungeonDefinition): QuestDefinit
       giverId: giver.id,
       levelReq: instance.levelRange[0],
       zoneId: instance.zoneId,
-      type: 'kill',
+      type: probeObjective.type,
       importance: 'unlock',
       unlockTargetType: type,
       unlockTargetId: instance.id,
-      objectives: [buildProbeObjective(instance, giver.id)],
+      objectives: [probeObjective],
       reward: {
         xp: Math.max(80, instance.levelRange[0] * 45),
         gold: Math.max(30, instance.levelRange[0] * 12),
       },
-      introText: 'Открывает ' + label + '. Сначала проверь вход и зачисти врагов рядом.',
-      progressText: 'Убей ' + requiredKills + ' врагов рядом с входом в ' + (zone?.name ?? instance.zoneId) + '.',
+      introText: 'Открывает ' + label + '. Цели: ' + targetNames + '.',
+      progressText: probeObjective.type === 'kill'
+        ? 'Убей ' + requiredKills + ' врагов: ' + targetNames + '. Локация: ' + zoneName + '.'
+        : 'Поговори с ' + giver.name + '. Локация: ' + zoneName + '.',
       completeText: 'Следы собраны. Теперь можно получить финальный допуск.',
     },
     {
@@ -95,7 +103,7 @@ const buildUnlockQuestsForInstance = (instance: DungeonDefinition): QuestDefinit
       introText: 'Финальный допуск. После сдачи откроется ' + label + '.',
       progressText: 'Вернись к ' + giver.name + ' и получи доступ.',
       completeText: 'Доступ открыт: ' + instance.name + '.',
-      lockedText: 'Нужно завершить ветку: ' + (zone?.name ?? instance.zoneId) + '.',
+      lockedText: 'Нужно завершить ветку: ' + zoneName + '.',
     },
   ];
 };

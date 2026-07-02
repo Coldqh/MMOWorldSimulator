@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { QuestDefinition, QuestGiverDefinition } from '../../types/game';
-import { getDungeonById } from '../../content/world';
+import { getDungeonById, getMobById } from '../../content/world';
 import { useGameStore } from '../../state/gameStore';
 import {
   getActiveQuestsForGiver,
@@ -28,6 +28,30 @@ const unlockTargetText = (quest: QuestDefinition) => {
   return unlockTypeText(quest.unlockTargetType) + ': ' + (instance?.name ?? quest.unlockTargetId);
 };
 
+const objectiveTargetText = (quest: QuestDefinition) => {
+  const lines = quest.objectives
+    .map((objective) => {
+      if (objective.type === 'kill' && objective.targetIds?.length) {
+        const names = objective.targetIds.map((id) => getMobById(id)?.name ?? id).join(', ');
+        return 'Цели: ' + names;
+      }
+
+      if (objective.type === 'dungeon' && objective.dungeonId) {
+        const dungeon = getDungeonById(objective.dungeonId);
+        return 'Цель: пройти ' + (dungeon?.name ?? objective.dungeonId);
+      }
+
+      if (objective.type === 'talk' && objective.targetId) {
+        return 'Цель: поговорить с NPC';
+      }
+
+      return '';
+    })
+    .filter(Boolean);
+
+  return lines.join(' · ');
+};
+
 const QuestTitle = ({ quest }: { quest: QuestDefinition }) => (
   <strong>{isUnlockQuest(quest) ? '🛡️ ! ' : ''}{cleanQuestTitle(quest.title)}</strong>
 );
@@ -37,6 +61,7 @@ const QuestDetails = ({ quest, server }: { quest: QuestDefinition; server: Retur
   return (
     <>
       {isUnlockQuest(quest) && unlockText && <small>Открывает: {unlockText}</small>}
+      {objectiveTargetText(quest) && <small>{objectiveTargetText(quest)}</small>}
       <small>{quest.progressText ?? quest.introText ?? 'Задание выполняется.'}</small>
       <small>Прогресс: {getQuestProgressText(server, quest)}</small>
     </>
@@ -94,6 +119,7 @@ export const QuestGiverCard = ({ giver }: { giver: QuestGiverDefinition }) => {
               <span>
                 <QuestTitle quest={quest} />
                 {isUnlockQuest(quest) && unlockTargetText(quest) && <small>Открывает: {unlockTargetText(quest)}</small>}
+                {objectiveTargetText(quest) && <small>{objectiveTargetText(quest)}</small>}
                 <small>{quest.introText}</small>
                 <small>Награда: XP {quest.reward.xp} · Gold {quest.reward.gold}{quest.reward.unlockContentIds?.length ? ' · открытие контента' : ''}</small>
               </span>
