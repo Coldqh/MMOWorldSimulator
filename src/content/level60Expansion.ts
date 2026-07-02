@@ -142,16 +142,16 @@ export const EXPANSION_SPOTS: SpotDefinition[] = [
 ];
 
 export const EXPANSION_ZONES: ZoneDefinition[] = [
-  { id: 'ironwood_frontier', name: 'Железный Рубеж', levelRange: [21, 24], description: 'Lv. 21–24', spotIds: ['ironwood_frontier_outer', 'ironwood_frontier_deep'] },
-  { id: 'saltwind_coast', name: 'Солёный Берег', levelRange: [25, 28], description: 'Lv. 25–28', spotIds: ['saltwind_coast_outer', 'saltwind_coast_deep'] },
-  { id: 'emberfall_badlands', name: 'Пеплопад', levelRange: [29, 32], description: 'Lv. 29–32', spotIds: ['emberfall_badlands_outer', 'emberfall_badlands_deep'] },
-  { id: 'duskglass_reach', name: 'Сумрачное Стекло', levelRange: [33, 36], description: 'Lv. 33–36', spotIds: ['duskglass_reach_outer', 'duskglass_reach_deep'] },
-  { id: 'stormpeak_gate', name: 'Врата Грозового Пика', levelRange: [37, 40], description: 'Lv. 37–40', spotIds: ['stormpeak_gate_outer', 'stormpeak_gate_deep'] },
-  { id: 'hollow_star_marsh', name: 'Трясина Пустой Звезды', levelRange: [41, 44], description: 'Lv. 41–44', spotIds: ['hollow_star_marsh_outer', 'hollow_star_marsh_deep'] },
-  { id: 'crimson_obelisk', name: 'Багровый Обелиск', levelRange: [45, 48], description: 'Lv. 45–48', spotIds: ['crimson_obelisk_outer', 'crimson_obelisk_deep'] },
-  { id: 'pale_king_road', name: 'Дорога Бледного Короля', levelRange: [49, 52], description: 'Lv. 49–52', spotIds: ['pale_king_road_outer', 'pale_king_road_deep'] },
-  { id: 'voidglass_wastes', name: 'Пустоши Чёрного Стекла', levelRange: [53, 56], description: 'Lv. 53–56', spotIds: ['voidglass_wastes_outer', 'voidglass_wastes_deep'] },
-  { id: 'last_sun_plateau', name: 'Плато Последнего Солнца', levelRange: [57, 60], description: 'Lv. 57–60', spotIds: ['last_sun_plateau_outer', 'last_sun_plateau_deep'] }
+  { id: 'ironwood_frontier', name: 'Железный Рубеж', levelRange: [21, 24], description: 'Зона 21–24 уровня', spotIds: ['ironwood_frontier_outer', 'ironwood_frontier_deep'] },
+  { id: 'saltwind_coast', name: 'Солёный Берег', levelRange: [25, 28], description: 'Зона 25–28 уровня', spotIds: ['saltwind_coast_outer', 'saltwind_coast_deep'] },
+  { id: 'emberfall_badlands', name: 'Пеплопад', levelRange: [29, 32], description: 'Зона 29–32 уровня', spotIds: ['emberfall_badlands_outer', 'emberfall_badlands_deep'] },
+  { id: 'duskglass_reach', name: 'Сумрачное Стекло', levelRange: [33, 36], description: 'Зона 33–36 уровня', spotIds: ['duskglass_reach_outer', 'duskglass_reach_deep'] },
+  { id: 'stormpeak_gate', name: 'Врата Грозового Пика', levelRange: [37, 40], description: 'Зона 37–40 уровня', spotIds: ['stormpeak_gate_outer', 'stormpeak_gate_deep'] },
+  { id: 'hollow_star_marsh', name: 'Трясина Пустой Звезды', levelRange: [41, 44], description: 'Зона 41–44 уровня', spotIds: ['hollow_star_marsh_outer', 'hollow_star_marsh_deep'] },
+  { id: 'crimson_obelisk', name: 'Багровый Обелиск', levelRange: [45, 48], description: 'Зона 45–48 уровня', spotIds: ['crimson_obelisk_outer', 'crimson_obelisk_deep'] },
+  { id: 'pale_king_road', name: 'Дорога Бледного Короля', levelRange: [49, 52], description: 'Зона 49–52 уровня', spotIds: ['pale_king_road_outer', 'pale_king_road_deep'] },
+  { id: 'voidglass_wastes', name: 'Пустоши Чёрного Стекла', levelRange: [53, 56], description: 'Зона 53–56 уровня', spotIds: ['voidglass_wastes_outer', 'voidglass_wastes_deep'] },
+  { id: 'last_sun_plateau', name: 'Плато Последнего Солнца', levelRange: [57, 60], description: 'Зона 57–60 уровня', spotIds: ['last_sun_plateau_outer', 'last_sun_plateau_deep'] }
 ];
 
 export const EXPANSION_DUNGEONS: DungeonDefinition[] = [

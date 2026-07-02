@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import type { QuestGiverDefinition } from '../../types/game';
+import type { QuestDefinition, QuestGiverDefinition } from '../../types/game';
+import { getDungeonById } from '../../content/world';
 import { useGameStore } from '../../state/gameStore';
 import {
   getActiveQuestsForGiver,
@@ -8,6 +9,39 @@ import {
   getReadyToTurnInQuestsForGiver,
   hasAvailableQuestForGiver,
 } from '../../systems/questSystem';
+
+const cleanQuestTitle = (title: string) =>
+  title.replace(/^\s*(🛡️\s*)?!\s*/u, '').replace(/^\s*🛡️\s*!\s*/u, '').trim();
+
+const isUnlockQuest = (quest: Pick<QuestDefinition, 'importance'>) => quest.importance === 'unlock';
+
+const unlockTypeText = (type?: string) => {
+  if (type === 'raid') return 'рейд';
+  if (type === 'dungeon') return 'данж';
+  if (type === 'zone') return 'локацию';
+  return 'контент';
+};
+
+const unlockTargetText = (quest: QuestDefinition) => {
+  if (!quest.unlockTargetId) return '';
+  const instance = getDungeonById(quest.unlockTargetId);
+  return unlockTypeText(quest.unlockTargetType) + ': ' + (instance?.name ?? quest.unlockTargetId);
+};
+
+const QuestTitle = ({ quest }: { quest: QuestDefinition }) => (
+  <strong>{isUnlockQuest(quest) ? '🛡️ ! ' : ''}{cleanQuestTitle(quest.title)}</strong>
+);
+
+const QuestDetails = ({ quest, server }: { quest: QuestDefinition; server: ReturnType<typeof useGameStore.getState>['server'] }) => {
+  const unlockText = unlockTargetText(quest);
+  return (
+    <>
+      {isUnlockQuest(quest) && unlockText && <small>Открывает: {unlockText}</small>}
+      <small>{quest.progressText ?? quest.introText ?? 'Задание выполняется.'}</small>
+      <small>Прогресс: {getQuestProgressText(server, quest)}</small>
+    </>
+  );
+};
 
 export const QuestGiverCard = ({ giver }: { giver: QuestGiverDefinition }) => {
   const server = useGameStore((state) => state.server);
@@ -19,8 +53,10 @@ export const QuestGiverCard = ({ giver }: { giver: QuestGiverDefinition }) => {
   const active = getActiveQuestsForGiver(server, giver.id);
   const ready = getReadyToTurnInQuestsForGiver(server, giver.id);
   const hasMarker = hasAvailableQuestForGiver(server, giver.id);
-  const hasUnlockMarker = [...available, ...ready, ...active].some((quest) => quest.importance === 'unlock');
-  const isUnlockQuest = (quest: { importance?: string }) => quest.importance === 'unlock';
+  const hasUnlockMarker = [...available, ...ready, ...active].some(isUnlockQuest);
+  const locationText = giver.locationText && giver.locationText.trim() !== (giver.shortText ?? '').trim()
+    ? giver.locationText
+    : undefined;
 
   const openDialog = () => {
     talkToQuestGiver(giver.id);
@@ -29,9 +65,13 @@ export const QuestGiverCard = ({ giver }: { giver: QuestGiverDefinition }) => {
 
   return (
     <article className={'content-card info-card quest-giver-card ' + (hasUnlockMarker ? 'quest-unlock-giver-card' : '')}>
-      <strong>{hasUnlockMarker && <span className="quest-shield-marker">🛡️!</span>} {!hasUnlockMarker && hasMarker && <span className="quest-marker" style={{ color: '#ffd84d', fontWeight: 900 }}>!</span>} {giver.name}</strong>
+      <strong>
+        {hasUnlockMarker && <span className="quest-shield-marker">🛡️!</span>}
+        {!hasUnlockMarker && hasMarker && <span className="quest-marker" style={{ color: '#ffd84d', fontWeight: 900 }}>!</span>}
+        {' '}{giver.name}
+      </strong>
       <span>{giver.shortText ?? 'Задания'}</span>
-      {giver.locationText && <span>{giver.locationText}</span>}
+      {locationText && <span>{locationText}</span>}
       <button onClick={openDialog}>Поговорить</button>
 
       {open && (
@@ -41,8 +81,9 @@ export const QuestGiverCard = ({ giver }: { giver: QuestGiverDefinition }) => {
           {ready.map((quest) => (
             <div key={quest.id} className={'list-line quest-line ready-line ' + (isUnlockQuest(quest) ? 'quest-unlock-line' : '')}>
               <span>
-                <strong>{isUnlockQuest(quest) ? '🛡️ ! ' : '? '} {quest.title}</strong>
+                <QuestTitle quest={quest} />
                 <small>{quest.completeText}</small>
+                {isUnlockQuest(quest) && unlockTargetText(quest) && <small>Откроется: {unlockTargetText(quest)}</small>}
               </span>
               <button className="primary-button" onClick={() => turnInQuest(quest.id)}>Сдать</button>
             </div>
@@ -51,7 +92,8 @@ export const QuestGiverCard = ({ giver }: { giver: QuestGiverDefinition }) => {
           {available.map((quest) => (
             <div key={quest.id} className={'list-line quest-line ' + (isUnlockQuest(quest) ? 'quest-unlock-line' : '')}>
               <span>
-                <strong>{isUnlockQuest(quest) ? '🛡️ ! ' : '! '} {quest.title}</strong>
+                <QuestTitle quest={quest} />
+                {isUnlockQuest(quest) && unlockTargetText(quest) && <small>Открывает: {unlockTargetText(quest)}</small>}
                 <small>{quest.introText}</small>
                 <small>Награда: XP {quest.reward.xp} · Gold {quest.reward.gold}{quest.reward.unlockContentIds?.length ? ' · открытие контента' : ''}</small>
               </span>
@@ -62,9 +104,8 @@ export const QuestGiverCard = ({ giver }: { giver: QuestGiverDefinition }) => {
           {active.map((quest) => (
             <div key={quest.id} className={'list-line quest-line ' + (isUnlockQuest(quest) ? 'quest-unlock-line' : '')}>
               <span>
-                <strong>{isUnlockQuest(quest) ? '🛡️ ! ' : ''}{quest.title}</strong>
-                <small>{quest.progressText ?? 'Задание выполняется.'}</small>
-                <small>Прогресс: {getQuestProgressText(server, quest)}</small>
+                <QuestTitle quest={quest} />
+                <QuestDetails quest={quest} server={server} />
               </span>
               <button disabled>В работе</button>
             </div>

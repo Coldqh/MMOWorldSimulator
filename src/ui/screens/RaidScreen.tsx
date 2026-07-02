@@ -38,7 +38,7 @@ export const RaidScreen = () => {
           const zone = getZoneById(raid.zoneId);
           const wrongLocation = currentZoneId !== raid.zoneId;
           const lockedByLevel = server.player.level < 10 || server.player.level < raid.levelRange[0];
-          const lockedByQuest = !server.unlockedContent.includes(raid.id);
+          const lockedByQuest = !(server.unlockedContent ?? []).includes(raid.id);
           const unlockQuest = findUnlockQuestForTarget(server, raid.id);
           const unlockGiver = unlockQuest ? getQuestGiverById(unlockQuest.giverId) : undefined;
 

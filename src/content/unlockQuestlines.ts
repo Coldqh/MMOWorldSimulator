@@ -16,8 +16,14 @@ const giverForZone = (zoneId: string) =>
 const zoneMobIds = (zoneId: string) =>
   [...new Set(SPOTS.filter((spot) => spot.zoneId === zoneId).flatMap((spot) => spot.mobIds))];
 
+const cleanInstanceName = (name: string) =>
+  name.replace(/^(Данж|Рейд):\s*/i, '').trim();
+
+const targetTypeText = (instance: DungeonDefinition) =>
+  instance.contentType === 'raid' ? 'рейд' : 'данж';
+
 const targetLabel = (instance: DungeonDefinition) =>
-  (instance.contentType === 'raid' ? 'рейд' : 'данж') + ' ' + instance.name;
+  targetTypeText(instance) + ' «' + instance.name + '»';
 
 const buildProbeObjective = (instance: DungeonDefinition, giverId: string): QuestObjective => {
   const mobs = zoneMobIds(instance.zoneId).slice(0, 3);
@@ -45,12 +51,14 @@ const buildUnlockQuestsForInstance = (instance: DungeonDefinition): QuestDefinit
   const base = safeId(instance.id);
   const probeId = 'unlock_' + base + '_probe';
   const openId = 'unlock_' + base + '_open';
+  const cleanName = cleanInstanceName(instance.name);
   const label = targetLabel(instance);
+  const requiredKills = instance.contentType === 'raid' ? 18 : 10;
 
   return [
     {
       id: probeId,
-      title: '🛡️ ! Следы: ' + instance.name,
+      title: 'Следы у входа: ' + cleanName,
       giverId: giver.id,
       levelReq: instance.levelRange[0],
       zoneId: instance.zoneId,
@@ -63,13 +71,13 @@ const buildUnlockQuestsForInstance = (instance: DungeonDefinition): QuestDefinit
         xp: Math.max(80, instance.levelRange[0] * 45),
         gold: Math.max(30, instance.levelRange[0] * 12),
       },
-      introText: 'Собери следы у входа. Это начало ветки открытия: ' + label + '.',
-      progressText: 'Зачисти врагов рядом с входом.',
-      completeText: 'Следы собраны. Теперь можно открыть проход.',
+      introText: 'Открывает ' + label + '. Сначала проверь вход и зачисти врагов рядом.',
+      progressText: 'Убей ' + requiredKills + ' врагов рядом с входом в ' + (zone?.name ?? instance.zoneId) + '.',
+      completeText: 'Следы собраны. Теперь можно получить финальный допуск.',
     },
     {
       id: openId,
-      title: '🛡️ ! Открыть: ' + instance.name,
+      title: 'Открыть проход: ' + cleanName,
       giverId: giver.id,
       levelReq: instance.levelRange[0],
       zoneId: instance.zoneId,

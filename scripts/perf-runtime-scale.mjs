@@ -152,3 +152,15 @@ ok(questSystemSource.includes('unlockContentIds'), 'quest reward content unlock 
 var unlockQuestlinesSource = read('src/content/unlockQuestlines.ts');
 ok(unlockQuestlinesSource.includes('UNLOCK_QUESTS'), 'unlock questlines are wired');
 ok(unlockQuestlinesSource.includes('unlockTargetId'), 'unlock quest target id is wired');
+
+
+var gameStoreSource = read('src/state/gameStore.ts');
+ok(gameStoreSource.includes('(server.unlockedContent ?? []).includes'), 'unlock content save compatibility is wired');
+
+var questGiverCardSource = read('src/ui/components/QuestGiverCard.tsx');
+ok(questGiverCardSource.includes('cleanQuestTitle'), 'quest giver cleans duplicated unlock icons');
+ok(questGiverCardSource.includes('locationText.trim() !=='), 'quest giver avoids duplicated location text');
+
+var questLogSource = read('src/ui/components/QuestLogPanel.tsx');
+ok(questLogSource.includes('Открывает:'), 'quest log explains unlock target');
+ok(questLogSource.includes('Задача:'), 'quest log explains what to do');

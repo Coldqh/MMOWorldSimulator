@@ -641,7 +641,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (combat || !server.characterCreated || server.currentDungeonRun) return;
     const dungeon = getDungeonById(dungeonId);
     if (!dungeon) return;
-    if (!server.unlockedContent.includes(dungeon.id)) {
+    if (!(server.unlockedContent ?? []).includes(dungeon.id)) {
       const rng = createRng(server.seed + server.serverDay * 1999 + server.currentMinute);
       const next = addNews(server, rng, "dungeon", `${dungeon.name}: нужна ветка открытия.`, false);
       commit(set, next, null, {

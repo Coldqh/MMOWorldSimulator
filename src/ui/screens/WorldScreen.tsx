@@ -211,7 +211,7 @@ export const WorldScreen = () => {
             <div className="card-grid">
               {zoneDungeons.map((dungeon) => {
                 const lockedByLevel = server.player.level < dungeon.levelRange[0];
-                const lockedByQuest = !server.unlockedContent.includes(dungeon.id);
+                const lockedByQuest = !(server.unlockedContent ?? []).includes(dungeon.id);
                 const unlockQuest = findUnlockQuestForTarget(server, dungeon.id);
                 const unlockGiver = unlockQuest ? getQuestGiverById(unlockQuest.giverId) : undefined;
                 return (
