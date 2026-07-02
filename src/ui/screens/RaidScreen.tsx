@@ -1,6 +1,17 @@
 import { RAIDS, getZoneById } from '../../content/world';
+import { QUESTS } from '../../content/quests';
+import { getQuestGiverById } from '../../content/questGivers';
 import { useGameStore } from '../../state/gameStore';
 import { getGearScore } from '../../systems/itemSystem';
+import { getQuestState } from '../../systems/questSystem';
+
+const findUnlockQuestForTarget = (server: ReturnType<typeof useGameStore.getState>['server'], targetId: string) =>
+  QUESTS
+    .filter((quest) => quest.importance === 'unlock' && quest.unlockTargetId === targetId)
+    .sort((a, b) => {
+      const order = { readyToTurnIn: 0, active: 1, available: 2, locked: 3, completed: 4 } as const;
+      return order[getQuestState(server, a.id).status] - order[getQuestState(server, b.id).status] || b.levelReq - a.levelReq;
+    })[0];
 
 export const RaidScreen = () => {
   const server = useGameStore((state) => state.server);
@@ -27,17 +38,29 @@ export const RaidScreen = () => {
           const zone = getZoneById(raid.zoneId);
           const wrongLocation = currentZoneId !== raid.zoneId;
           const lockedByLevel = server.player.level < 10 || server.player.level < raid.levelRange[0];
+          const lockedByQuest = !server.unlockedContent.includes(raid.id);
+          const unlockQuest = findUnlockQuestForTarget(server, raid.id);
+          const unlockGiver = unlockQuest ? getQuestGiverById(unlockQuest.giverId) : undefined;
+
           return (
-            <article key={raid.id} className={`content-card raid-card ${lockedByLevel || wrongLocation ? 'locked-card' : ''}`}>
+            <article key={raid.id} className={`content-card raid-card ${lockedByLevel || lockedByQuest || wrongLocation ? 'locked-card' : ''}`}>
               <strong>{raid.name}</strong>
               <span>{zone?.name ?? raid.zoneId}</span>
               <span>Lv. {raid.levelRange[0]}–{raid.levelRange[1]} · рейд {raid.partySize}</span>
               <span>{raid.floors.length} этажей · босс-лут</span>
+              {lockedByQuest && (
+                <span className="quest-unlock-hint">🛡️ ! Нужна ветка: {unlockQuest?.title ?? 'квест открытия'} · {unlockGiver?.name ?? 'квестодатель зоны'}</span>
+              )}
+
               {wrongLocation ? (
                 <button onClick={() => travelToZone(raid.zoneId)} disabled={Boolean(combat)}>В локацию</button>
               ) : (
-                <button className="primary-button" onClick={() => startDungeon(raid.id)} disabled={Boolean(combat) || lockedByLevel}>
-                  {lockedByLevel ? `Нужен ${Math.max(10, raid.levelRange[0])} уровень` : 'Собрать рейд'}
+                <button className="primary-button" onClick={() => startDungeon(raid.id)} disabled={Boolean(combat) || lockedByLevel || lockedByQuest}>
+                  {lockedByLevel
+                    ? `Нужен ${Math.max(10, raid.levelRange[0])} уровень`
+                    : lockedByQuest
+                      ? 'Закрыто: ! ветка'
+                      : 'Собрать рейд'}
                 </button>
               )}
             </article>

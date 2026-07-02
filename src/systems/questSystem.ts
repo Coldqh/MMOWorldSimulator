@@ -86,7 +86,7 @@ export const hasAvailableQuestForGiver = (server: ServerState, giverId: Id) =>
 export const acceptQuest = (server: ServerState, questId: Id): ServerState => {
   const quest = getQuestById(questId);
   if (!quest || !canAcceptQuest(server, quest)) return server;
-  const next: ServerState = {
+  let next: ServerState = {
     ...server,
     questStates: {
       ...(server.questStates ?? {}),
@@ -128,7 +128,7 @@ export const turnInQuest = (server: ServerState, questId: Id): { server: ServerS
 
   player = applyRewardToPlayer(player, { xp: 0, gold: 0, items: quest.reward.items ?? [] }, { includeReputation: false });
 
-  const next: ServerState = {
+  let next: ServerState = {
     ...server,
     player,
     questStates: {
@@ -142,7 +142,48 @@ export const turnInQuest = (server: ServerState, questId: Id): { server: ServerS
     },
   };
 
-  const rewardLines = formatRewardLines(quest.reward);
+  const unlockedContentIds = quest.reward.unlockContentIds ?? [];
+  if (unlockedContentIds.length > 0) {
+    const before = new Set(next.unlockedContent ?? []);
+    const opened = unlockedContentIds.filter((id) => !before.has(id));
+
+    next = {
+      ...next,
+      unlockedContent: [...new Set([...(next.unlockedContent ?? []), ...unlockedContentIds])],
+    };
+
+    if (opened.length > 0) {
+      next = {
+        ...next,
+        notifications: [
+          ...(next.notifications ?? []),
+          {
+            id: `unlock_content_${quest.id}_${server.serverDay}_${server.currentMinute}`,
+            type: 'dungeon',
+            title: quest.unlockTargetType === 'raid' ? 'Рейд открыт' : 'Данж открыт',
+            text: quest.title,
+            lines: opened.map((id) => 'Открыт доступ: ' + id),
+          },
+        ],
+        worldNews: [
+          ...(next.worldNews ?? []),
+          {
+            id: `news_unlock_${quest.id}_${server.serverDay}_${server.currentMinute}`,
+            day: server.serverDay,
+            minute: server.currentMinute,
+            type: quest.unlockTargetType === 'raid' ? 'raid' as const : 'dungeon' as const,
+            text: `${server.player.name} открыл доступ: ${opened.join(', ')}.`,
+            important: quest.unlockTargetType === 'raid',
+          },
+        ].slice(-80),
+      };
+    }
+  }
+
+  const rewardLines = [
+    ...formatRewardLines(quest.reward),
+    ...unlockedContentIds.map((id) => 'Открыт доступ: ' + id),
+  ];
 
   return {
     server: next,

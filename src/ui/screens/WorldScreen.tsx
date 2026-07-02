@@ -9,7 +9,9 @@ import {
   getSpotById,
   getZoneById,
 } from '../../content/world';
-import { getQuestGiversByZoneId } from '../../content/questGivers';
+import { QUESTS } from '../../content/quests';
+import { getQuestGiversByZoneId, getQuestGiverById } from '../../content/questGivers';
+import { getQuestState } from '../../systems/questSystem';
 import { useGameStore } from '../../state/gameStore';
 import { getGearScore } from '../../systems/itemSystem';
 import type { ScreenId } from '../../types/game';
@@ -86,6 +88,14 @@ const availableZonesForPlayer = (level: number) =>
   [...ZONES]
     .filter((zone) => level >= zone.levelRange[0])
     .sort((a, b) => b.levelRange[0] - a.levelRange[0] || b.levelRange[1] - a.levelRange[1] || a.name.localeCompare(b.name));
+
+const findUnlockQuestForTarget = (server: ReturnType<typeof useGameStore.getState>['server'], targetId: string) =>
+  QUESTS
+    .filter((quest) => quest.importance === 'unlock' && quest.unlockTargetId === targetId)
+    .sort((a, b) => {
+      const order = { readyToTurnIn: 0, active: 1, available: 2, locked: 3, completed: 4 } as const;
+      return order[getQuestState(server, a.id).status] - order[getQuestState(server, b.id).status] || b.levelReq - a.levelReq;
+    })[0];
 
 const spotLevelText = (mobIds: string[]) => {
   const levels = mobIds.map((mobId) => getMobById(mobId)?.level).filter((level): level is number => typeof level === 'number');
@@ -201,13 +211,17 @@ export const WorldScreen = () => {
             <div className="card-grid">
               {zoneDungeons.map((dungeon) => {
                 const lockedByLevel = server.player.level < dungeon.levelRange[0];
+                const lockedByQuest = !server.unlockedContent.includes(dungeon.id);
+                const unlockQuest = findUnlockQuestForTarget(server, dungeon.id);
+                const unlockGiver = unlockQuest ? getQuestGiverById(unlockQuest.giverId) : undefined;
                 return (
-                  <article key={dungeon.id} className={`content-card info-card ${lockedByLevel ? 'locked-card' : ''}`}>
+                  <article key={dungeon.id} className={`content-card info-card ${lockedByLevel || lockedByQuest ? 'locked-card' : ''}`}>
                     <strong>{dungeon.name}</strong>
                     <span>Lv. {dungeon.levelRange[0]}–{dungeon.levelRange[1]} · пати {dungeon.partySize}</span>
                     <span>{dungeon.timeCostMinutes} мин</span>
-                    <button onClick={() => startDungeon(dungeon.id)} disabled={Boolean(combat) || lockedByLevel}>
-                      {lockedByLevel ? `Нужен ${dungeon.levelRange[0]} уровень` : 'Поиск пати'}
+                    {lockedByQuest && <span className="quest-unlock-hint">🛡️ ! {unlockQuest?.title ?? 'Квест открытия'} · {unlockGiver?.name ?? 'NPC зоны'}</span>}
+                    <button onClick={() => startDungeon(dungeon.id)} disabled={Boolean(combat) || lockedByLevel || lockedByQuest}>
+                      {lockedByLevel ? `Нужен ${dungeon.levelRange[0]} уровень` : lockedByQuest ? 'Закрыто: ! ветка' : 'Поиск пати'}
                     </button>
                   </article>
                 );

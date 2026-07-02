@@ -495,6 +495,7 @@ export interface QuestReward {
   items?: Array<{ itemId: Id; amount: number }>;
   reputation?: number;
   unlockQuestIds?: Id[];
+  unlockContentIds?: Id[];
 }
 
 export interface QuestDefinition {
@@ -511,6 +512,9 @@ export interface QuestDefinition {
   progressText?: string;
   completeText: string;
   lockedText?: string;
+  importance?: "normal" | "unlock";
+  unlockTargetType?: "dungeon" | "raid" | "zone";
+  unlockTargetId?: Id;
 }
 
 export interface QuestState {

@@ -143,6 +143,7 @@ export const canNpcJoinListing = (npc: NpcPlayer, listing: PartyFinderListing, d
 export const getPlayerListingBlockReason = (server: ServerState, listing: PartyFinderListing) => {
   const dungeon = getDungeonById(listing.dungeonId);
   if (!dungeon) return 'Контент не найден';
+  if (!server.unlockedContent.includes(dungeon.id)) return 'Нужна ветка открытия';
   if (!ACTIVE_STATUSES.includes(listing.status)) return 'Группа закрыта';
   if (listing.memberIds.includes(server.player.id)) return '';
   if (!canSeeListing(server, listing)) return 'Закрытая группа';
@@ -162,6 +163,7 @@ export const canPlayerJoinListing = (server: ServerState, listing: PartyFinderLi
 export const getCreatePartyListingBlockReason = (server: ServerState, dungeonId: string, visibility: PartyListingVisibility = 'public') => {
   const dungeon = getDungeonById(dungeonId);
   if (!dungeon) return 'Контент не найден';
+  if (!server.unlockedContent.includes(dungeon.id)) return 'Нужна ветка открытия';
   if (server.currentDungeonRun) return 'Уже открыт инстанс';
   if (server.player.level < dungeon.levelRange[0]) return `Нужен Lv. ${dungeon.levelRange[0]}`;
   if (visibility === 'guild_internal' && !server.player.guildId) return 'Нужна гильдия';

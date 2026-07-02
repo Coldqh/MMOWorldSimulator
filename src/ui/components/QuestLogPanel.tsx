@@ -5,6 +5,8 @@ import { useGameStore } from '../../state/gameStore';
 import { getQuestProgressText, getQuestState, getQuestTurnInGiverId } from '../../systems/questSystem';
 import type { QuestStatus } from '../../types/game';
 
+const isUnlockQuest = (quest: QuestDefinition) => quest.importance === 'unlock';
+
 const statusText: Record<QuestStatus, string> = {
   available: 'доступно',
   active: 'активно',
@@ -39,10 +41,10 @@ export const QuestLogPanel = ({ mode }: { mode: 'active' | 'completed' }) => {
           const giver = getQuestGiverById(quest.giverId);
           const turnIn = getQuestGiverById(getQuestTurnInGiverId(quest));
           return (
-            <div key={quest.id} className={`list-line quest-log-line ${state.status === 'readyToTurnIn' ? 'ready-line' : ''}`}>
+            <div key={quest.id} className={`list-line quest-log-line ${state.status === 'readyToTurnIn' ? 'ready-line' : ''} ${isUnlockQuest(quest) ? 'quest-unlock-line' : ''}`}>
               <span>
-                <strong>{quest.title}</strong>
-                <small>{statusText[state.status]} · Lv. {quest.levelReq} · {giver?.name ?? quest.giverId}</small>
+                <strong>{isUnlockQuest(quest) ? '🛡️ ! ' : ''}{quest.title}</strong>
+                <small>{statusText[state.status]} · Lv. {quest.levelReq} · {giver?.name ?? quest.giverId}{quest.unlockTargetType ? ' · открывает ' + quest.unlockTargetType : ''}</small>
                 {state.status !== 'completed' && <small>Прогресс: {getQuestProgressText(server, quest)}</small>}
                 {state.status === 'readyToTurnIn' && <small>Вернитесь к: {turnIn?.name ?? getQuestTurnInGiverId(quest)}</small>}
               </span>

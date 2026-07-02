@@ -144,3 +144,11 @@ ok(dungeonSource.includes('lastDungeonRunResult'), 'dungeon last result state is
 var dungeonScreenSource = read('src/ui/screens/DungeonScreen.tsx');
 ok(dungeonScreenSource.includes('Dungeon Run 2.0'), 'dungeon run 2.0 screen is wired');
 ok(dungeonScreenSource.includes('Dungeon Marks'), 'dungeon marks UI is wired');
+
+
+var questSystemSource = read('src/systems/questSystem.ts');
+ok(questSystemSource.includes('unlockContentIds'), 'quest reward content unlock is wired');
+
+var unlockQuestlinesSource = read('src/content/unlockQuestlines.ts');
+ok(unlockQuestlinesSource.includes('UNLOCK_QUESTS'), 'unlock questlines are wired');
+ok(unlockQuestlinesSource.includes('unlockTargetId'), 'unlock quest target id is wired');

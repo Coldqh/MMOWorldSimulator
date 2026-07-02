@@ -641,6 +641,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (combat || !server.characterCreated || server.currentDungeonRun) return;
     const dungeon = getDungeonById(dungeonId);
     if (!dungeon) return;
+    if (!server.unlockedContent.includes(dungeon.id)) {
+      const rng = createRng(server.seed + server.serverDay * 1999 + server.currentMinute);
+      const next = addNews(server, rng, "dungeon", `${dungeon.name}: нужна ветка открытия.`, false);
+      commit(set, next, null, {
+        id: `modal_locked_instance_${dungeon.id}_${server.currentMinute}`,
+        type: "dungeon",
+        title: dungeon.contentType === "raid" ? "Рейд закрыт" : "Данж закрыт",
+        text: dungeon.name,
+        lines: ["Найди квестодателя в зоне.", "Пройди unlock-ветку с ! и щитом."],
+      });
+      return;
+    }
     const rng = createRng(
       server.seed + server.serverDay * 2000 + server.currentMinute,
     );

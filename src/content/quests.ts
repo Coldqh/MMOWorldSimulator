@@ -1,5 +1,6 @@
 import type { QuestDefinition } from '../types/game';
 import { EXPANSION_QUESTS } from './level60Expansion';
+import { UNLOCK_QUESTS } from './unlockQuestlines';
 
 export const QUESTS: QuestDefinition[] = [
   {
@@ -320,6 +321,7 @@ export const QUESTS: QuestDefinition[] = [
     progressText: 'Пройди Вирмшпиль.',
     completeText: 'Вирмшпиль пройден.',
   },
+  ...UNLOCK_QUESTS,
   ...EXPANSION_QUESTS,
 ];
 

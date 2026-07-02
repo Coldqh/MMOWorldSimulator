@@ -25,9 +25,9 @@ const sw = read('public/sw.js');
 const siegeSystem = read('src/systems/siegeSystem.ts');
 const castlePanel = read('src/ui/components/CastlePanel.tsx');
 
-assert(pkg.version === '0.7.46', 'package version is 0.7.46');
-assert(versionTs.includes("APP_VERSION = '0.7.46'") || versionTs.includes('APP_VERSION = "0.7.46"'), 'APP_VERSION is 0.7.46');
-assert(publicVersion.version === '0.7.46', 'public version is 0.7.46');
+assert(pkg.version === '0.7.47', 'package version is 0.7.47');
+assert(versionTs.includes("APP_VERSION = '0.7.47'") || versionTs.includes('APP_VERSION = "0.7.47"'), 'APP_VERSION is 0.7.47');
+assert(publicVersion.version === '0.7.47', 'public version is 0.7.47');
 assert(saveLoad.includes("SAVE_VERSION = '0.7.0'") || saveLoad.includes('SAVE_VERSION = "0.7.0"'), 'SAVE_VERSION unchanged');
 assert(balanceConfig.includes('export const MAX_LEVEL = 60;'), 'MAX_LEVEL remains 60');
 assert(balanceConfig.includes("high: { min: 41, max: 59 }"), 'high band remains 41-59');
@@ -68,7 +68,7 @@ assert(guildRuntime.includes('isOpenWarStatus(war.status)'), 'sameTierWarCount c
 assert(guildWar.includes('const startScheduledGuildWars'), 'core guild war system starts scheduled wars');
 assert(guildWar.includes('next = startScheduledGuildWars(next);'), 'tickGuildWars advances scheduled wars');
 
-assert(sw.includes("mmows-v0.7.46"), 'service worker cache is 0.7.46');
+assert(sw.includes("mmows-v0.7.47"), 'service worker cache is 0.7.47');
 assert(siegeSystem.includes('никто не зарегистрировался на осаду'), 'siege no-roster text is readable Russian');
 assert(siegeSystem.includes('осада завершена. Победитель'), 'siege finish news is readable Russian');
 assert(siegeSystem.includes("castle.tier === 'max') return guild.tier === 'max' || guild.tier === 'high'"), 'max sieges can fallback to high NPC guilds');

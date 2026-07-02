@@ -1,4 +1,7 @@
 import { DUNGEONS, getDungeonById, getMobById, getZoneById } from '../../content/world';
+import { QUESTS } from '../../content/quests';
+import { getQuestGiverById } from '../../content/questGivers';
+import { getQuestState } from '../../systems/questSystem';
 import type { DungeonDefinition, DungeonDifficulty } from '../../types/game';
 import { useGameStore } from '../../state/gameStore';
 import { getGearScore, getPlayerStats } from '../../systems/itemSystem';
@@ -13,6 +16,14 @@ const floorLabel: Record<string, string> = {
 };
 
 const roleText = (role?: string) => role === 'tank' ? 'танк' : role === 'healer' ? 'хилл' : 'дд';
+
+const findUnlockQuestForTarget = (server: ReturnType<typeof useGameStore.getState>['server'], targetId: string) =>
+  QUESTS
+    .filter((quest) => quest.importance === 'unlock' && quest.unlockTargetId === targetId)
+    .sort((a, b) => {
+      const order = { readyToTurnIn: 0, active: 1, available: 2, locked: 3, completed: 4 } as const;
+      return order[getQuestState(server, a.id).status] - order[getQuestState(server, b.id).status] || b.levelReq - a.levelReq;
+    })[0];
 
 const difficultyHelp: Record<DungeonDifficulty, string> = {
   normal: 'базовый лут',
@@ -183,12 +194,18 @@ export const DungeonScreen = () => {
           const zone = getZoneById(dungeon.zoneId);
           const wrongLocation = currentZoneId !== dungeon.zoneId;
           const lockedByLevel = server.player.level < dungeon.levelRange[0];
+          const lockedByQuest = !server.unlockedContent.includes(dungeon.id);
+          const unlockQuest = findUnlockQuestForTarget(server, dungeon.id);
+          const unlockGiver = unlockQuest ? getQuestGiverById(unlockQuest.giverId) : undefined;
           return (
-            <article key={dungeon.id} className={'content-card info-card ' + (lockedByLevel || wrongLocation ? 'locked-card' : '')}>
+            <article key={dungeon.id} className={'content-card info-card ' + (lockedByLevel || lockedByQuest || wrongLocation ? 'locked-card' : '')}>
               <strong>{dungeon.name}</strong>
               <span>{zone?.name ?? dungeon.zoneId}</span>
               <span>Lv. {dungeon.levelRange[0]}–{dungeon.levelRange[1]} · пати {dungeon.partySize}</span>
               <span>{dungeon.floors.filter((floor) => floor.type === 'boss' || floor.type === 'miniBoss').length} босса · boss loot</span>
+              {lockedByQuest && (
+                <span className="quest-unlock-hint">🛡️ ! Нужна ветка: {unlockQuest?.title ?? 'квест открытия'} · {unlockGiver?.name ?? 'квестодатель зоны'}</span>
+              )}
               {wrongLocation ? (
                 <button onClick={() => travelToZone(dungeon.zoneId)} disabled={Boolean(combat)}>В локацию</button>
               ) : (
@@ -196,12 +213,14 @@ export const DungeonScreen = () => {
                   {DUNGEON_DIFFICULTIES.map((difficulty) => {
                     const gearReq = getDungeonDifficultyGearRequirement(dungeon, difficulty);
                     const lockedByGear = gearReq > 0 && playerGear < gearReq;
-                    const disabled = Boolean(combat) || lockedByLevel || lockedByGear;
+                    const disabled = Boolean(combat) || lockedByLevel || lockedByQuest || lockedByGear;
                     return (
                       <button key={difficulty} onClick={() => startDungeon(dungeon.id, difficulty)} disabled={disabled} title={difficultyHelp[difficulty]}>
                         {lockedByLevel
                           ? 'Нужен Lv. ' + dungeon.levelRange[0]
-                          : lockedByGear
+                          : lockedByQuest
+                            ? 'Закрыто: ! ветка'
+                            : lockedByGear
                             ? getDungeonDifficultyLabel(difficulty) + ' · GS ' + gearReq
                             : getDungeonDifficultyLabel(difficulty)}
                       </button>
