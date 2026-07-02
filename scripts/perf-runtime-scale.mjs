@@ -37,7 +37,7 @@ ok(runtimeSource.includes('getNpcCardCandidates'), 'NPC card generation uses ite
 ok(runtimeSource.includes('ZONE_BY_ID.get'), 'NPC location access uses zone lookup map');
 ok(runtimeSource.includes('SPOT_BY_ID.get'), 'NPC location access uses spot lookup map');
 
-const createNewGameSource = read('src/engine/createNewGame.ts');
+var createNewGameSource = read('src/engine/createNewGame.ts');
 ok(createNewGameSource.includes('NPC_TARGET_COUNT = 1000'), 'NPC roster target is 1000');
 ok(createNewGameSource.includes("tier: 'low', ratio: 0.15"), 'NPC low tier target is 15%');
 ok(createNewGameSource.includes("tier: 'mid', ratio: 0.25"), 'NPC mid tier target is 25%');
@@ -46,7 +46,23 @@ ok(createNewGameSource.includes("tier: 'max', ratio: 0.30"), 'NPC max tier targe
 ok(createNewGameSource.includes('NPC_UNGUILDED_RATIO = 0.20'), 'NPC unguilded target is 20% per tier');
 ok(createNewGameSource.includes('ensureNpcGuildCapacity'), 'NPC guild capacity helper is wired');
 
-const enhancementSource = read('src/systems/enhancementSystem.ts');
+var enhancementSource = read('src/systems/enhancementSystem.ts');
+ok((enhancementSource.match(/tier: '/g) ?? []).length >= 20, '20 enhancement stones are wired');
+ok(enhancementSource.includes("tier: 'low', minLevel: 1, maxLevel: 20"), 'low enhancement stone tier is wired');
+ok(enhancementSource.includes("tier: 'mid', minLevel: 21, maxLevel: 40"), 'mid enhancement stone tier is wired');
+ok(enhancementSource.includes("tier: 'high', minLevel: 41, maxLevel: 59"), 'high enhancement stone tier is wired');
+ok(enhancementSource.includes("tier: 'max', minLevel: 60, maxLevel: 60"), 'max enhancement stone tier is wired');
+ok(enhancementSource.includes('rarityScore[stone.rarity]'), 'enhancement stone rarity gate is wired');
+
+var guildRosterSource = read('src/systems/guildRosterSystem.ts');
+ok(guildRosterSource.includes("return 'max'"), 'max guild roster tier is wired');
+ok(guildRosterSource.includes('byTier.max'), 'max guild roster bucket is wired');
+
+var goalsSource = read('src/systems/playerGoalsSystem.ts');
+ok(goalsSource.includes('MAX_LEVEL'), 'goals use max level');
+ok(!goalsSource.includes('20 / 20'), 'goals no longer hardcode level 20 cap');
+
+var enhancementSource = read('src/systems/enhancementSystem.ts');
 ok(enhancementSource.includes("tier: 'low', minLevel: 1, maxLevel: 20"), 'low enhancement stone tier is wired');
 ok(enhancementSource.includes("tier: 'mid', minLevel: 21, maxLevel: 40"), 'mid enhancement stone tier is wired');
 ok(enhancementSource.includes("tier: 'high', minLevel: 41, maxLevel: 59"), 'high enhancement stone tier is wired');

@@ -424,12 +424,59 @@ export const simulateActiveGuildWarsSummary = (server: ServerState, rng: Rng, ma
 };
 
 export const finishExpiredGuildWars = (server: ServerState, rng: Rng): ServerState => {
-  let changed = false;
+  const guildById = new Map((server.guilds ?? []).map((guild) => [guild.id, guild]));
+  const finishedWars: GuildWar[] = [];
+
   const wars = (server.guildWars ?? []).map((war) => {
-    if ((war.status === 'active' || war.status === 'scheduled') && reached(server, war.endsDay, war.endsMinute)) { changed = true; return { ...war, status: 'finished' as const }; }
+    if ((war.status === 'active' || war.status === 'scheduled') && reached(server, war.endsDay, war.endsMinute)) {
+      const finished = { ...war, status: 'finished' as const };
+      finishedWars.push(finished);
+      return finished;
+    }
+
     return war;
   });
-  return changed ? addNews({ ...server, guildWars: wars }, rng, 'guild', 'Война завершена.', false) : server;
+
+  if (finishedWars.length === 0) return server;
+
+  let next: ServerState = { ...server, guildWars: wars, notifications: [...(server.notifications ?? [])] };
+
+  finishedWars.forEach((war, index) => {
+    const attacker = guildById.get(war.attackerGuildId);
+    const defender = guildById.get(war.defenderGuildId);
+    const attackerName = attacker?.name ?? war.attackerGuildId;
+    const defenderName = defender?.name ?? war.defenderGuildId;
+    const winner = war.attackerKills === war.defenderKills
+      ? 'ничья'
+      : war.attackerKills > war.defenderKills
+        ? attackerName
+        : defenderName;
+    const score = String(war.attackerKills) + '–' + String(war.defenderKills);
+    const title = 'Война завершена';
+    const text = attackerName + ' vs ' + defenderName;
+
+    next = {
+      ...next,
+      notifications: [
+        ...(next.notifications ?? []),
+        {
+          id: `guild_war_finished_${war.id}_${next.serverDay}_${next.currentMinute}_${index}`,
+          type: 'guild',
+          title,
+          text,
+          lines: [
+            'Победитель: ' + winner,
+            'Счёт: ' + score,
+            'Длительность: ' + String(war.durationDays ?? Math.max(1, war.endsDay - war.declaredDay)) + ' дн.',
+          ],
+        },
+      ],
+    };
+
+    next = addNews(next, rng, 'guild', `${title}: ${attackerName} vs ${defenderName}. Счёт ${score}. Победитель: ${winner}.`, false);
+  });
+
+  return next;
 };
 
 export const maybeCreateWarExtensionVotes = (server: ServerState, rng: Rng): ServerState => {

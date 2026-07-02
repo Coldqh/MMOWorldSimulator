@@ -1,4 +1,5 @@
 import { DUNGEONS, RAIDS, SPOTS } from '../content/world';
+import { MAX_LEVEL } from '../balance';
 import { calculateXpForNextLevel } from '../balance/formulas';
 import { getGearScore } from './itemSystem';
 import type { ServerState } from '../types/game';
@@ -37,11 +38,19 @@ const percent = (value: number, target: number) => clamp(target <= 0 ? 100 : (va
 const fmt = (value: number) => Math.max(0, Math.round(value)).toLocaleString('ru-RU');
 
 const gearTargetForLevel = (level: number) => {
-  const safe = Math.max(1, Math.min(20, level));
-  if (safe <= 3) return 120 + safe * 45;
-  if (safe <= 9) return 250 + safe * 85;
-  if (safe <= 15) return 550 + safe * 115;
-  return 1150 + safe * 145;
+  const safe = Math.max(1, Math.min(MAX_LEVEL, level));
+  if (safe <= 10) return 240 + safe * 110;
+  if (safe <= 20) return 1100 + safe * 150;
+  if (safe <= 40) return 3600 + (safe - 20) * 190;
+  if (safe < 60) return 7600 + (safe - 40) * 230;
+  return 12000;
+};
+
+const tierLabelForLevel = (level: number) => {
+  if (level >= 60) return 'max';
+  if (level >= 41) return 'high';
+  if (level >= 21) return 'mid';
+  return 'low';
 };
 
 const arenaRanks = [
@@ -67,11 +76,23 @@ const getArenaRank = (rating: number) => {
   return { current, next };
 };
 
+const nearestByLevel = <T extends { levelRange: [number, number] }>(entries: T[], level: number) =>
+  [...entries].sort((a, b) => {
+    const aCenter = (a.levelRange[0] + a.levelRange[1]) / 2;
+    const bCenter = (b.levelRange[0] + b.levelRange[1]) / 2;
+    return Math.abs(aCenter - level) - Math.abs(bCenter - level) || a.levelRange[0] - b.levelRange[0];
+  })[0];
+
+const bestUnlockedByLevel = <T extends { levelRange: [number, number] }>(entries: T[], level: number) =>
+  [...entries]
+    .filter((entry) => level >= entry.levelRange[0])
+    .sort((a, b) => b.levelRange[0] - a.levelRange[0])[0];
+
 export const buildPlayerGoalsViewModel = (server: ServerState): PlayerGoalsViewModel => {
   const player = server.player;
   const level = player.level;
-  const xpTarget = level >= 20 ? 0 : calculateXpForNextLevel(level);
-  const xpProgress = level >= 20 ? 100 : percent(player.xp, xpTarget);
+  const xpTarget = level >= MAX_LEVEL ? 0 : calculateXpForNextLevel(level);
+  const xpProgress = level >= MAX_LEVEL ? 100 : percent(player.xp, xpTarget);
   const gearScore = getGearScore(player.equipment);
   const gearTarget = gearTargetForLevel(level);
   const gearProgress = percent(gearScore, gearTarget);
@@ -79,15 +100,10 @@ export const buildPlayerGoalsViewModel = (server: ServerState): PlayerGoalsViewM
   const nextArenaGap = Math.max(0, arena.next.rating - player.arenaRating);
   const arenaProgress = arena.next.rating === arena.current.rating ? 100 : percent(player.arenaRating - arena.current.rating, arena.next.rating - arena.current.rating);
   const guild = player.guildId ? server.guilds.find((entry) => entry.id === player.guildId) : undefined;
-  const spot = [...SPOTS]
-    .filter((entry) => level >= Math.max(1, entry.levelRange[0] - 1))
-    .sort((a, b) => Math.abs(((a.levelRange[0] + a.levelRange[1]) / 2) - level) - Math.abs(((b.levelRange[0] + b.levelRange[1]) / 2) - level))[0];
-  const dungeon = [...DUNGEONS]
-    .filter((entry) => level >= entry.levelRange[0])
-    .sort((a, b) => b.levelRange[0] - a.levelRange[0])[0];
-  const raid = [...RAIDS]
-    .filter((entry) => level >= Math.max(1, entry.levelRange[0] - 1))
-    .sort((a, b) => a.levelRange[0] - b.levelRange[0])[0];
+  const currentTier = tierLabelForLevel(level);
+  const spot = nearestByLevel(SPOTS, level);
+  const dungeon = bestUnlockedByLevel(DUNGEONS, level) ?? nearestByLevel(DUNGEONS, level);
+  const raid = bestUnlockedByLevel(RAIDS, level) ?? nearestByLevel(RAIDS, level);
   const activeQuests = Object.values(server.questStates ?? {}).filter((state) => state.status === 'active' || state.status === 'readyToTurnIn').length;
   const activeContracts = (server.contracts ?? []).filter((contract) => contract.status === 'active').length;
   const readyContracts = (server.contracts ?? []).filter((contract) => contract.status === 'readyToClaim').length;
@@ -98,10 +114,10 @@ export const buildPlayerGoalsViewModel = (server: ServerState): PlayerGoalsViewM
     {
       id: 'level',
       label: 'Уровень',
-      value: level >= 20 ? '20 / 20' : String(level) + ' ур.',
-      target: level >= 20 ? 'кап' : fmt(player.xp) + ' / ' + fmt(xpTarget) + ' XP',
+      value: String(level) + ' / ' + String(MAX_LEVEL),
+      target: level >= MAX_LEVEL ? 'кап уровня' : fmt(player.xp) + ' / ' + fmt(xpTarget) + ' XP',
       progress: xpProgress,
-      severity: level >= 20 ? 'good' : 'normal',
+      severity: level >= MAX_LEVEL ? 'good' : 'normal',
     },
     {
       id: 'gear',
@@ -112,12 +128,12 @@ export const buildPlayerGoalsViewModel = (server: ServerState): PlayerGoalsViewM
       severity: gearProgress >= 100 ? 'good' : gearProgress >= 75 ? 'normal' : 'warning',
     },
     {
-      id: 'arena',
-      label: 'Арена',
-      value: fmt(player.arenaRating) + ' · ' + arena.current.name,
-      target: nextArenaGap > 0 ? 'до ' + arena.next.name + ': ' + fmt(nextArenaGap) : 'верхний ранг',
-      progress: arenaProgress,
-      severity: 'normal',
+      id: 'tier',
+      label: 'Tier',
+      value: currentTier,
+      target: level >= MAX_LEVEL ? 'финальный диапазон' : 'следующий диапазон через уровни',
+      progress: level >= MAX_LEVEL ? 100 : percent(level, MAX_LEVEL),
+      severity: level >= 60 ? 'good' : level >= 41 ? 'normal' : 'warning',
     },
     {
       id: 'guild',
@@ -131,17 +147,17 @@ export const buildPlayerGoalsViewModel = (server: ServerState): PlayerGoalsViewM
 
   const sections: GoalSection[] = [
     {
-      id: 'progress',
-      title: 'Прокачка',
-      subtitle: level >= 20 ? 'Кап уровня взят.' : 'До ' + String(level + 1) + ' уровня осталось ' + fmt(Math.max(0, xpTarget - player.xp)) + ' XP.',
+      id: 'next',
+      title: 'Следующий шаг',
+      subtitle: level >= MAX_LEVEL ? 'Уровень закрыт. Дальше решают gear score, рейды, арена и гильдии.' : 'До ' + String(level + 1) + ' уровня осталось ' + fmt(Math.max(0, xpTarget - player.xp)) + ' XP.',
       metrics: [
         {
           id: 'xp',
           label: 'Опыт',
-          value: fmt(player.xp),
-          target: level >= 20 ? 'кап' : fmt(xpTarget),
+          value: level >= MAX_LEVEL ? 'кап' : fmt(player.xp),
+          target: level >= MAX_LEVEL ? '60 / 60' : fmt(xpTarget),
           progress: xpProgress,
-          severity: 'normal',
+          severity: level >= MAX_LEVEL ? 'good' : 'normal',
         },
         {
           id: 'quests',
@@ -160,7 +176,7 @@ export const buildPlayerGoalsViewModel = (server: ServerState): PlayerGoalsViewM
     {
       id: 'gear',
       title: 'Снаряжение',
-      subtitle: 'Текущий GS ' + fmt(gearScore) + '. Цель по уровню: ' + fmt(gearTarget) + '.',
+      subtitle: 'GS ' + fmt(gearScore) + ' из цели ' + fmt(gearTarget) + ' для текущего уровня.',
       metrics: [
         {
           id: 'gs',
@@ -172,14 +188,14 @@ export const buildPlayerGoalsViewModel = (server: ServerState): PlayerGoalsViewM
         },
       ],
       actions: [
-        dungeon ? { label: 'Добыча', detail: dungeon.name + ': хороший источник апгрейдов.' } : { label: 'Добыча', detail: 'Сначала открой данжи по уровню.' },
-        { label: 'Заточка', detail: 'Сначала оружие и броня, потом карты.' },
+        dungeon ? { label: 'Данж', detail: dungeon.name + ' · Lv. ' + dungeon.levelRange[0] + '–' + dungeon.levelRange[1] } : { label: 'Данж', detail: 'Сначала подними уровень.' },
+        { label: 'Заточка', detail: 'Камни теперь завязаны на диапазон уровня и редкость.' },
       ],
     },
     {
       id: 'arena',
       title: 'Арена',
-      subtitle: 'Ранг ' + arena.current.name + '. Примерное место: ' + String(arenaPosition) + '/' + String(arenaTotal) + '.',
+      subtitle: 'Ранг ' + arena.current.name + '. Место: ' + String(arenaPosition) + '/' + String(arenaTotal) + '.',
       metrics: [
         {
           id: 'rating',
@@ -191,22 +207,22 @@ export const buildPlayerGoalsViewModel = (server: ServerState): PlayerGoalsViewM
         },
       ],
       actions: [
-        { label: '1v1', detail: 'Быстрая проверка билда.' },
-        { label: '3v3 / 5v5 / 10v10', detail: 'Проверка роли и командной боёвки.' },
+        { label: 'Быстро', detail: '1v1 для проверки билда.' },
+        { label: 'Команда', detail: '3v3 / 5v5 / 10v10 для роли и синергии.' },
       ],
     },
     {
       id: 'dungeon_raid',
       title: 'Данжи и рейды',
-      subtitle: raid ? 'Ближайшая рейдовая цель: ' + raid.name + '.' : 'Рейдовая цель пока закрыта.',
+      subtitle: raid ? 'Рейдовая цель: ' + raid.name + '.' : 'Рейдовая цель пока закрыта.',
       metrics: [
         {
           id: 'dungeon',
           label: 'Данж',
           value: dungeon ? dungeon.name : 'нет',
           target: dungeon ? 'Lv. ' + dungeon.levelRange[0] + '–' + dungeon.levelRange[1] : 'подними уровень',
-          progress: dungeon ? 100 : 0,
-          severity: dungeon ? 'good' : 'warning',
+          progress: dungeon && level >= dungeon.levelRange[0] ? 100 : dungeon ? percent(level, dungeon.levelRange[0]) : 0,
+          severity: dungeon && level >= dungeon.levelRange[0] ? 'good' : 'warning',
         },
         {
           id: 'raid',
@@ -218,8 +234,8 @@ export const buildPlayerGoalsViewModel = (server: ServerState): PlayerGoalsViewM
         },
       ],
       actions: [
-        dungeon ? { label: 'Следующий шаг', detail: 'Собери пати в ' + dungeon.name + '.' } : { label: 'Следующий шаг', detail: 'Качайся на спотах и квестах.' },
-        raid ? { label: 'Рейд', detail: 'Готовь GS и стабильную пати к ' + raid.name + '.' } : { label: 'Рейд', detail: 'Рейды появятся ближе к high-уровням.' },
+        dungeon ? { label: 'Пати', detail: 'Собери группу в ' + dungeon.name + '.' } : { label: 'Пати', detail: 'Качайся на спотах и квестах.' },
+        raid ? { label: 'Рейд', detail: 'Готовь GS и стабильный состав к ' + raid.name + '.' } : { label: 'Рейд', detail: 'Рейды откроются позже.' },
       ],
     },
     {
@@ -231,13 +247,13 @@ export const buildPlayerGoalsViewModel = (server: ServerState): PlayerGoalsViewM
           id: 'guild_state',
           label: 'Статус',
           value: guild ? String(guild.tier ?? 'low') + ' · ' + String(guild.guildFocus ?? guild.type) : 'без гильдии',
-          target: guild ? 'участников ' + String(guild.memberIds.length) : level >= 20 ? 'high доступна' : level >= 10 ? 'mid доступна' : 'low доступна',
-          progress: guild ? 100 : level >= 10 ? 60 : 30,
+          target: guild ? 'участников ' + String(guild.memberIds.length) : 'доступен tier ' + currentTier,
+          progress: guild ? 100 : level >= 21 ? 65 : 35,
           severity: guild ? 'good' : 'warning',
         },
       ],
       actions: [
-        guild ? { label: 'Гильдия', detail: 'Проверь войны, осады и заявки.' } : { label: 'Гильдия', detail: level >= 20 ? 'Можно создавать high-гильдию.' : level >= 10 ? 'Можно создавать mid-гильдию.' : 'Пока доступна low-гильдия.' },
+        guild ? { label: 'Войны', detail: 'Проверь войны, осады и заявки.' } : { label: 'Вступить', detail: 'Ищи гильдию своего уровня.' },
         { label: 'Сервер', detail: 'Новости показывают войны, дропы, осады и движение мира.' },
       ],
     },
@@ -248,7 +264,7 @@ export const buildPlayerGoalsViewModel = (server: ServerState): PlayerGoalsViewM
 
 export const goalSeverityLabel = (severity: GoalSeverity) => {
   if (severity === 'good') return 'ОК';
-  if (severity === 'warning') return 'Внимание';
+  if (severity === 'warning') return 'Риск';
   if (severity === 'danger') return 'Слабо';
   return 'Цель';
 };

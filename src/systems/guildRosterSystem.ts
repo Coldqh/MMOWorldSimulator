@@ -1,6 +1,7 @@
-import type { Guild, GuildFocus, GuildType, NpcPlayer, NpcPlaystyle, ServerState } from '../types/game';
+import type { Guild, GuildFocus, GuildTier, GuildType, NpcPlayer, NpcPlaystyle, ServerState } from '../types/game';
 import type { Rng } from '../engine/rng';
 import { SPOTS, ZONES } from '../content/world';
+import { LEVEL_BANDS, MAX_LEVEL } from '../balance';
 import { inferNpcSkill, clampNpcSkill } from './npcSkillSystem';
 import { cleanGuildIdentity, normalizeGuildAndNpcIdentities, normalizeNpcPlaystyle, roleFocusToPlaystyle } from './guildIdentitySystem';
 import { isPlayerCreatedGuild, protectPlayerCreatedGuilds } from './playerGuildProtection';
@@ -17,20 +18,12 @@ export const playstyleForGuild = (guild: Guild | undefined, npc: NpcPlayer, _rng
   return normalizeNpcPlaystyle(npc.playstyle, roleFocusToPlaystyle(npc.roleFocus));
 };
 
-const tierForNpcLevel = (level: number, rng: Rng): 'low' | 'mid' | 'high' | 'none' => {
-  const roll = rng.next();
-  if (level >= 20) {
-    if (roll < 0.64) return 'high';
-    if (roll < 0.72) return 'mid';
-    if (roll < 0.80) return 'low';
-    return 'none';
-  }
-  if (level >= 10) {
-    if (roll < 0.64) return 'mid';
-    if (roll < 0.80) return 'low';
-    return 'none';
-  }
-  return roll < 0.80 ? 'low' : 'none';
+const tierForNpcLevel = (level: number, rng: Rng): GuildTier | 'none' => {
+  if (rng.next() >= 0.80) return 'none';
+  if (level >= MAX_LEVEL) return 'max';
+  if (level >= LEVEL_BANDS.high.min) return 'high';
+  if (level >= LEVEL_BANDS.mid.min) return 'mid';
+  return 'low';
 };
 
 const pickLocation = (npc: NpcPlayer, rng: Rng): Pick<NpcPlayer, 'locationMode' | 'currentZoneId' | 'currentSpotId'> => {
@@ -53,30 +46,41 @@ const pushToSmallest = (groups: Map<string, string[]>, guilds: Guild[], npc: Npc
   groups.get(guild.id)?.push(npc.id);
 };
 
+const rosterTierForNpc = (npc: NpcPlayer): GuildTier => {
+  if (npc.level >= MAX_LEVEL) return 'max';
+  if (npc.level >= LEVEL_BANDS.high.min) return 'high';
+  if (npc.level >= LEVEL_BANDS.mid.min) return 'mid';
+  return 'low';
+};
+
 const enforceMinimumUnguilded = (npcs: NpcPlayer[], guilds: Guild[], protectedGuildIds: Set<string>) => {
-  const targetUnguilded = Math.ceil(npcs.length * 0.2);
-  const currentUnguilded = npcs.filter((npc) => !npc.guildId).length;
-  const need = Math.max(0, targetUnguilded - currentUnguilded);
-  if (need <= 0) return npcs;
+  const removableIds = new Set<string>();
 
-  const removable = [...npcs]
-    .filter((npc) => npc.guildId && !protectedGuildIds.has(npc.guildId))
-    .sort((a, b) => a.level - b.level || a.gearScore - b.gearScore || a.id.localeCompare(b.id))
-    .slice(0, need)
-    .map((npc) => npc.id);
+  (['low', 'mid', 'high', 'max'] as GuildTier[]).forEach((tier) => {
+    const tierNpcs = npcs.filter((npc) => rosterTierForNpc(npc) === tier);
+    const targetUnguilded = Math.ceil(tierNpcs.length * 0.2);
+    const currentUnguilded = tierNpcs.filter((npc) => !npc.guildId).length;
+    const need = Math.max(0, targetUnguilded - currentUnguilded);
+    if (need <= 0) return;
 
-  if (removable.length === 0) return npcs;
-  const removeSet = new Set(removable);
+    tierNpcs
+      .filter((npc) => npc.guildId && !protectedGuildIds.has(npc.guildId))
+      .sort((a, b) => a.gearScore - b.gearScore || a.level - b.level || a.id.localeCompare(b.id))
+      .slice(0, need)
+      .forEach((npc) => removableIds.add(npc.id));
+  });
+
+  if (removableIds.size === 0) return npcs;
 
   guilds.forEach((guild) => {
     if (protectedGuildIds.has(guild.id)) return;
-    guild.memberIds = guild.memberIds.filter((id) => !removeSet.has(id));
-    if (guild.leaderId && removeSet.has(guild.leaderId)) guild.leaderId = undefined;
-    if (guild.deputyId && removeSet.has(guild.deputyId)) guild.deputyId = undefined;
-    guild.officerIds = (guild.officerIds ?? []).filter((id) => !removeSet.has(id));
+    guild.memberIds = guild.memberIds.filter((id) => !removableIds.has(id));
+    if (guild.leaderId && removableIds.has(guild.leaderId)) guild.leaderId = undefined;
+    if (guild.deputyId && removableIds.has(guild.deputyId)) guild.deputyId = undefined;
+    guild.officerIds = (guild.officerIds ?? []).filter((id) => !removableIds.has(id));
   });
 
-  return npcs.map((npc) => removeSet.has(npc.id) ? { ...npc, guildId: undefined } : npc);
+  return npcs.map((npc) => removableIds.has(npc.id) ? { ...npc, guildId: undefined } : npc);
 };
 
 export const rebalanceGuildRoster = (server: ServerState, rng: Rng): ServerState => {
@@ -87,10 +91,11 @@ export const rebalanceGuildRoster = (server: ServerState, rng: Rng): ServerState
   const guildById = new Map(guilds.map((guild) => [guild.id, guild]));
   const groups = new Map<string, string[]>();
   assignableGuilds.forEach((guild) => groups.set(guild.id, []));
-  const byTier = {
+  const byTier: Record<GuildTier, Guild[]> = {
     low: assignableGuilds.filter((guild) => (guild.tier ?? 'low') === 'low'),
     mid: assignableGuilds.filter((guild) => (guild.tier ?? 'low') === 'mid'),
     high: assignableGuilds.filter((guild) => (guild.tier ?? 'low') === 'high'),
+    max: assignableGuilds.filter((guild) => (guild.tier ?? 'low') === 'max'),
   };
 
   let npcs: NpcPlayer[] = [...(protectedBase.npcs ?? [])]
@@ -99,7 +104,7 @@ export const rebalanceGuildRoster = (server: ServerState, rng: Rng): ServerState
       const tier = tierForNpcLevel(npc.level, rng);
       const baseFocus = normalizeNpcPlaystyle(npc.playstyle, roleFocusToPlaystyle(npc.roleFocus));
       const next: NpcPlayer = { ...npc, roleFocus: baseFocus, playstyle: baseFocus };
-      const pool = tier === 'high' ? byTier.high : tier === 'mid' ? byTier.mid : tier === 'low' ? byTier.low : [];
+      const pool = tier === 'max' ? byTier.max : tier === 'high' ? byTier.high : tier === 'mid' ? byTier.mid : tier === 'low' ? byTier.low : [];
 
       if (next.guildId && protectedGuildIds.has(next.guildId)) {
         // Player-created guilds are filled only through accepted applications, not background balancing.
