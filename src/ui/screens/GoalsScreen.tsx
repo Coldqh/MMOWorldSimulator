@@ -18,43 +18,69 @@ const progressInnerStyle = (progress: number): CSSProperties => ({
   background: 'linear-gradient(90deg, rgba(96,165,250,0.95), rgba(34,211,238,0.95))',
 });
 
-const boardStyle: CSSProperties = {
+const summaryGridStyle: CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-  gap: 14,
-};
-
-const heroGridStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
   gap: 12,
   marginTop: 16,
 };
 
-const sectionStyle: CSSProperties = {
+const boardStyle: CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'minmax(180px, 0.8fr) minmax(240px, 1.2fr)',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
   gap: 14,
-  alignItems: 'stretch',
+};
+
+const metricGridStyle: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+  gap: 10,
+  marginTop: 12,
 };
 
 const metricCardStyle = (metric: GoalMetric): CSSProperties => ({
-  border: '1px solid rgba(255,255,255,0.09)',
+  minWidth: 0,
+  border: '1px solid rgba(255,255,255,0.10)',
   borderRadius: 16,
   padding: 14,
   background: metric.severity === 'good'
-    ? 'rgba(34,197,94,0.09)'
+    ? 'rgba(34,197,94,0.10)'
     : metric.severity === 'danger'
-      ? 'rgba(239,68,68,0.09)'
+      ? 'rgba(239,68,68,0.10)'
       : metric.severity === 'warning'
-        ? 'rgba(245,158,11,0.09)'
+        ? 'rgba(245,158,11,0.10)'
         : 'rgba(255,255,255,0.045)',
 });
 
-const compactMetricStyle = (metric: GoalMetric): CSSProperties => ({
-  ...metricCardStyle(metric),
-  minHeight: 88,
-});
+const valueStyle: CSSProperties = {
+  display: 'block',
+  fontSize: 20,
+  marginTop: 4,
+  lineHeight: 1.15,
+  wordBreak: 'break-word',
+};
+
+const labelRowStyle: CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: 12,
+  alignItems: 'baseline',
+};
+
+const actionListStyle: CSSProperties = {
+  display: 'grid',
+  gap: 8,
+  marginTop: 12,
+};
+
+const actionRowStyle: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: '92px minmax(0, 1fr)',
+  gap: 10,
+  alignItems: 'start',
+  padding: '8px 0',
+  borderTop: '1px solid rgba(255,255,255,0.08)',
+};
 
 export const GoalsScreen = () => {
   const server = useGameStore((state) => state.server);
@@ -66,15 +92,18 @@ export const GoalsScreen = () => {
       <section className="panel hero-panel">
         <div className="section-title">🎯 Цели</div>
         <h1>Путь персонажа</h1>
-        <p className="muted">Короткая сводка: уровень, GS, tier, гильдия и ближайшие действия.</p>
+        <p className="muted">Уровень, gear score, tier, гильдия и ближайшие действия.</p>
 
-        <div style={heroGridStyle}>
+        <div style={summaryGridStyle}>
           {goals.summary.map((metric) => (
-            <div key={metric.id} style={compactMetricStyle(metric)}>
-              <div className="muted">{metric.label}</div>
-              <strong style={{ display: 'block', fontSize: 22, marginTop: 4 }}>{metric.value}</strong>
+            <div key={metric.id} style={metricCardStyle(metric)}>
+              <span className="muted">{metric.label}</span>
+              <strong style={valueStyle}>{metric.value}</strong>
               {metric.target && <small>{metric.target}</small>}
-              <div style={progressOuterStyle}><div style={progressInnerStyle(metric.progress)} /></div>
+              <div style={progressOuterStyle}>
+                <div style={progressInnerStyle(metric.progress)} />
+              </div>
+              <small>{goalSeverityLabel(metric.severity)} · {Math.round(metric.progress)}%</small>
             </div>
           ))}
         </div>
@@ -83,36 +112,32 @@ export const GoalsScreen = () => {
       <div style={boardStyle}>
         {goals.sections.map((section) => (
           <section key={section.id} className="panel">
-            <div style={sectionStyle}>
-              <div>
-                <div className="section-title">{section.title}</div>
-                <p className="muted">{section.subtitle}</p>
-              </div>
+            <div className="section-title">{section.title}</div>
+            <p className="muted">{section.subtitle}</p>
 
-              <div>
-                <div style={{ display: 'grid', gap: 10 }}>
-                  {section.metrics.map((metric) => (
-                    <div key={metric.id} style={metricCardStyle(metric)}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                        <span>{metric.label}</span>
-                        <strong>{metric.value}</strong>
-                      </div>
-                      {metric.target && <small>{metric.target}</small>}
-                      <div style={progressOuterStyle}><div style={progressInnerStyle(metric.progress)} /></div>
-                      <small>{goalSeverityLabel(metric.severity)} · {Math.round(metric.progress)}%</small>
-                    </div>
-                  ))}
+            <div style={metricGridStyle}>
+              {section.metrics.map((metric) => (
+                <div key={metric.id} style={metricCardStyle(metric)}>
+                  <div style={labelRowStyle}>
+                    <span>{metric.label}</span>
+                    <strong>{metric.value}</strong>
+                  </div>
+                  {metric.target && <small>{metric.target}</small>}
+                  <div style={progressOuterStyle}>
+                    <div style={progressInnerStyle(metric.progress)} />
+                  </div>
+                  <small>{goalSeverityLabel(metric.severity)} · {Math.round(metric.progress)}%</small>
                 </div>
+              ))}
+            </div>
 
-                <div className="list-lines mt-small">
-                  {section.actions.map((action) => (
-                    <div key={section.id + '_' + action.label + '_' + action.detail} className="list-line">
-                      <span>{action.label}</span>
-                      <strong>{action.detail}</strong>
-                    </div>
-                  ))}
+            <div style={actionListStyle}>
+              {section.actions.map((action) => (
+                <div key={section.id + '_' + action.label + '_' + action.detail} style={actionRowStyle}>
+                  <span className="muted">{action.label}</span>
+                  <strong style={{ minWidth: 0, wordBreak: 'break-word' }}>{action.detail}</strong>
                 </div>
-              </div>
+              ))}
             </div>
           </section>
         ))}
