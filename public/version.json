@@ -1,6 +1,6 @@
 {
-  "version": "0.7.52",
+  "version": "0.7.53",
   "channel": "stable",
-  "build": "2026-07-01-v0742-content-validation-layer",
-  "buildTime": "2026-07-01T14:03:37.892Z"
+  "build": "2026-07-03-v0753-unified-stats",
+  "buildTime": "2026-07-03T13:00:06.061Z"
 }
