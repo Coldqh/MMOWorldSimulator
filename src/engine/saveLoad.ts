@@ -1,9 +1,9 @@
 import type { ServerState } from '../types/game';
 
-export const SAVE_VERSION = '0.7.0';
-export const SAVE_KEY = 'mmoworldsimulator.save.v0.7.0';
+export const SAVE_VERSION = '0.7.54';
+export const SAVE_KEY = 'mmoworldsimulator.save.v0.7.54';
 
-const BROKEN_SAVE_PREFIX = 'mmoworldsimulator.save.broken.v0.7.0';
+const BROKEN_SAVE_PREFIX = 'mmoworldsimulator.save.broken.v0.7.54';
 const DEBUG_PREFIX = 'mmoworldsimulator.debug.v0.7.0';
 
 let pendingSave: (ServerState & { savedAt?: number }) | null = null;

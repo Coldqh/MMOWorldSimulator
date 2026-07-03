@@ -15,7 +15,7 @@ import { shouldAutoResolveSiege } from '../systems/siegeSystem';
 export const validateServerRuntime = (server: ServerState): RuntimeIssue[] => {
   const issues: RuntimeIssue[] = [];
 
-  if (server.version !== SAVE_VERSION) issues.push({ severity: 'critical', code: 'version_mismatch', message: 'Save version is not v0.7.0' });
+  if (server.version !== SAVE_VERSION) issues.push({ severity: 'critical', code: 'version_mismatch', message: 'Save version is not v0.7.54' });
   if (!server.player || server.player.level < 1) issues.push({ severity: 'critical', code: 'invalid_player', message: 'Player is missing or invalid' });
   if (!Array.isArray(server.npcs) || server.npcs.length < 100) issues.push({ severity: 'warning', code: 'npc_roster_low', message: 'NPC roster is smaller than expected' });
   if (!Array.isArray(server.guilds)) issues.push({ severity: 'warning', code: 'guilds_invalid', message: 'Guild list is invalid' });

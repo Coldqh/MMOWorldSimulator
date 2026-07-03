@@ -28,7 +28,7 @@ const castlePanel = read('src/ui/components/CastlePanel.tsx');
 assert(pkg.version === '0.7.52', 'package version is 0.7.52');
 assert(versionTs.includes("APP_VERSION = '0.7.52'") || versionTs.includes('APP_VERSION = "0.7.52"'), 'APP_VERSION is 0.7.52');
 assert(publicVersion.version === '0.7.52', 'public version is 0.7.52');
-assert(saveLoad.includes("SAVE_VERSION = '0.7.0'") || saveLoad.includes('SAVE_VERSION = "0.7.0"'), 'SAVE_VERSION unchanged');
+assert(saveLoad.includes("SAVE_VERSION = '0.7.54'") || saveLoad.includes('SAVE_VERSION = "0.7.54"'), 'SAVE_VERSION is 0.7.54');
 assert(balanceConfig.includes('export const MAX_LEVEL = 60;'), 'MAX_LEVEL remains 60');
 assert(balanceConfig.includes("high: { min: 41, max: 59 }"), 'high band remains 41-59');
 assert(balanceConfig.includes("max: { min: 60, max: 60 }"), 'max band remains 60');

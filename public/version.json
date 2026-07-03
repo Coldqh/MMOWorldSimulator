@@ -1,6 +1,6 @@
 {
-  "version": "0.7.53",
+  "version": "0.7.54",
   "channel": "stable",
-  "build": "2026-07-03-v0753-unified-stats",
-  "buildTime": "2026-07-03T13:00:06.061Z"
+  "build": "2026-07-03-v0754-real-unified-stats",
+  "buildTime": "2026-07-03T14:35:48.319Z"
 }

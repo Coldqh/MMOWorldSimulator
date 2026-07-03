@@ -1,7 +1,7 @@
 import type { CombatAggression, CombatState, Combatant, CombatantV2, CombatTeamV2, NpcPlayer, PartyRole, PartyRoleMap, ServerState } from '../types/game';
 import type { Rng } from '../engine/rng';
 import { uid } from '../engine/rng';
-import { getPlayerStats } from './itemSystem';
+import { getGearScore, getPlayerStats } from './itemSystem';
 import { createPlayerCombatant } from './combatSystem';
 import {
   canPlayerAttackWarNpc,
@@ -125,7 +125,7 @@ const playerCombatantV2 = (server: ServerState): CombatantV2 => {
     defense: stats.defense,
     speed: stats.speed,
     shield: 0,
-    gearScore: Object.values(server.player.equipment ?? {}).length * 100,
+    gearScore: getGearScore(server.player.equipment),
     skill: 7,
     aggression: aggressionForRole(role, true),
     targetPriority: targetPriorityForRole(role),
@@ -266,7 +266,7 @@ export const startWarNpcAmbushCombat = (server: ServerState, rng: Rng): CombatSt
   const enemies = getEnemyWarNpcsInPlayerLocation(server);
   if (enemies.length === 0) return null;
   const attackers = enemies.filter((npc) => {
-    const diff = getNpcEffectiveGearScore(npc) - Math.max(1, Object.values(server.player.equipment ?? {}).length * 100);
+    const diff = getNpcEffectiveGearScore(npc) - Math.max(1, getGearScore(server.player.equipment));
     const base = npc.playstyle === 'pvp' ? 0.3 : 0.16;
     return rng.chance(Math.max(0.04, Math.min(0.62, base + diff / 10000)));
   }).slice(0, MAX_WAR_DUEL_PARTICIPANTS - 1);

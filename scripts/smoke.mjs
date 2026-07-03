@@ -25,10 +25,10 @@ const sw = read('public/sw.js');
 const siegeSystem = read('src/systems/siegeSystem.ts');
 const castlePanel = read('src/ui/components/CastlePanel.tsx');
 
-assert(pkg.version === '0.7.53', 'package version is 0.7.53');
-assert(versionTs.includes("APP_VERSION = '0.7.53'") || versionTs.includes('APP_VERSION = "0.7.53"'), 'APP_VERSION is 0.7.53');
-assert(publicVersion.version === '0.7.53', 'public version is 0.7.53');
-assert(saveLoad.includes("SAVE_VERSION = '0.7.0'") || saveLoad.includes('SAVE_VERSION = "0.7.0"'), 'SAVE_VERSION unchanged');
+assert(pkg.version === '0.7.54', 'package version is 0.7.54');
+assert(versionTs.includes("APP_VERSION = '0.7.54'") || versionTs.includes('APP_VERSION = "0.7.54"'), 'APP_VERSION is 0.7.54');
+assert(publicVersion.version === '0.7.54', 'public version is 0.7.54');
+assert(saveLoad.includes("SAVE_VERSION = '0.7.54'") || saveLoad.includes('SAVE_VERSION = "0.7.54"'), 'SAVE_VERSION is 0.7.54');
 assert(balanceConfig.includes('export const MAX_LEVEL = 60;'), 'MAX_LEVEL remains 60');
 assert(balanceConfig.includes("high: { min: 41, max: 59 }"), 'high band remains 41-59');
 assert(balanceConfig.includes("max: { min: 60, max: 60 }"), 'max band remains 60');
@@ -68,7 +68,7 @@ assert(guildRuntime.includes('isOpenWarStatus(war.status)'), 'sameTierWarCount c
 assert(guildWar.includes('const startScheduledGuildWars'), 'core guild war system starts scheduled wars');
 assert(guildWar.includes('next = startScheduledGuildWars(next);'), 'tickGuildWars advances scheduled wars');
 
-assert(sw.includes("mmows-v0.7.53"), 'service worker cache is 0.7.53');
+assert(sw.includes("mmows-v0.7.54"), 'service worker cache is 0.7.54');
 assert(siegeSystem.includes('никто не зарегистрировался на осаду'), 'siege no-roster text is readable Russian');
 assert(siegeSystem.includes('осада завершена. Победитель'), 'siege finish news is readable Russian');
 assert(siegeSystem.includes("castle.tier === 'max') return guild.tier === 'max' || guild.tier === 'high'"), 'max sieges can fallback to high NPC guilds');

@@ -4,6 +4,13 @@ import type { GearScoreCardLike, ItemBudgetInput, MobBudgetInput } from './balan
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
+export const MAX_ENHANCEMENT_LEVEL = 12;
+
+export const getEnhancementMultiplier = (enhancement = 0) => {
+  const safe = clamp(Math.round(enhancement || 0), 0, MAX_ENHANCEMENT_LEVEL);
+  return 1 + safe * 0.10;
+};
+
 export const statScore = (stats: Partial<Record<string, number>> = {}) =>
   Object.values(stats).reduce<number>((sum, value) => sum + Math.abs(Number(value) || 0), 0);
 
@@ -82,7 +89,7 @@ export const calculateGearScore = (item: ItemDefinition, enhancement = 0, cardId
     (RARITY_SCORE[item.rarity] ?? 1) * GEAR_SCORE.rarity +
     getSlotPower(item.slot) * 7 +
     (item.socketSlots ?? 0) * GEAR_SCORE.socket;
-  return Math.max(1, Math.round(base + calculateEnhancementValue(enhancement, item) + cardPower));
+  return Math.max(1, Math.round(base * getEnhancementMultiplier(enhancement) + cardPower));
 };
 
 export const calculateXpForNextLevel = (level: number) => {

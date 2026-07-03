@@ -1,7 +1,7 @@
 import { getClassById } from '../content/classes';
 import { getItemById, normalizeLegacyItemId, rarityScore } from '../content/items';
 import { getBestNpcItemCandidates, getNpcCardCandidates, getNpcEquipmentCandidates } from '../content/itemPools';
-import { calculateGearScore } from '../balance';
+import { calculateGearScore, getEnhancementMultiplier } from '../balance';
 import { getRaceById } from '../content/races';
 import type { Rng } from '../engine/rng';
 import type { Equipment, EquipmentSlot, InventoryStack, ItemDefinition, ItemInstance, NpcPlayer, Player, StatBlock } from '../types/game';
@@ -114,10 +114,10 @@ export const getEquipmentStats = (equipment: Equipment): Partial<StatBlock> => {
     const item = getItemById(instance.itemId);
     if (!item) return;
 
+    const enhancementMultiplier = getEnhancementMultiplier(instance.enhancement);
     Object.entries(item.stats).forEach(([key, value]) => {
       const statKey = key as keyof StatBlock;
-      const enhancementBonus = item.slot === 'weapon' && statKey === 'attack' ? instance.enhancement * 2 : instance.enhancement;
-      result[statKey] = (result[statKey] ?? 0) + (value ?? 0) + enhancementBonus;
+      result[statKey] = (result[statKey] ?? 0) + (value ?? 0) * enhancementMultiplier;
     });
     (instance.cardIds ?? []).forEach((cardId: string) => {
       const card = getItemById(cardId);

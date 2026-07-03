@@ -158,7 +158,7 @@ export const handleWarNpcEncountersOnPlayerLocationEnter = (server: ServerState,
     const fleeChance = diff < -800 ? 0.65 : diff < -300 ? 0.35 : diff > 300 ? 0.06 : 0.15;
     if (rng.chance(fleeChance)) {
       npcs = npcs.map((entry) => entry.id === npc.id ? { ...entry, locationMode: 'city', currentZoneId: undefined, currentSpotId: undefined } : entry);
-      lines.push(`${npc.name} СѓС€С‘Р» РІ РіРѕСЂРѕРґ.`);
+      lines.push(`${npc.name} ушёл в город.`);
     }
   });
   return lines.length === 0 ? server : { ...server, npcs, notifications: [...(server.notifications ?? []), { id: `war_location_${server.serverDay}_${server.currentMinute}_${rng.int(1, 999999)}`, type: 'guild', title: 'Р’СЂР°РіРё СЂСЏРґРѕРј', text: 'Р’СЂР°Р¶РµСЃРєРёРµ РёРіСЂРѕРєРё РІ Р»РѕРєР°С†РёРё.', lines: lines.slice(0, 4) }] };

@@ -143,7 +143,7 @@ export const CastlePanel = ({ onBack }: { onBack?: () => void } = {}) => {
                   <div className="war-history-result">
                     <strong className={last.winnerGuildId === playerGuild?.id ? 'victory-text' : 'muted'}>Последний победитель: {guildName(last.winnerGuildId)}</strong>
                     <small>MVP: {last.mvpId ? <button className="text-button inline-button" onClick={() => last.mvpId === server.player.id ? undefined : openNpcProfile(last.mvpId!)}>{npcName(last.mvpId)}</button> : 'нет'}</small>
-                    <small>{last.scoreSummary}</small>
+                    <small>Итог: {guildName(last.winnerGuildId)} выиграла последнюю осаду.</small>
                   </div>
                 )}
               </article>

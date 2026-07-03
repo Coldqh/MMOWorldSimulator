@@ -233,6 +233,34 @@ ok(combatSource.includes('COMBAT_TURN_MINUTES = 5'), 'normal combat action advan
 
 var arena3v3Source = read('src/systems/arena3v3System.ts');
 ok(arena3v3Source.includes('ARENA_TEAM_ROUND_MINUTES = 5'), 'team arena round advances 5 minutes');
-ok(arena3v3Source.includes('applyArenaRoleScaling'), 'arena role stat scaling is wired');
+ok(!arena3v3Source.includes('applyArenaRoleScaling'), 'arena hidden stat scaling is removed');
 
 console.log('real combat time rest text repair is wired');
+
+
+var itemSystem0754 = read('src/systems/itemSystem.ts');
+ok(itemSystem0754.includes('getEnhancementMultiplier(instance.enhancement)'), 'enhancement scales item stats by percent');
+ok(!itemSystem0754.includes('enhancementBonus'), 'flat enhancement stat bonus is removed');
+
+var formulas0754 = read('src/balance/formulas.ts');
+ok(formulas0754.includes('getEnhancementMultiplier'), 'enhancement multiplier exists');
+ok(!formulas0754.includes('calculateEnhancementValue(enhancement'), 'gear score does not use flat enhancement value');
+
+var pvpStats0754 = read('src/systems/pvpStatSystem.ts');
+ok(!pvpStats0754.includes('missingGear'), 'NPC hidden missingGear stat boost is removed');
+ok(!pvpStats0754.includes('displayedGear'), 'NPC displayedGear stat boost is removed');
+
+var arena0754 = read('src/systems/arena3v3System.ts');
+ok(!arena0754.includes('applyArenaRoleScaling'), 'arena hidden role scaling is removed');
+ok(!arena0754.includes('gearPulse'), 'arena gearPulse is removed');
+
+var duel0754 = read('src/systems/pvpDuelSystem.ts');
+ok(!duel0754.includes('Object.values(server.player.equipment'), 'PvP fake player gear score is removed');
+ok(duel0754.includes('getGearScore(server.player.equipment)'), 'PvP uses real player gear score');
+
+var npcLocation0754 = read('src/systems/npcLocationSystem.ts');
+ok(!npcLocation0754.includes('СѓС€С'), 'npc location mojibake is removed');
+
+var castle0754 = read('src/ui/components/CastlePanel.tsx');
+ok(!castle0754.includes('<small>{last.scoreSummary}</small>'), 'castle UI does not show raw scoreSummary debug');
+console.log('real unified stats replacement is wired');

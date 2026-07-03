@@ -18,6 +18,7 @@ import { addInventoryItem, getPlayerStats, removeInventoryItem } from './itemSys
 import { rollLoot } from './lootSystem';
 import { addPlayerXp, xpForNextLevel, xpRewardForMob } from './progressionSystem';
 import { finishGuildWarDefeatV2, finishGuildWarVictoryV2 } from './guildWarCombatResultSystem';
+import { getNpcPlayerEquivalentStats } from './pvpStatSystem';
 
 
 const bestPotionStack = (inventory: InventoryStack[], playerLevel: number, kind: 'hp' | 'mana') => {
@@ -117,18 +118,19 @@ const createMobCombatant = (mobId: string): Combatant | null => {
 const npcCombatStats = (server: ServerState, npcId: string) => {
   const npc = server.npcs.find((entry) => entry.id === npcId);
   const level = npc?.level ?? server.player.level;
-  const gear = npc?.gearScore ?? 25;
+  const stats = npc ? getNpcPlayerEquivalentStats(npc) : getPlayerStats(server.player);
+  const classId = npc?.classId ?? 'ranger';
   return {
     id: npcId,
     name: npc?.name ?? npcId,
-    classId: npc?.classId ?? 'ranger',
+    classId,
     level,
-    maxHp: 80 + level * 14 + Math.floor(gear / 4),
-    maxMana: npc?.classId === 'mage' || npc?.classId === 'priest' ? 70 + level * 6 : 42 + level * 3,
-    attack: 7 + level * 2 + Math.floor(gear / 18),
-    magic: 6 + level * 2 + Math.floor(gear / 20),
-    defense: 4 + Math.floor(level * 1.4) + Math.floor(gear / 28),
-    heal: 10 + level * 3 + Math.floor(gear / 18),
+    maxHp: stats.hp,
+    maxMana: stats.mana,
+    attack: stats.attack,
+    magic: stats.magic,
+    defense: stats.defense,
+    heal: Math.max(8, Math.round((stats.magic + stats.attack) * 0.35 + level * 2)),
   };
 };
 
