@@ -8,6 +8,9 @@ const safeId = (value: string) =>
 const uniqueById = <T extends { id: string }>(items: T[]) =>
   [...new Map(items.map((item) => [item.id, item])).values()];
 
+const cleanName = (name: string) =>
+  name.replace(/^(Данж|Рейд):\s*/i, '').trim();
+
 const giverForZone = (zoneId: string) =>
   QUEST_GIVERS.find((giver) => giver.zoneId === zoneId) ??
   QUEST_GIVERS.find((giver) => giver.zoneId !== 'starting_city') ??
@@ -16,97 +19,64 @@ const giverForZone = (zoneId: string) =>
 const zoneMobIds = (zoneId: string) =>
   [...new Set(SPOTS.filter((spot) => spot.zoneId === zoneId).flatMap((spot) => spot.mobIds))];
 
-const cleanInstanceName = (name: string) =>
-  name.replace(/^(Данж|Рейд):\s*/i, '').trim();
+const mobName = (id: string) => getMobById(id)?.name ?? id;
 
 const targetTypeText = (instance: DungeonDefinition) =>
   instance.contentType === 'raid' ? 'рейд' : 'данж';
 
-const targetLabel = (instance: DungeonDefinition) =>
-  targetTypeText(instance) + ' «' + instance.name + '»';
-
-const mobNames = (ids: string[]) =>
-  ids.map((id) => getMobById(id)?.name ?? id).join(', ');
-
-const buildProbeObjective = (mobIds: string[], instance: DungeonDefinition, giverId: string): QuestObjective => {
-  if (mobIds.length > 0) {
-    return {
-      type: 'kill',
-      targetIds: mobIds,
-      required: instance.contentType === 'raid' ? 18 : 10,
-    };
-  }
-
-  return {
-    type: 'talk',
-    targetId: giverId,
-    required: 1,
-  };
+const buildKillObjectives = (instance: DungeonDefinition): QuestObjective[] => {
+  const mobs = zoneMobIds(instance.zoneId).slice(0, 3);
+  if (mobs.length === 0) return [];
+  const perMob = instance.contentType === 'raid' ? 6 : 4;
+  return mobs.map((mobId) => ({
+    type: 'kill',
+    targetId: mobId,
+    required: perMob,
+  }));
 };
 
-const buildUnlockQuestsForInstance = (instance: DungeonDefinition): QuestDefinition[] => {
+const buildUnlockQuestForInstance = (instance: DungeonDefinition): QuestDefinition[] => {
   const giver = giverForZone(instance.zoneId);
   if (!giver) return [];
 
   const zone = getZoneById(instance.zoneId);
   const type = instance.contentType === 'raid' ? 'raid' : 'dungeon';
+  const titleType = instance.contentType === 'raid' ? 'рейд' : 'данж';
   const base = safeId(instance.id);
-  const probeId = 'unlock_' + base + '_probe';
-  const openId = 'unlock_' + base + '_open';
-  const cleanName = cleanInstanceName(instance.name);
-  const label = targetLabel(instance);
-  const requiredKills = instance.contentType === 'raid' ? 18 : 10;
-  const probeMobIds = zoneMobIds(instance.zoneId).slice(0, 3);
-  const probeObjective = buildProbeObjective(probeMobIds, instance, giver.id);
-  const targetNames = probeMobIds.length > 0 ? mobNames(probeMobIds) : giver.name;
-  const zoneName = zone?.name ?? instance.zoneId;
+  const instanceName = cleanName(instance.name);
+  const objectives = buildKillObjectives(instance);
+  const objectiveText = objectives.length > 0
+    ? objectives.map((objective) => {
+      const name = objective.targetId ? mobName(objective.targetId) : 'цель';
+      return name + ' — ' + objective.required;
+    }).join('; ')
+    : 'поговорить с ' + giver.name;
+  const finalObjectives = objectives.length > 0
+    ? objectives
+    : [{ type: 'talk' as const, targetId: giver.id, required: 1 }];
 
-  return [
-    {
-      id: probeId,
-      title: 'Следы у входа: ' + cleanName,
-      giverId: giver.id,
-      levelReq: instance.levelRange[0],
-      zoneId: instance.zoneId,
-      type: probeObjective.type,
-      importance: 'unlock',
-      unlockTargetType: type,
-      unlockTargetId: instance.id,
-      objectives: [probeObjective],
-      reward: {
-        xp: Math.max(80, instance.levelRange[0] * 45),
-        gold: Math.max(30, instance.levelRange[0] * 12),
-      },
-      introText: 'Открывает ' + label + '. Цели: ' + targetNames + '.',
-      progressText: probeObjective.type === 'kill'
-        ? 'Убей ' + requiredKills + ' врагов: ' + targetNames + '. Локация: ' + zoneName + '.'
-        : 'Поговори с ' + giver.name + '. Локация: ' + zoneName + '.',
-      completeText: 'Следы собраны. Теперь можно получить финальный допуск.',
+  return [{
+    id: 'unlock_' + base,
+    title: 'Открыть ' + titleType + ': ' + instanceName,
+    giverId: giver.id,
+    levelReq: instance.levelRange[0],
+    zoneId: instance.zoneId,
+    type: objectives.length > 0 ? 'kill' : 'talk',
+    importance: 'unlock',
+    unlockTargetType: type,
+    unlockTargetId: instance.id,
+    objectives: finalObjectives,
+    reward: {
+      xp: Math.max(120, instance.levelRange[0] * 60),
+      gold: Math.max(45, instance.levelRange[0] * 16),
+      unlockContentIds: [instance.id],
     },
-    {
-      id: openId,
-      title: 'Открыть проход: ' + cleanName,
-      giverId: giver.id,
-      levelReq: instance.levelRange[0],
-      zoneId: instance.zoneId,
-      type: 'talk',
-      importance: 'unlock',
-      unlockTargetType: type,
-      unlockTargetId: instance.id,
-      prerequisiteQuestIds: [probeId],
-      objectives: [{ type: 'talk', targetId: giver.id, required: 1 }],
-      reward: {
-        xp: Math.max(120, instance.levelRange[0] * 55),
-        gold: Math.max(45, instance.levelRange[0] * 15),
-        unlockContentIds: [instance.id],
-      },
-      introText: 'Финальный допуск. После сдачи откроется ' + label + '.',
-      progressText: 'Вернись к ' + giver.name + ' и получи доступ.',
-      completeText: 'Доступ открыт: ' + instance.name + '.',
-      lockedText: 'Нужно завершить ветку: ' + zoneName + '.',
-    },
-  ];
+    introText: 'Открывает ' + targetTypeText(instance) + ': ' + instanceName + '.',
+    progressText: 'Убей: ' + objectiveText + '. Локация: ' + (zone?.name ?? instance.zoneId) + '.',
+    completeText: 'Доступ открыт: ' + instanceName + '.',
+    lockedText: 'Нужно прийти в зону: ' + (zone?.name ?? instance.zoneId) + '.',
+  }];
 };
 
 export const UNLOCK_QUESTS: QuestDefinition[] = uniqueById([...DUNGEONS, ...RAIDS])
-  .flatMap(buildUnlockQuestsForInstance);
+  .flatMap(buildUnlockQuestForInstance);

@@ -1,51 +1,49 @@
 import { getQuestById, QUESTS } from '../../content/quests';
-import type { QuestDefinition } from '../../types/game';
+import type { QuestDefinition, QuestObjective, QuestStatus } from '../../types/game';
 import { getQuestGiverById } from '../../content/questGivers';
 import { getDungeonById, getMobById } from '../../content/world';
 import { useGameStore } from '../../state/gameStore';
 import { getQuestProgressText, getQuestState, getQuestTurnInGiverId } from '../../systems/questSystem';
-import type { QuestStatus } from '../../types/game';
 
 const cleanQuestTitle = (title: string) =>
-  title.replace(/^\s*(🛡️\s*)?!\s*/u, '').replace(/^\s*🛡️\s*!\s*/u, '').trim();
+  title
+    .replace(/^\s*(🛡️\s*)?!\s*/u, '')
+    .replace(/^\s*🛡️\s*!\s*/u, '')
+    .replace(/^(Следы у входа|Открыть проход):\s*/i, 'Открыть: ')
+    .trim();
+
+const cleanInstanceName = (name: string) =>
+  name.replace(/^(Данж|Рейд):\s*/i, '').trim();
 
 const isUnlockQuest = (quest: QuestDefinition) => quest.importance === 'unlock';
 
 const unlockTypeText = (type?: string) => {
   if (type === 'raid') return 'рейд';
   if (type === 'dungeon') return 'данж';
-  if (type === 'zone') return 'локацию';
+  if (type === 'zone') return 'локация';
   return 'контент';
 };
 
 const unlockTargetText = (quest: QuestDefinition) => {
   if (!quest.unlockTargetId) return '';
   const instance = getDungeonById(quest.unlockTargetId);
-  return unlockTypeText(quest.unlockTargetType) + ': ' + (instance?.name ?? quest.unlockTargetId);
+  return unlockTypeText(quest.unlockTargetType) + ': ' + cleanInstanceName(instance?.name ?? quest.unlockTargetId);
 };
 
-const objectiveTargetText = (quest: QuestDefinition) => {
-  const lines = quest.objectives
-    .map((objective) => {
-      if (objective.type === 'kill' && objective.targetIds?.length) {
-        const names = objective.targetIds.map((id) => getMobById(id)?.name ?? id).join(', ');
-        return 'Цели: ' + names;
-      }
+const objectiveName = (objective: QuestObjective) => {
+  if (objective.type === 'kill' && objective.targetId) return getMobById(objective.targetId)?.name ?? objective.targetId;
+  if (objective.type === 'talk') return 'Поговорить с NPC';
+  if (objective.type === 'dungeon' && objective.dungeonId) return cleanInstanceName(getDungeonById(objective.dungeonId)?.name ?? objective.dungeonId);
+  return 'Цель';
+};
 
-      if (objective.type === 'dungeon' && objective.dungeonId) {
-        const dungeon = getDungeonById(objective.dungeonId);
-        return 'Цель: пройти ' + (dungeon?.name ?? objective.dungeonId);
-      }
-
-      if (objective.type === 'talk' && objective.targetId) {
-        return 'Цель: поговорить с NPC';
-      }
-
-      return '';
-    })
-    .filter(Boolean);
-
-  return lines.join(' · ');
+const objectiveLines = (server: ReturnType<typeof useGameStore.getState>['server'], quest: QuestDefinition) => {
+  const state = getQuestState(server, quest.id);
+  return state.objectives.map((objective) => {
+    if (objective.type === 'kill') return objectiveName(objective) + ' — ' + (objective.current ?? 0) + '/' + objective.required;
+    if (objective.type === 'talk') return objectiveName(objective) + ' — ' + ((objective.current ?? 0) >= objective.required ? 'готово' : '0/1');
+    return objectiveName(objective) + ' — ' + (objective.current ?? 0) + '/' + objective.required;
+  });
 };
 
 const statusText: Record<QuestStatus, string> = {
@@ -82,6 +80,7 @@ export const QuestLogPanel = ({ mode }: { mode: 'active' | 'completed' }) => {
           const giver = getQuestGiverById(quest.giverId);
           const turnIn = getQuestGiverById(getQuestTurnInGiverId(quest));
           const unlockText = unlockTargetText(quest);
+          const lines = objectiveLines(server, quest);
 
           return (
             <div key={quest.id} className={'list-line quest-log-line ' + (state.status === 'readyToTurnIn' ? 'ready-line ' : '') + (isUnlockQuest(quest) ? 'quest-unlock-line' : '')}>
@@ -89,8 +88,7 @@ export const QuestLogPanel = ({ mode }: { mode: 'active' | 'completed' }) => {
                 <strong>{isUnlockQuest(quest) ? '🛡️ ! ' : ''}{cleanQuestTitle(quest.title)}</strong>
                 <small>{statusText[state.status]} · Lv. {quest.levelReq} · {giver?.name ?? quest.giverId}</small>
                 {isUnlockQuest(quest) && unlockText && <small>Открывает: {unlockText}</small>}
-                {objectiveTargetText(quest) && <small>{objectiveTargetText(quest)}</small>}
-                {state.status !== 'completed' && <small>Задача: {quest.progressText ?? quest.introText ?? 'Выполни условия задания.'}</small>}
+                {lines.length > 0 && <small>Убей: {lines.join(' · ')}</small>}
                 {state.status !== 'completed' && <small>Прогресс: {getQuestProgressText(server, quest)}</small>}
                 {state.status === 'readyToTurnIn' && <small>Вернись к: {turnIn?.name ?? getQuestTurnInGiverId(quest)}</small>}
               </span>

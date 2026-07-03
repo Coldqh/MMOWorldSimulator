@@ -401,7 +401,11 @@ export const completeDungeonFloor = advanceDungeonAfterEncounter;
 
 export const restInDungeon = (server: ServerState): { server: ServerState; minutes: number } => {
   const stats = getPlayerStats(server.player);
-  return { minutes: 0, server: { ...server, player: { ...server.player, hp: stats.hp, mana: stats.mana } } };
+  const hpRatio = 1 - Math.max(0, Math.min(server.player.hp, stats.hp)) / Math.max(1, stats.hp);
+  const manaRatio = 1 - Math.max(0, Math.min(server.player.mana, stats.mana)) / Math.max(1, stats.mana);
+  const missingRatio = Math.max(hpRatio, manaRatio);
+  const minutes = missingRatio <= 0 ? 5 : Math.max(5, Math.min(60, Math.ceil(missingRatio * 60)));
+  return { minutes, server: { ...server, player: { ...server.player, hp: stats.hp, mana: stats.mana } } };
 };
 
 export const resolveDungeonEventFloor = (server: ServerState, _rng: Rng): { server: ServerState; modal: GameModal | null; minutes: number } => {

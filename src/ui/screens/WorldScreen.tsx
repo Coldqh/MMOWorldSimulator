@@ -218,7 +218,7 @@ export const WorldScreen = () => {
                   <article key={dungeon.id} className={`content-card info-card ${lockedByLevel || lockedByQuest ? 'locked-card' : ''}`}>
                     <strong>{dungeon.name}</strong>
                     <span>Lv. {dungeon.levelRange[0]}–{dungeon.levelRange[1]} · пати {dungeon.partySize}</span>
-                    <span>{dungeon.timeCostMinutes} мин</span>
+                    <span>{dungeon.floors.length} этажей</span>
                     {lockedByQuest && <span className="quest-unlock-hint">🛡️ ! {unlockQuest?.title ?? 'Квест открытия'} · {unlockGiver?.name ?? 'NPC зоны'}</span>}
                     <button onClick={() => startDungeon(dungeon.id)} disabled={Boolean(combat) || lockedByLevel || lockedByQuest}>
                       {lockedByLevel ? `Нужен ${dungeon.levelRange[0]} уровень` : lockedByQuest ? 'Закрыто: ! ветка' : 'Поиск пати'}

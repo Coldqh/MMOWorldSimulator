@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mmows-v0.7.50';
+const CACHE_NAME = 'mmows-v0.7.51';
 const APP_SHELL = [
   './',
   './index.html',

@@ -8,6 +8,8 @@ export type EnhanceTarget =
   | { source: 'equipment'; slot: EquipmentSlot }
   | { source: 'inventory'; itemId: string; enhancement?: number };
 
+export const MAX_ENHANCEMENT_LEVEL = 12;
+
 export const enhanceStoneIds: Array<{ id: string; rarity: Rarity; chanceBonus: number; tier: 'low' | 'mid' | 'high' | 'max'; minLevel: number; maxLevel: number }> = [
   { id: 'sharpening_stone', rarity: 'common', chanceBonus: 0, tier: 'low', minLevel: 1, maxLevel: 20 },
   { id: 'enhance_stone_uncommon', rarity: 'uncommon', chanceBonus: 0.02, tier: 'low', minLevel: 1, maxLevel: 20 },
@@ -70,6 +72,19 @@ export const enhanceItem = (server: ServerState, target: EnhanceTarget, rng: Rng
   const targetItemId = target.source === 'equipment' ? targetInstance?.itemId : target.itemId;
   const currentEnhancement = target.source === 'equipment' ? targetInstance?.enhancement ?? 0 : target.enhancement ?? 0;
   const item = targetItemId ? getItemById(targetItemId) : undefined;
+
+  if (currentEnhancement >= MAX_ENHANCEMENT_LEVEL) {
+    return {
+      server,
+      modal: {
+        id: 'modal_enhance_cap_' + server.currentMinute,
+        type: 'enhance',
+        title: 'Заточка',
+        text: 'Максимум достигнут.',
+        lines: ['Максимальная заточка: +' + MAX_ENHANCEMENT_LEVEL + '.', 'enhance_cap_max_12'],
+      },
+    };
+  }
 
   if (!item || !item.slot) {
     return { server, modal: { id: `modal_enhance_bad_${server.currentMinute}`, type: 'enhance', title: 'Заточка', text: 'Нельзя заточить.', lines: ['Только снаряжение.'] } };

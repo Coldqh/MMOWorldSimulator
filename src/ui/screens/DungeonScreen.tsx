@@ -59,7 +59,9 @@ export const DungeonScreen = () => {
   const playerGear = getGearScore(server.player.equipment);
   const missingHp = Math.max(0, stats.hp - Math.min(server.player.hp, stats.hp));
   const missingMana = Math.max(0, stats.mana - Math.min(server.player.mana, stats.mana));
-  const restMinutes = Math.max(8, Math.ceil(missingHp / 5) + Math.ceil(missingMana / 10));
+  const hpMissingRatio = missingHp / Math.max(1, stats.hp);
+  const manaMissingRatio = missingMana / Math.max(1, stats.mana);
+  const restMinutes = Math.max(5, Math.min(60, Math.ceil(Math.max(hpMissingRatio, manaMissingRatio) * 60)));
   const canRest = Boolean(run && !combat);
   const sortedDungeons = sortInstancesForPlayer(DUNGEONS, server.player.level);
   const lastResult = server.lastDungeonRunResult;

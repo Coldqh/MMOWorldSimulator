@@ -58,6 +58,15 @@ export const getQuestState = (server: ServerState, questId: Id): QuestState => {
   }
 
   if (!quest) return { status: 'locked', objectives: [] };
+
+  // QUEST_UNLOCK_ALREADY_OPEN_REPAIR
+  if (quest.unlockTargetId && (server.unlockedContent ?? []).includes(quest.unlockTargetId)) {
+    return {
+      status: 'completed',
+      objectives: acceptedObjectives(quest),
+    };
+  }
+
   if (server.player.level < quest.levelReq || !completedPrerequisites(server, quest)) {
     return { status: 'locked', objectives: acceptedObjectives(quest) };
   }

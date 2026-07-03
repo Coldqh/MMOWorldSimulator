@@ -191,3 +191,29 @@ ok(itemSystemSource.includes('getActiveSetBonuses'), 'set bonuses are wired');
 
 var dungeonSource = read('src/systems/dungeonSystem.ts');
 ok(dungeonSource.includes('pickInstanceGearReward'), 'dungeon and raid gear rewards are wired');
+
+
+var unlockQuestlinesSource = read('src/content/unlockQuestlines.ts');
+ok(unlockQuestlinesSource.includes("id: 'unlock_' + base"), 'single unlock quest per instance is wired');
+ok(!unlockQuestlinesSource.includes("_probe"), 'old two-step unlock probe quest is removed');
+ok(!unlockQuestlinesSource.includes("_open"), 'old two-step unlock open quest is removed');
+
+var dungeonSource = read('src/systems/dungeonSystem.ts');
+ok(dungeonSource.includes('Math.min(60'), 'dungeon rest is capped at 60 minutes');
+
+var combatSource = read('src/systems/combatSystem.ts');
+ok(combatSource.includes('COMBAT_TURN_MINUTES = 5'), 'combat action time cost is 5 minutes');
+
+var enhancementSource = read('src/systems/enhancementSystem.ts');
+ok(enhancementSource.includes('MAX_ENHANCEMENT_LEVEL = 12'), 'max enhancement is +12');
+
+var srcFiles = [
+  'src/content/unlockQuestlines.ts',
+  'src/ui/components/QuestGiverCard.tsx',
+  'src/ui/components/QuestLogPanel.tsx',
+  'src/systems/combatSystem.ts',
+  'src/systems/dungeonSystem.ts',
+].map(read).join('\n');
+
+ok(!/Р’|Р°|Рµ|СЏ|СЂ|С‚|Рё|Рѕ|РЅ|Рґ|Р»|С†|С‡|С€|С‰/.test(srcFiles), 'core UI files do not contain mojibake markers');
+console.log('core ux timing unlock repair is wired');
