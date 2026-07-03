@@ -240,7 +240,47 @@ const addCollectionProgress = (server: ServerState, itemIds: string[] = [], mobI
   };
 };
 
-const notificationToModal = (notification: ServerNotification): GameModal => ({
+const MOJIBAKE_REPLACEMENTS: Array<[string, string]> = [
+  ["Р’СЂР°РіРё СЂСЏРґРѕРј", "Враги рядом"],
+  ["Р’СЂР°Р¶РµСЃРєРёРµ РёРіСЂРѕРєРё РІ Р»РѕРєР°С†РёРё.", "Вражеские игроки в локации."],
+  ["РёС‰РµС‚ РјРѕРјРµРЅС‚ РґР»СЏ РЅР°РїР°РґРµРЅРёСЏ", "ищет момент для нападения"],
+  ["РЎРѕР±С‹С‚РёСЏ", "События"],
+  ["РІ Р»РѕРєР°С†РёРё", "в локации"],
+  ["РЅР°РїР°РґРµРЅРёСЏ", "нападения"],
+];
+
+const sanitizeMojibakeText = (value: string | undefined) => {
+  if (!value) return value ?? "";
+  return MOJIBAKE_REPLACEMENTS.reduce((next, [bad, good]) => next.split(bad).join(good), value);
+};
+
+const sanitizeLines = (lines: string[] | undefined) => (lines ?? []).map(sanitizeMojibakeText);
+
+const sanitizeModal = (modal: GameModal): GameModal => ({
+  ...modal,
+  title: sanitizeMojibakeText(modal.title),
+  text: sanitizeMojibakeText(modal.text),
+  lines: sanitizeLines(modal.lines),
+});
+
+const sanitizeServerText = (server: ServerState): ServerState => ({
+  ...server,
+  worldNews: (server.worldNews ?? []).map((entry) => ({ ...entry, text: sanitizeMojibakeText(entry.text) })),
+  notifications: (server.notifications ?? []).map((entry) => ({
+    ...entry,
+    title: sanitizeMojibakeText(entry.title),
+    text: sanitizeMojibakeText(entry.text),
+    lines: sanitizeLines(entry.lines),
+  })),
+  serverChronicle: (server.serverChronicle ?? []).map((entry: any) => ({
+    ...entry,
+    title: sanitizeMojibakeText(entry.title),
+    text: sanitizeMojibakeText(entry.text),
+    lines: Array.isArray(entry.lines) ? sanitizeLines(entry.lines) : entry.lines,
+  })),
+});
+
+const notificationToModal = (notification: ServerNotification): GameModal => sanitizeModal({
   id: notification.id,
   type: notification.type,
   title: notification.title,
@@ -400,7 +440,7 @@ const safeNormalizeServer = (server: ServerState | null | undefined, mode: "full
     const repaired = seedActiveGuildWarsIfEmpty(ensureSoloNpcPool(seedInitialGuildWarsIfNeeded(repairFreshPlayerGuildLeadership(repairServerRuntime(normalizeGuildTierRequirements(normalized))))));
     const issues = validateServerRuntime(repaired);
     if (import.meta.env.DEV && issues.some((issue) => issue.severity === 'critical')) console.warn('[MMOWS] runtime issues', issues);
-    return refreshContracts(repaired, createRng((server?.seed ?? Date.now()) + (server?.serverDay ?? 1) * 9010 + (server?.currentMinute ?? 0)));
+    return sanitizeServerText(refreshContracts(repaired, createRng((server?.seed ?? Date.now()) + (server?.serverDay ?? 1) * 9010 + (server?.currentMinute ?? 0))));
   } catch (error) {
     console.error("[MMOWS] save normalize failed", error);
     backupRescueSave(server, "normalize_failed");
@@ -420,8 +460,8 @@ const commit = (
   // 0.7.35: keep full safety normalization, but avoid running the same heavy
   // guild/runtime/contract repair chain twice. safeNormalizeServer already handles
   // runtime repair, solo NPC pool, guild war seeding and contract refresh.
-  let normalized = normalizeQuestStates(safeNormalizeServer(server, "light"));
-  let nextModal = modal;
+  let normalized = sanitizeServerText(normalizeQuestStates(safeNormalizeServer(server, "light")));
+  let nextModal = modal == null ? modal : sanitizeModal(modal);
 
   if (nextModal === undefined && normalized.notifications.length > 0) {
     const [first, ...rest] = normalized.notifications;
@@ -445,11 +485,13 @@ const commitFast = (
   combat?: CombatState | null,
   modal?: GameModal | null,
 ) => {
-  saveGame(server);
+  const cleanServer = sanitizeServerText(server);
+  const cleanModal = modal == null ? modal : sanitizeModal(modal);
+  saveGame(cleanServer);
   set({
-    server,
+    server: cleanServer,
     ...(combat !== undefined ? { combat } : {}),
-    ...(modal !== undefined ? { modal } : {}),
+    ...(cleanModal !== undefined ? { modal: cleanModal } : {}),
   });
 };
 
@@ -459,11 +501,13 @@ const commitFastDeferredSave = (
   combat?: CombatState | null,
   modal?: GameModal | null,
 ) => {
-  saveGame(server, { immediate: false });
+  const cleanServer = sanitizeServerText(server);
+  const cleanModal = modal == null ? modal : sanitizeModal(modal);
+  saveGame(cleanServer, { immediate: false });
   set({
-    server,
+    server: cleanServer,
     ...(combat !== undefined ? { combat } : {}),
-    ...(modal !== undefined ? { modal } : {}),
+    ...(cleanModal !== undefined ? { modal: cleanModal } : {}),
   });
 };
 
@@ -726,13 +770,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
       server.seed + server.serverDay * 2200 + server.currentMinute,
     );
     const rested = restInDungeon(server);
-    const next = rested.server;
+    const next = simulateServerForMinutes(rested.server, rested.minutes, rng);
     commit(set, next, null, {
       id: `modal_dungeon_rest_${server.currentDungeonRun.id}_${server.currentMinute}`,
       type: "dungeon",
       title: "Отдых между этажами",
-      text: `Без траты времени`,
-      lines: ["HP восстановлены.", "Mana восстановлена."],
+      text: `Отдых: ${rested.minutes} мин.`,
+      lines: [`Время: ${rested.minutes} мин.`, "HP восстановлены.", "Mana восстановлена."],
     });
   },
 
@@ -947,12 +991,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         dungeon && typeof result.combat.dungeonFloorIndex === "number"
           ? dungeon.floors[result.combat.dungeonFloorIndex]
           : undefined;
-      const timeCost =
-        result.combat.source === "spot"
-          ? (getSpotById(result.combat.sourceId)?.timeCostMinutes ?? 60)
-          : result.combat.source === "dungeon"
-            ? Math.max(8, Math.ceil((floor?.timeCostMinutes ?? 35) / Math.max(1, floor?.mobIds.length ?? 1)))
-            : 30;
+      const timeCost = 0;
 
       if (result.combat.status === "victory") {
         const defeated = result.combat.enemyMobIds && result.combat.enemyMobIds.length > 0
@@ -1001,7 +1040,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     );
     const missingHpPercent = missingHp / Math.max(1, stats.hp);
     const missingManaPercent = missingMana / Math.max(1, stats.mana);
-    const minutes = Math.max(5, Math.ceil(Math.max(missingHpPercent, missingManaPercent) * 120));
+    const minutes = Math.max(5, Math.min(60, Math.ceil(Math.max(missingHpPercent, missingManaPercent) * 60)));
     const rng = createRng(
       server.seed + server.serverDay * 5000 + server.currentMinute,
     );

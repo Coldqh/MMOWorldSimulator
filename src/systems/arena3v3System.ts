@@ -21,6 +21,21 @@ import type {
 } from '../types/game';
 export type ArenaTeamSize = 3 | 5 | 10;
 
+export const ARENA_TEAM_ROUND_MINUTES = 5;
+
+const advanceArenaRoundTime = (server: ServerState, minutes = ARENA_TEAM_ROUND_MINUTES): ServerState => {
+  const total = server.currentMinute + minutes;
+  const dayGain = Math.floor(total / 1440);
+  const currentMinute = ((total % 1440) + 1440) % 1440;
+  const serverDay = server.serverDay + dayGain;
+  return {
+    ...server,
+    currentMinute,
+    serverDay,
+    serverWeek: Math.max(1, Math.ceil(serverDay / 7)),
+  };
+};
+
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, Math.round(value)));
 
 const roleFromClass = (classId?: string): PartyRole => {
@@ -28,6 +43,31 @@ const roleFromClass = (classId?: string): PartyRole => {
   if (classId === 'priest') return 'healer';
   if (classId === 'mage') return 'magicDps';
   return 'physicalDps';
+};
+
+const applyArenaRoleScaling = <T extends CombatantV2>(unit: T): T => {
+  const gearPulse = Math.sqrt(Math.max(0, unit.gearScore ?? 0));
+
+  const roleScale = unit.role === 'tank'
+    ? { hp: 1.24, attack: 0.72, magic: 0.70, defense: 1.30, gearHp: 3.2, gearAtk: 0.45, gearMag: 0.35, gearDef: 1.25 }
+    : unit.role === 'healer'
+      ? { hp: 0.92, attack: 0.62, magic: 1.02, defense: 0.92, gearHp: 1.2, gearAtk: 0.25, gearMag: 1.15, gearDef: 0.55 }
+      : unit.role === 'magicDps'
+        ? { hp: 0.76, attack: 0.72, magic: 1.42, defense: 0.72, gearHp: 0.7, gearAtk: 0.25, gearMag: 1.75, gearDef: 0.35 }
+        : { hp: 0.78, attack: 1.38, magic: 0.70, defense: 0.74, gearHp: 0.8, gearAtk: 1.85, gearMag: 0.25, gearDef: 0.35 };
+
+  const oldMaxHp = Math.max(1, unit.maxHp);
+  const maxHp = clamp(unit.maxHp * roleScale.hp + gearPulse * roleScale.gearHp, 1, 999999);
+  const hp = clamp((unit.hp / oldMaxHp) * maxHp, 1, maxHp);
+
+  return {
+    ...unit,
+    maxHp,
+    hp,
+    attack: clamp(unit.attack * roleScale.attack + gearPulse * roleScale.gearAtk, 1, 999999),
+    magic: clamp(unit.magic * roleScale.magic + gearPulse * roleScale.gearMag, 1, 999999),
+    defense: clamp(unit.defense * roleScale.defense + gearPulse * roleScale.gearDef, 1, 999999),
+  };
 };
 
 const aggressionFromRole = (role: PartyRole, pvp = false): CombatAggression => {
@@ -79,7 +119,7 @@ const makePlayerCombatant = (server: ServerState): CombatantV2 => {
   const stats = getPlayerStats(server.player);
   const role = roleFromClass(server.player.classId);
   const gearScore = getGearScore(server.player.equipment);
-  return {
+  return applyArenaRoleScaling({
     id: 'teamA_player',
     sourceId: server.player.id,
     name: server.player.name,
@@ -110,7 +150,7 @@ const makePlayerCombatant = (server: ServerState): CombatantV2 => {
     damageTaken: 0,
     healingDone: 0,
     kills: 0,
-  };
+  });
 };
 
 const makeNpcCombatant = (npc: NpcPlayer, teamId: CombatTeamId, index: number): CombatantV2 => {
@@ -118,7 +158,7 @@ const makeNpcCombatant = (npc: NpcPlayer, teamId: CombatTeamId, index: number): 
   const role = roleFromClass(npc.classId);
   const pvp = ['PVP_PLAYER', 'HARDCORE', 'GUILD_PLAYER', 'LEADER'].includes(npc.roleFocus) || npc.playstyle === 'pvp';
   const aggression = aggressionFromRole(role, pvp);
-  return {
+  return applyArenaRoleScaling({
     id: `${teamId}_${npc.id}_${index}`,
     sourceId: npc.id,
     name: npc.name,
@@ -149,7 +189,7 @@ const makeNpcCombatant = (npc: NpcPlayer, teamId: CombatTeamId, index: number): 
     damageTaken: 0,
     healingDone: 0,
     kills: 0,
-  };
+  });
 };
 
 export const calculateCombatantPower = (combatant: CombatantV2) => {
@@ -611,6 +651,8 @@ const finishIfNeeded = (server: ServerState, combat: CombatState, rng: Rng): { s
 
 export const resolveArenaTeamRound = (server: ServerState, combat: CombatState, actionId: string, rng: Rng): { server: ServerState; combat: CombatState } => {
   if (combat.status !== 'active' || !combat.teamA || !combat.teamB) return { server, combat };
+
+  server = advanceArenaRoundTime(server);
 
   let teamA: CombatTeamV2 = {
     ...combat.teamA,

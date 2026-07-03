@@ -217,3 +217,22 @@ var srcFiles = [
 
 ok(!/Р’|Р°|Рµ|СЏ|СЂ|С‚|Рё|Рѕ|РЅ|Рґ|Р»|С†|С‡|С€|С‰/.test(srcFiles), 'core UI files do not contain mojibake markers');
 console.log('core ux timing unlock repair is wired');
+
+
+var gameStoreSource = read('src/state/gameStore.ts');
+ok(gameStoreSource.includes('sanitizeMojibakeText'), 'runtime mojibake sanitizer is wired');
+ok(gameStoreSource.includes('simulateServerForMinutes(rested.server, rested.minutes'), 'dungeon rest consumes real minutes');
+ok(!gameStoreSource.includes('Без траты времени'), 'old no-time rest text is removed');
+ok(gameStoreSource.includes('const timeCost = 0;'), 'old combat finish time cost is removed');
+
+var dungeonSource = read('src/systems/dungeonSystem.ts');
+ok(dungeonSource.includes('Math.min(60'), 'dungeon rest cap is 60 minutes');
+
+var combatSource = read('src/systems/combatSystem.ts');
+ok(combatSource.includes('COMBAT_TURN_MINUTES = 5'), 'normal combat action advances 5 minutes');
+
+var arena3v3Source = read('src/systems/arena3v3System.ts');
+ok(arena3v3Source.includes('ARENA_TEAM_ROUND_MINUTES = 5'), 'team arena round advances 5 minutes');
+ok(arena3v3Source.includes('applyArenaRoleScaling'), 'arena role stat scaling is wired');
+
+console.log('real combat time rest text repair is wired');
