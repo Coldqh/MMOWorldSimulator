@@ -101,6 +101,8 @@ export interface RaceDefinition {
   tags: string[];
 }
 
+export type ItemBindType = "none" | "bindOnPickup";
+
 export interface ItemDefinition {
   id: Id;
   name: string;
@@ -113,6 +115,7 @@ export interface ItemDefinition {
   effects: EffectDefinition[];
   socketSlots: number;
   tradeable: boolean;
+  bindType?: ItemBindType;
   price: number;
   announceIfDropped: boolean;
   setId?: Id;

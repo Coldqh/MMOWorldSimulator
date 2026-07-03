@@ -201,9 +201,9 @@ export const MarketScreen = () => {
                     <button className="text-button" onClick={() => openItemProfile(entry.itemId, "inventory", entry.enhancement ?? 0, entry.cardIds ?? [])}>
                       <ItemLine itemId={entry.itemId} amount={entry.amount} enhancement={entry.enhancement ?? 0} cardIds={entry.cardIds ?? []} showLevel />
                     </button>
-                    {item && <small>продажа {price}g · база {estimateItemPrice(item)}g</small>}
+                    {item && <small>{item.bindType === "bindOnPickup" ? "BoP · нельзя продать" : `продажа ${price}g · база ${estimateItemPrice(item)}g`}</small>}
                   </span>
-                  <button disabled={!item?.tradeable} onClick={() => sell(entry.itemId, entry.enhancement ?? 0, entry.cardIds ?? [])}>Продать {price}g</button>
+                  <button disabled={!item?.tradeable || item?.bindType === "bindOnPickup"} onClick={() => sell(entry.itemId, entry.enhancement ?? 0, entry.cardIds ?? [])}>Продать {price}g</button>
                 </div>
               );
             })}

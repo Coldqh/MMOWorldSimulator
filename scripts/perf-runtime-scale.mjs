@@ -175,3 +175,19 @@ ok(questLogSource.includes('objectiveTargetText'), 'quest log shows objective ta
 
 var questGiverCardSource = read('src/ui/components/QuestGiverCard.tsx');
 ok(questGiverCardSource.includes('objectiveTargetText'), 'quest giver shows objective target names');
+
+
+var itemFactoriesSource = read('src/content/itemFactories.ts');
+ok(itemFactoriesSource.includes('bindOnPickup'), 'generated dungeon/raid set items are BoP');
+
+var itemFinalizeSource = read('src/content/itemFinalize.ts');
+ok(itemFinalizeSource.includes('FINALIZE_BIND_RULES_V1'), 'gear bind rules are wired');
+
+var marketSource = read('src/systems/marketSystem.ts');
+ok(marketSource.includes('bindType !== "bindOnPickup"'), 'market excludes BoP gear');
+
+var itemSystemSource = read('src/systems/itemSystem.ts');
+ok(itemSystemSource.includes('getActiveSetBonuses'), 'set bonuses are wired');
+
+var dungeonSource = read('src/systems/dungeonSystem.ts');
+ok(dungeonSource.includes('pickInstanceGearReward'), 'dungeon and raid gear rewards are wired');

@@ -368,7 +368,7 @@ export const sellInventoryItem = (
     (entry) =>
       normalizeLegacyItemId(entry.itemId) === itemId && (entry.enhancement ?? 0) === enhancement && [...(entry.cardIds ?? [])].sort().join('|') === [...cardIds].sort().join('|'),
   );
-  if (!item || !stack || stack.amount <= 0 || !item.tradeable) return server;
+  if (!item || !stack || stack.amount <= 0 || !isMarketTradeableItem(item)) return server;
 
   const sellPrice = getSellPrice(item);
   return repairMarketIfBroken({

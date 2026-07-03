@@ -1,7 +1,7 @@
 import { getDungeonById, getMobById } from '../content/world';
-import { getItemById } from '../content/items';
+import { ITEMS, getItemById } from '../content/items';
 import type { Rng } from '../engine/rng';
-import { uid } from '../engine/rng';
+import { createRng, uid } from '../engine/rng';
 import type { CombatState, DungeonDefinition, DungeonDifficulty, DungeonRunRank, DungeonRunResult, DungeonRunState, GameModal, PartyRoleMap, ServerState } from '../types/game';
 import { addInventoryItem, getGearScore, getPlayerStats } from './itemSystem';
 import { startBossCombat } from './combatSystem';
@@ -79,6 +79,64 @@ const stoneIdForRun = (dungeon: DungeonDefinition, difficulty: DungeonDifficulty
   return 'enhance_stone_' + band + '_' + rarity;
 };
 
+const isPlayerClassReward = (server: ServerState, item: NonNullable<ReturnType<typeof getItemById>>) =>
+  item.classTags.length === 0 || item.classTags.includes(server.player.classId);
+
+const rankDropBonus = (rank: DungeonRunRank) => {
+  if (rank === 'S') return 0.18;
+  if (rank === 'A') return 0.10;
+  if (rank === 'B') return 0.04;
+  if (rank === 'C') return 0.01;
+  return -1;
+};
+
+const baseGearDropChance = (dungeon: DungeonDefinition, difficulty: DungeonDifficulty) => {
+  if (dungeon.contentType === 'raid') {
+    if (difficulty === 'mythic') return 0.70;
+    if (difficulty === 'hard') return 0.55;
+    return 0.38;
+  }
+
+  if (difficulty === 'mythic') return 0.52;
+  if (difficulty === 'hard') return 0.34;
+  return 0.18;
+};
+
+const pickInstanceGearReward = (
+  server: ServerState,
+  dungeon: DungeonDefinition,
+  difficulty: DungeonDifficulty,
+  rank: DungeonRunRank,
+  rng: Rng,
+) => {
+  const chance = Math.max(0, Math.min(0.95, baseGearDropChance(dungeon, difficulty) + rankDropBonus(rank)));
+  if (!rng.chance(chance)) return undefined;
+
+  const wantedSource = dungeon.contentType === 'raid' ? 'raid' : 'dungeon';
+  const maxRewardLevel = Math.max(server.player.level + 2, dungeon.levelRange[1]);
+  const candidates = ITEMS
+    .filter((item) => item.slot)
+    .filter((item) => item.sourceType === wantedSource && item.sourceId === dungeon.id)
+    .filter((item) => item.levelReq <= maxRewardLevel)
+    .filter((item) => isPlayerClassReward(server, item))
+    .filter((item) => {
+      if (difficulty === 'normal' && dungeon.contentType !== 'raid') return item.rarity === 'epic';
+      if (difficulty === 'normal') return item.rarity === 'epic' || rng.chance(0.12);
+      if (difficulty === 'hard') return item.rarity === 'epic' || item.rarity === 'legendary';
+      return item.rarity === 'epic' || item.rarity === 'legendary' || item.rarity === 'mythic';
+    });
+
+  if (candidates.length === 0) return undefined;
+
+  const sorted = [...candidates].sort((a, b) => {
+    const rarityWeight = { common: 1, uncommon: 2, rare: 3, epic: 4, legendary: 5, mythic: 6, unique: 7 };
+    return rarityWeight[b.rarity] - rarityWeight[a.rarity] || b.levelReq - a.levelReq;
+  });
+
+  const top = sorted.slice(0, Math.min(sorted.length, difficulty === 'mythic' ? 12 : 8));
+  return rng.pick(top);
+};
+
 export const applyDungeonDifficultyToCombat = (combat: CombatState, difficulty: DungeonDifficulty = 'normal'): CombatState => {
   const config = DUNGEON_DIFFICULTY_CONFIG[difficulty] ?? DUNGEON_DIFFICULTY_CONFIG.normal;
   if (difficulty === 'normal') return combat;
@@ -116,9 +174,11 @@ export const completeDungeonRunReward = (server: ServerState, completedRun: Dung
   const baseMarks = config.marks + rankMarkBonus(rank);
   const marks = baseMarks + (dailyBonus ? 4 : 0) + (weeklyBonus ? 10 : 0);
   const gold = Math.max(1, Math.round((dungeon.levelRange[0] * 14 + dungeon.partySize * 18) * config.rewardGold + rankMarkBonus(rank) * 12));
+  const rewardRng = createRng(server.seed + server.serverDay * 9001 + server.currentMinute + completedRun.id.length);
   const stoneId = stoneIdForRun(dungeon, difficulty, rank);
   const stone = getItemById(stoneId);
-  const lootItemIds = stone ? [stone.id] : [];
+  const gearReward = pickInstanceGearReward(server, dungeon, difficulty, rank, rewardRng);
+  const lootItemIds = [stone?.id, gearReward?.id].filter((id): id is string => Boolean(id));
 
   const lines = [
     'Ранг: ' + rank + '.',
@@ -133,6 +193,11 @@ export const completeDungeonRunReward = (server: ServerState, completedRun: Dung
   if (dailyBonus) lines.push('Daily bonus: +4 marks.');
   if (weeklyBonus) lines.push('Weekly chest: +10 marks.');
   if (stone) lines.push('Награда: ' + stone.name + '.');
+  if (gearReward) lines.push('BoP gear: ' + gearReward.name + ' · ' + (gearReward.sourceName ?? dungeon.name) + '.');
+
+  let inventory = server.player.inventory;
+  if (stone) inventory = addInventoryItem(inventory, stone.id, 1, 0);
+  if (gearReward) inventory = addInventoryItem(inventory, gearReward.id, 1, 0);
 
   const player = {
     ...server.player,
@@ -140,7 +205,7 @@ export const completeDungeonRunReward = (server: ServerState, completedRun: Dung
     dungeonMarks: (server.player.dungeonMarks ?? 0) + marks,
     lastDailyDungeonBonusDay: dailyBonus ? server.serverDay : server.player.lastDailyDungeonBonusDay,
     lastWeeklyDungeonChestWeek: weeklyBonus ? weekly : server.player.lastWeeklyDungeonChestWeek,
-    inventory: stone ? addInventoryItem(server.player.inventory, stone.id, 1, 0) : server.player.inventory,
+    inventory,
   };
 
   const result: DungeonRunResult = {

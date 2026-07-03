@@ -47,6 +47,17 @@ export const finalizeItems = (items: ItemDefinition[]): ItemDefinition[] => {
     normalized.sourceType = source.sourceType;
     normalized.sourceId = source.sourceId;
     normalized.sourceName = source.sourceName;
+
+    // FINALIZE_BIND_RULES_V1
+    const isEquipment = normalized.type === 'weapon' || normalized.type === 'armor' || normalized.type === 'accessory';
+    const isInstanceGear = isEquipment && (normalized.sourceType === 'dungeon' || normalized.sourceType === 'raid');
+    if (isInstanceGear) {
+      normalized.tradeable = false;
+      normalized.bindType = 'bindOnPickup';
+    } else {
+      normalized.bindType = normalized.bindType ?? 'none';
+    }
+
     normalized.socketSlots = socketSlotsFor(normalized);
     normalized.price = normalized.type === 'card'
       ? Math.max(1, normalized.price || calculateCardPrice(normalized))

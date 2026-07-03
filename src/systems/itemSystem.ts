@@ -128,20 +128,85 @@ export const getEquipmentStats = (equipment: Equipment): Partial<StatBlock> => {
   return result;
 };
 
+export type ActiveSetBonus = {
+  setId: string;
+  pieces: number;
+  sourceType?: ItemDefinition['sourceType'];
+  sourceName?: string;
+  activeTiers: number[];
+  stats: Partial<StatBlock>;
+};
+
+const mainStatForClass = (classId: string): keyof StatBlock =>
+  classId === 'mage' || classId === 'priest' ? 'magic' : 'attack';
+
+const equippedSetItems = (equipment: Equipment) =>
+  Object.values(equipment)
+    .map((instance) => {
+      if (!instance) return undefined;
+      const item = getItemById(instance.itemId);
+      if (!item?.setId) return undefined;
+      return item;
+    })
+    .filter((item): item is ItemDefinition => Boolean(item));
+
+export const getActiveSetBonuses = (equipment: Equipment, classId: string): ActiveSetBonus[] => {
+  const bySet = new Map<string, ItemDefinition[]>();
+  equippedSetItems(equipment).forEach((item) => {
+    bySet.set(item.setId!, [...(bySet.get(item.setId!) ?? []), item]);
+  });
+
+  return [...bySet.entries()].map(([setId, items]) => {
+    const pieces = items.length;
+    const level = Math.max(...items.map((item) => item.levelReq), 1);
+    const sourceType = items[0]?.sourceType;
+    const sourceName = items[0]?.sourceName;
+    const mainStat = mainStatForClass(classId);
+    const stats: Partial<StatBlock> = {};
+    const activeTiers: number[] = [];
+
+    if (pieces >= 2) {
+      activeTiers.push(2);
+      stats[mainStat] = (stats[mainStat] ?? 0) + Math.max(2, Math.round(level * 0.18));
+    }
+
+    if (pieces >= 4) {
+      activeTiers.push(4);
+      stats.hp = (stats.hp ?? 0) + Math.max(12, Math.round(level * 8));
+      stats.defense = (stats.defense ?? 0) + Math.max(2, Math.round(level * 0.6));
+    }
+
+    if (pieces >= 6) {
+      activeTiers.push(6);
+      stats[mainStat] = (stats[mainStat] ?? 0) + Math.max(3, Math.round(level * 0.25));
+      stats.speed = (stats.speed ?? 0) + (sourceType === 'raid' ? 2 : 1);
+    }
+
+    return { setId, pieces, sourceType, sourceName, activeTiers, stats };
+  }).filter((bonus) => bonus.activeTiers.length > 0);
+};
+
+export const getSetBonusStats = (equipment: Equipment, classId: string): Partial<StatBlock> => {
+  const result: Partial<StatBlock> = {};
+  getActiveSetBonuses(equipment, classId).forEach((bonus) => addStats(result, bonus.stats));
+  return result;
+};
+
 export const getPlayerStats = (player: Player): StatBlock => {
   const classData = getClassById(player.classId);
   const base = classData?.baseStats ?? { hp: 80, mana: 40, attack: 8, magic: 4, defense: 3, speed: 5 };
   const race = getRaceById(player.raceId);
   const raceBonus = race?.statBonus ?? {};
   const equipment = getEquipmentStats(player.equipment);
+  const setBonus = getSetBonusStats(player.equipment, player.classId);
 
   return {
-    hp: Math.round(base.hp + player.level * 12 + (raceBonus.hp ?? 0) + (equipment.hp ?? 0)),
-    mana: Math.round(base.mana + player.level * 5 + (raceBonus.mana ?? 0) + (equipment.mana ?? 0)),
-    attack: Math.round(base.attack + player.level * 2 + (raceBonus.attack ?? 0) + (equipment.attack ?? 0)),
-    magic: Math.round(base.magic + player.level * 2 + (raceBonus.magic ?? 0) + (equipment.magic ?? 0)),
-    defense: Math.round(base.defense + Math.floor(player.level * 1.5) + (raceBonus.defense ?? 0) + (equipment.defense ?? 0)),
-    speed: Math.round(base.speed + (raceBonus.speed ?? 0) + (equipment.speed ?? 0))
+    hp: Math.round(base.hp + player.level * 12 + (raceBonus.hp ?? 0) + (equipment.hp ?? 0) + (setBonus.hp ?? 0)),
+    mana: Math.round(base.mana + player.level * 5 + (raceBonus.mana ?? 0) + (equipment.mana ?? 0) + (setBonus.mana ?? 0)),
+    attack: Math.round(base.attack + player.level * 2 + (raceBonus.attack ?? 0) + (equipment.attack ?? 0) + (setBonus.attack ?? 0)),
+    magic: Math.round(base.magic + player.level * 2 + (raceBonus.magic ?? 0) + (equipment.magic ?? 0) + (setBonus.magic ?? 0)),
+    defense: Math.round(base.defense + Math.floor(player.level * 1.5) + (raceBonus.defense ?? 0) + (equipment.defense ?? 0) + (setBonus.defense ?? 0)),
+    speed: Math.round(base.speed + (raceBonus.speed ?? 0) + (equipment.speed ?? 0) + (setBonus.speed ?? 0))
   };
 };
 
