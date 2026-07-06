@@ -28,9 +28,9 @@ const rareSpawnSystem = read('src/systems/rareSpawnSystem.ts');
 const rareSpawns = read('src/content/rareSpawns.ts');
 const worldScreen = read('src/ui/screens/WorldScreen.tsx');
 
-assert(pkg.version === '0.7.57', 'package version is 0.7.57');
-assert(versionTs.includes("APP_VERSION = '0.7.57'") || versionTs.includes('APP_VERSION = "0.7.57"'), 'APP_VERSION is 0.7.57');
-assert(publicVersion.version === '0.7.57', 'public version is 0.7.57');
+assert(pkg.version === '0.7.58', 'package version is 0.7.58');
+assert(versionTs.includes("APP_VERSION = '0.7.58'") || versionTs.includes('APP_VERSION = "0.7.58"'), 'APP_VERSION is 0.7.58');
+assert(publicVersion.version === '0.7.58', 'public version is 0.7.58');
 assert(saveLoad.includes("SAVE_VERSION = '0.7.54'") || saveLoad.includes('SAVE_VERSION = "0.7.54"'), 'SAVE_VERSION is 0.7.54');
 assert(balanceConfig.includes('export const MAX_LEVEL = 60;'), 'MAX_LEVEL remains 60');
 assert(balanceConfig.includes("high: { min: 41, max: 59 }"), 'high band remains 41-59');
@@ -88,7 +88,9 @@ assert(guildRuntime.includes('isOpenWarStatus(war.status)'), 'sameTierWarCount c
 assert(guildWar.includes('const startScheduledGuildWars'), 'core guild war system starts scheduled wars');
 assert(guildWar.includes('next = startScheduledGuildWars(next);'), 'tickGuildWars advances scheduled wars');
 
-assert(sw.includes("mmows-v0.7.57"), 'service worker cache is 0.7.57');
+assert(sw.includes("mmows-v0.7.58"), 'service worker cache is 0.7.58');
+assert(rareSpawnSystem.includes('WORLD_BOSS_TARGET_LIST'), 'rare spawn system has world boss target list');
+assert(rareSpawnSystem.includes('MAX_RARE_ELITES = Math.max(1, SPOTS.length)'), 'rare elite target covers every spot');
 assert(siegeSystem.includes('никто не зарегистрировался на осаду'), 'siege no-roster text is readable Russian');
 assert(siegeSystem.includes('осада завершена. Победитель'), 'siege finish news is readable Russian');
 assert(siegeSystem.includes("castle.tier === 'max') return guild.tier === 'max' || guild.tier === 'high'"), 'max sieges can fallback to high NPC guilds');
