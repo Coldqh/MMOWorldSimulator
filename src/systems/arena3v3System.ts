@@ -59,19 +59,6 @@ const targetPriorityFromRole = (role: PartyRole) => {
   return 'lowestHp' as const;
 };
 
-const aggressionDamageMod = (aggression: CombatAggression) => {
-  if (aggression === 'defensive') return 0.9;
-  if (aggression === 'aggressive') return 1.08;
-  if (aggression === 'reckless') return 1.15;
-  return 1;
-};
-
-const aggressionDefenseMod = (aggression: CombatAggression) => {
-  if (aggression === 'defensive') return 1.1;
-  if (aggression === 'aggressive') return 0.95;
-  if (aggression === 'reckless') return 0.88;
-  return 1;
-};
 
 const createLegacyCombatant = (unit: CombatantV2): Combatant => ({
   id: unit.id,
@@ -166,18 +153,15 @@ const makeNpcCombatant = (npc: NpcPlayer, teamId: CombatTeamId, index: number): 
     kills: 0,
   };
 };
-export const calculateCombatantPower = (combatant: CombatantV2) => {
-  const roleBonus = combatant.role === 'healer' ? 1.04 : combatant.role === 'tank' ? 1.03 : 1;
-  return Math.round(
-    (combatant.maxHp * 0.45 +
+export const calculateCombatantPower = (combatant: CombatantV2) => Math.round(
+    combatant.maxHp * 0.45 +
       combatant.attack * 4.2 +
       combatant.magic * 3.7 +
       combatant.defense * 4.8 +
       combatant.speed * 8 +
       (combatant.gearScore ?? 0) * 0.15 +
-      (combatant.skill ?? 5) * 12) * roleBonus,
+      (combatant.skill ?? 5) * 12,
   );
-};
 
 export const calculateTeamPower = (team: CombatTeamV2) =>
   team.members.reduce((sum, member) => sum + calculateCombatantPower(member), 0);
@@ -507,9 +491,7 @@ const resolveActor = (
 
   const critChance = currentActor.aggression === 'reckless' ? 0.18 : currentActor.aggression === 'aggressive' ? 0.13 : 0.08;
   const crit = rng.chance(critChance);
-  const damageMod = aggressionDamageMod(currentActor.aggression);
-  const defenseMod = aggressionDefenseMod(target.aggression);
-  const damage = Math.max(1, Math.round((raw * damageMod + rng.int(-3, 5)) * (crit ? 1.45 : 1) - target.defense * defenseMod * 0.48));
+  const damage = Math.max(1, Math.round((raw + rng.int(-3, 5)) * (crit ? 1.45 : 1) - target.defense * 0.48));
 
   const result = applyDamageToTeam(enemy, target.id, damage, currentActor.id);
   enemy = result.team;
@@ -553,7 +535,7 @@ const buildFloatingEventsFromLines = (combat: CombatState, lines: string[], turn
       return [{ id: `float_${turn}_${index}_death`, turn, targetId: target?.id ?? target?.sourceId, type: 'death', text: 'ВЫБИТ' }];
     }
     return [];
-  });
+  };
 };
 
 const finishIfNeeded = (server: ServerState, combat: CombatState, rng: Rng): { server: ServerState; combat: CombatState } => {
