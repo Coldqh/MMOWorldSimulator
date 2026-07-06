@@ -45,7 +45,7 @@ export type NewsType =
   | "system"
   | "enhance"
   | "dungeon";
-export type CombatSource = "spot" | "dungeon" | "raid" | "arena" | "boss" | "guild_war";
+export type CombatSource = "spot" | "dungeon" | "raid" | "arena" | "boss" | "guild_war" | "rare_spawn";
 export type ModalType =
   | "reward"
   | "death"
@@ -774,6 +774,23 @@ export interface SiegeRun {
 }
 
 
+export type RareSpawnKind = "rare_elite";
+
+export interface RareSpawnState {
+  id: Id;
+  kind: RareSpawnKind;
+  mobId: Id;
+  name: string;
+  zoneId: Id;
+  spotId?: Id;
+  level: number;
+  spawnedDay: number;
+  spawnedMinute: number;
+  expiresDay: number;
+  expiresMinute: number;
+  defeated?: boolean;
+}
+
 export interface ServerState {
   version: string;
   appVersion?: string;
@@ -791,6 +808,8 @@ export interface ServerState {
   market: MarketListing[];
   rankings: RankingState;
   worldNews: NewsEntry[];
+  activeRareSpawns?: RareSpawnState[];
+  rareSpawnHistory?: Id[];
   unlockedContent: Id[];
   guildApplications: GuildApplication[];
   partyFinderListings: PartyFinderListing[];

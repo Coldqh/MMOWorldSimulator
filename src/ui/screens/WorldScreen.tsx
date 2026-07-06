@@ -14,6 +14,7 @@ import { getQuestGiversByZoneId, getQuestGiverById } from '../../content/questGi
 import { getQuestState } from '../../systems/questSystem';
 import { useGameStore } from '../../state/gameStore';
 import { getGearScore } from '../../systems/itemSystem';
+import { formatRareSpawnTimeLeft } from '../../systems/rareSpawnSystem';
 import type { ScreenId } from '../../types/game';
 import { CombatPanel } from '../components/CombatPanel';
 import { QuestGiverCard } from '../components/QuestGiverCard';
@@ -114,6 +115,7 @@ export const WorldScreen = () => {
   const enterSpot = useGameStore((state) => state.enterSpot);
   const leaveSpot = useGameStore((state) => state.leaveSpot);
   const startFarm = useGameStore((state) => state.startFarm);
+  const attackRareSpawn = useGameStore((state) => state.attackRareSpawn);
   const startDungeon = useGameStore((state) => state.startDungeon);
   const openNpcProfile = useGameStore((state) => state.openNpcProfile);
   const [tab, setTab] = useState<WorldTab>('overview');
@@ -129,6 +131,14 @@ export const WorldScreen = () => {
     : server.location.zoneId ?? currentSpot?.zoneId ?? '';
   const questGivers = getQuestGiversByZoneId(questGiverZoneId);
   const travelZones = availableZonesForPlayer(server.player.level);
+  const rareZoneId = server.location.mode === 'spot'
+    ? currentSpot?.zoneId
+    : server.location.mode === 'zone'
+      ? server.location.zoneId
+      : undefined;
+  const localRareSpawns = (server.activeRareSpawns ?? [])
+    .filter((spawn) => rareZoneId && spawn.zoneId === rareZoneId)
+    .filter((spawn) => server.location.mode !== 'spot' || !spawn.spotId || spawn.spotId === server.location.spotId);
 
   const placeTitle = server.location.mode === 'city'
     ? CITY_NAME
@@ -161,6 +171,27 @@ export const WorldScreen = () => {
       </section>
 
       {tab === 'players' && <LocationNpcList />}
+
+      {tab === 'overview' && localRareSpawns.length > 0 && (
+        <section className="panel">
+          <div className="section-title">⚠ Редкие угрозы</div>
+          <div className="list-lines">
+            {localRareSpawns.map((spawn) => {
+              const zone = getZoneById(spawn.zoneId);
+              const spot = spawn.spotId ? getSpotById(spawn.spotId) : undefined;
+              return (
+                <div key={spawn.id} className="list-line">
+                  <span>
+                    <strong>{spawn.name}</strong>
+                    <small> · Lv. {spawn.level} · {spot?.name ?? zone?.name ?? 'зона'} · осталось {formatRareSpawnTimeLeft(server, spawn)}</small>
+                  </span>
+                  <button onClick={() => attackRareSpawn(spawn.id)} disabled={Boolean(combat)}>Атаковать</button>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {tab === 'overview' && questGivers.length > 0 && (
         <section className="panel">

@@ -129,6 +129,11 @@ import {
   startWarNpcDuelCombat,
 } from "../systems/pvpDuelSystem";
 import {
+  finishRareSpawnVictory,
+  startRareSpawnCombat,
+  tickRareSpawns,
+} from "../systems/rareSpawnSystem";
+import {
   advanceCurrentSiege,
   normalizeSiegeState,
   registerPlayerGuildForCastle,
@@ -164,6 +169,7 @@ interface GameStore {
   enterSpot: (spotId: string) => void;
   leaveSpot: () => void;
   startFarm: (spotId: string, mobId?: string) => void;
+  attackRareSpawn: (spawnId: string) => void;
   startDungeon: (dungeonId: string, difficulty?: DungeonDifficulty) => void;
   refreshPartyFinder: () => void;
   createPartyListing: (dungeonId: string, visibility?: "public" | "guild_internal") => void;
@@ -338,6 +344,7 @@ const simulateServerForMinutes = (
   }
 
   next = tickSieges(next, rng, minutes);
+  next = tickRareSpawns(next, rng, minutes);
   return next;
 };
 
@@ -679,6 +686,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!combat) return;
     commit(set, server, combat, null);
   },
+  attackRareSpawn: (spawnId) => {
+    const { server, combat } = get();
+    if (combat || !server.characterCreated || server.currentDungeonRun) return;
+    const rng = createRng(server.seed + server.serverDay * 1777 + server.currentMinute + spawnId.length);
+    const rareCombat = startRareSpawnCombat(server, spawnId, rng);
+    if (!rareCombat) {
+      const refreshed = tickRareSpawns(server, rng, 0);
+      commit(set, refreshed, null, {
+        id: `modal_rare_spawn_missing_${server.serverDay}_${server.currentMinute}`,
+        type: "system",
+        title: "Редкая цель недоступна",
+        text: "Цель исчезла или находится в другой зоне.",
+        lines: ["Проверь текущую локацию.", "Редкие цели живут ограниченное время."],
+      });
+      return;
+    }
+    commit(set, server, rareCombat, null);
+  },
+
 
   startDungeon: (dungeonId, difficulty = "normal") => {
     const { server, combat } = get();
@@ -929,9 +955,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
         combat.turn * 17,
     );
     const preparedCombat = combat.source === 'guild_war' ? maybeAddWarDuelReinforcements(server, combat, rng) : combat;
-    const result = Boolean(preparedCombat.teamA && preparedCombat.teamB)
+    let result = Boolean(preparedCombat.teamA && preparedCombat.teamB)
       ? resolveArenaTeamRound(server, preparedCombat, actionId, rng)
       : resolveCombatAction(server, preparedCombat, actionId, rng);
+
+    if (result.combat.status === "victory" && result.combat.source === "rare_spawn") {
+      result = finishRareSpawnVictory(result.server, result.combat, rng);
+    }
     let nextServer = result.server;
     let nextCombat: CombatState | null = result.combat;
     let modal: GameModal | null = null;
