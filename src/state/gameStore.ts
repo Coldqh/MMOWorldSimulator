@@ -394,6 +394,10 @@ const normalizeServer = (server: ServerState, mode: "full" | "light" = "full"): 
     worldNews: needsMigration ? [] : (server.worldNews ?? []).filter(
       (entry) => (entry.type as string) !== "siege" && !/фарм|фармит|уровень|апнул|повысил|рейд-прогресс|мета|лидер арены|высокий онлайн|рост влияния|потеря влияния/i.test(entry.text),
     ),
+    activeRareSpawns: server.activeRareSpawns ?? [],
+    rareSpawnHistory: server.rareSpawnHistory ?? [],
+    lastWorldBossSpawnDay: server.lastWorldBossSpawnDay,
+
     rankings: {
       arenaTop: server.rankings?.arenaTop ?? [],
       raidRaceTop: server.rankings?.raidRaceTop ?? [],

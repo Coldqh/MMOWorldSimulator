@@ -774,7 +774,7 @@ export interface SiegeRun {
 }
 
 
-export type RareSpawnKind = "rare_elite";
+export type RareSpawnKind = "rare_elite" | "world_boss";
 
 export interface RareSpawnState {
   id: Id;
@@ -810,6 +810,7 @@ export interface ServerState {
   worldNews: NewsEntry[];
   activeRareSpawns?: RareSpawnState[];
   rareSpawnHistory?: Id[];
+  lastWorldBossSpawnDay?: number;
   unlockedContent: Id[];
   guildApplications: GuildApplication[];
   partyFinderListings: PartyFinderListing[];

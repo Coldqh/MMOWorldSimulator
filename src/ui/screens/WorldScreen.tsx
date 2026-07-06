@@ -14,7 +14,7 @@ import { getQuestGiversByZoneId, getQuestGiverById } from '../../content/questGi
 import { getQuestState } from '../../systems/questSystem';
 import { useGameStore } from '../../state/gameStore';
 import { getGearScore } from '../../systems/itemSystem';
-import { formatRareSpawnTimeLeft } from '../../systems/rareSpawnSystem';
+import { formatRareSpawnTimeLeft, getRareSpawnRecommendedGear, rareSpawnKindLabel } from '../../systems/rareSpawnSystem';
 import type { ScreenId } from '../../types/game';
 import { CombatPanel } from '../components/CombatPanel';
 import { QuestGiverCard } from '../components/QuestGiverCard';
@@ -131,15 +131,18 @@ export const WorldScreen = () => {
     : server.location.zoneId ?? currentSpot?.zoneId ?? '';
   const questGivers = getQuestGiversByZoneId(questGiverZoneId);
   const travelZones = availableZonesForPlayer(server.player.level);
-  const rareZoneId = server.location.mode === 'spot'
+  const currentZoneId = server.location.mode === 'spot'
     ? currentSpot?.zoneId
     : server.location.mode === 'zone'
       ? server.location.zoneId
       : undefined;
-  const localRareSpawns = (server.activeRareSpawns ?? [])
-    .filter((spawn) => rareZoneId && spawn.zoneId === rareZoneId)
+  const activeRareSpawns = server.activeRareSpawns ?? [];
+  const worldBossSpawns = activeRareSpawns.filter((spawn) => spawn.kind === 'world_boss');
+  const localRareSpawns = activeRareSpawns
+    .filter((spawn) => spawn.kind !== 'world_boss')
+    .filter((spawn) => currentZoneId && spawn.zoneId === currentZoneId)
     .filter((spawn) => server.location.mode !== 'spot' || !spawn.spotId || spawn.spotId === server.location.spotId);
-
+  const visibleRareSpawns = [...worldBossSpawns, ...localRareSpawns];
   const placeTitle = server.location.mode === 'city'
     ? CITY_NAME
     : server.location.mode === 'spot' && currentSpot
@@ -172,20 +175,24 @@ export const WorldScreen = () => {
 
       {tab === 'players' && <LocationNpcList />}
 
-      {tab === 'overview' && localRareSpawns.length > 0 && (
-        <section className="panel">
+      {tab === 'overview' && visibleRareSpawns.length > 0 && (
+        <section className="panel rare-threat-panel">
           <div className="section-title">⚠ Редкие угрозы</div>
           <div className="list-lines">
-            {localRareSpawns.map((spawn) => {
+            {visibleRareSpawns.map((spawn) => {
               const zone = getZoneById(spawn.zoneId);
               const spot = spawn.spotId ? getSpotById(spawn.spotId) : undefined;
+              const isNear = server.location.mode !== 'city' && currentZoneId === spawn.zoneId && (server.location.mode !== 'spot' || spawn.kind === 'world_boss' || !spawn.spotId || spawn.spotId === server.location.spotId);
               return (
-                <div key={spawn.id} className="list-line">
+                <div key={spawn.id} className={`list-line rare-threat-line ${spawn.kind === 'world_boss' ? 'boss-threat' : ''}`}>
                   <span>
-                    <strong>{spawn.name}</strong>
-                    <small> · Lv. {spawn.level} · {spot?.name ?? zone?.name ?? 'зона'} · осталось {formatRareSpawnTimeLeft(server, spawn)}</small>
+                    <strong>{spawn.kind === 'world_boss' ? '☠ ' : ''}{spawn.name}</strong>
+                    <small> · {rareSpawnKindLabel(spawn.kind)} · Lv. {spawn.level} · {spot?.name ?? zone?.name ?? 'зона'} · осталось {formatRareSpawnTimeLeft(server, spawn)} · рек. Gear {getRareSpawnRecommendedGear(spawn)}</small>
                   </span>
-                  <button onClick={() => attackRareSpawn(spawn.id)} disabled={Boolean(combat)}>Атаковать</button>
+                  <span className="inline-actions">
+                    {!isNear && zone && <button onClick={() => travelToZone(spawn.zoneId)} disabled={Boolean(combat) || server.location.zoneId === spawn.zoneId}>К локации</button>}
+                    <button onClick={() => attackRareSpawn(spawn.id)} disabled={Boolean(combat) || !isNear}>Атаковать</button>
+                  </span>
                 </div>
               );
             })}
