@@ -535,7 +535,7 @@ const buildFloatingEventsFromLines = (combat: CombatState, lines: string[], turn
       return [{ id: `float_${turn}_${index}_death`, turn, targetId: target?.id ?? target?.sourceId, type: 'death', text: 'ВЫБИТ' }];
     }
     return [];
-  };
+  });
 };
 
 const finishIfNeeded = (server: ServerState, combat: CombatState, rng: Rng): { server: ServerState; combat: CombatState } => {
