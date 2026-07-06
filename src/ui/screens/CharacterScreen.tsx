@@ -47,7 +47,9 @@ export const CharacterScreen = () => {
   const gearScore = getGearScore(player.equipment);
   const missingHp = Math.max(0, stats.hp - Math.min(player.hp, stats.hp));
   const missingMana = Math.max(0, stats.mana - Math.min(player.mana, stats.mana));
-  const recoveryMinutes = Math.max(5, Math.ceil(missingHp / 4) + Math.ceil(missingMana / 8));
+  const missingHpPercent = missingHp / Math.max(1, stats.hp);
+  const missingManaPercent = missingMana / Math.max(1, stats.mana);
+  const recoveryMinutes = Math.max(5, Math.min(60, Math.ceil(Math.max(missingHpPercent, missingManaPercent) * 60)));
 
   return (
     <div className="screen-stack">

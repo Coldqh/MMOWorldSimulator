@@ -817,45 +817,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const pool = ratingPool.length > 0 ? ratingPool.slice(0, 18) : bracketPool.slice(0, 18);
     const bracketFallback = getArenaBracketOpponentPool(server, bracketId);
     const opponent = rng.pick(pool.length > 0 ? pool : bracketFallback.length > 0 ? bracketFallback : server.npcs);
-    const playerGear = getGearScore(server.player.equipment);
-    const opponentStats = getPlayerStats({ ...server.player, id: opponent.id, name: opponent.name, raceId: opponent.raceId, classId: opponent.classId, level: opponent.level, xp: 0, gold: opponent.gold, inventory: opponent.inventory, equipment: opponent.equipment, guildId: opponent.guildId, reputation: opponent.reputation, arenaRating: opponent.arenaRating });
-    const buildArenaFighter = (base: ReturnType<typeof createPlayerCombatant>, gearScore: number) => {
-      const role = base.classId === 'warrior' ? 'tank' : base.classId === 'priest' ? 'healer' : 'dps';
-      const mainOffense = base.classId === 'mage' || base.classId === 'priest' ? base.magic : base.attack;
-      const gearBonus = Math.sqrt(Math.max(0, gearScore));
-      let maxHp = Math.round(base.maxHp * 2.05 + gearBonus * 5);
-      let attack = Math.round(mainOffense * 0.78 + gearBonus * 0.9);
-      let magic = Math.round(base.magic * 0.78 + gearBonus * 0.75);
-      let defense = Math.round(base.defense * 0.82 + gearBonus * 0.55);
-      if (role === 'tank') {
-        maxHp = Math.round(maxHp * 1.13);
-        attack = Math.round(attack * 0.84);
-        magic = Math.round(magic * 0.75);
-        defense = Math.round(defense * 1.22);
-      } else if (role === 'healer') {
-        maxHp = Math.round(maxHp * 0.98);
-        attack = Math.round(attack * 0.72);
-        magic = Math.round(base.magic * 0.9);
-        defense = Math.round(defense * 0.82);
-      } else {
-        maxHp = Math.round(maxHp * 0.96);
-        attack = Math.round(attack * 1.12);
-        magic = Math.round(magic * (base.classId === 'mage' ? 1.15 : 0.82));
-        defense = Math.round(defense * 0.88);
-      }
-      const defenseCap = Math.round(Math.max(18, attack) * (role === 'tank' ? 1.85 : role === 'healer' ? 1.25 : 1.35));
-      defense = Math.min(defense, defenseCap);
-      const hp = Math.round(Math.min(base.hp / Math.max(1, base.maxHp), 1) * maxHp);
-      return {
-        ...base,
-        maxHp,
-        hp: Math.max(1, hp),
-        attack: Math.max(4, attack),
-        magic: Math.max(3, magic),
-        defense: Math.max(3, defense),
-      };
-    };
-    const opponentBase = {
+    const opponentStats = getPlayerStats({
+      ...server.player,
+      id: opponent.id,
+      name: opponent.name,
+      raceId: opponent.raceId,
+      classId: opponent.classId,
+      level: opponent.level,
+      xp: 0,
+      gold: opponent.gold,
+      inventory: opponent.inventory,
+      equipment: opponent.equipment,
+      guildId: opponent.guildId,
+      reputation: opponent.reputation,
+      arenaRating: opponent.arenaRating,
+    });
+    const arenaPlayer = createPlayerCombatant(server);
+    const arenaEnemy = {
       id: opponent.id,
       name: opponent.name,
       level: opponent.level,
@@ -872,8 +850,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       cooldowns: {},
       defending: false,
     };
-    const arenaPlayer = buildArenaFighter(createPlayerCombatant(server), playerGear);
-    const arenaEnemy = buildArenaFighter(opponentBase, opponent.gearScore);
     const arenaCombat: CombatState = {
       id: uid("arena", rng),
       source: "arena",
