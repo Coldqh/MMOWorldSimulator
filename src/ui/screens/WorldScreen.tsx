@@ -20,7 +20,7 @@ import { CombatPanel } from '../components/CombatPanel';
 import { QuestGiverCard } from '../components/QuestGiverCard';
 import { LocationNpcList } from '../components/LocationNpcList';
 
-type WorldTab = 'overview' | 'players';
+type WorldTab = 'overview' | 'players' | 'elites';
 
 const npcLocationWeight = (npcLevel: number, minLevel: number, maxLevel: number, hash: number) => {
   if (npcLevel >= minLevel && npcLevel <= maxLevel) return 1000 - (hash % 120);
@@ -143,6 +143,12 @@ export const WorldScreen = () => {
     .filter((spawn) => currentZoneId && spawn.zoneId === currentZoneId)
     .filter((spawn) => server.location.mode !== 'spot' || !spawn.spotId || spawn.spotId === server.location.spotId);
   const visibleRareSpawns = [...worldBossSpawns, ...localRareSpawns];
+  const eliteSpawns = [...activeRareSpawns].sort((a, b) => {
+    if (a.kind !== b.kind) return a.kind === 'world_boss' ? -1 : 1;
+    const aTime = (a.expiresDay - 1) * 1440 + a.expiresMinute;
+    const bTime = (b.expiresDay - 1) * 1440 + b.expiresMinute;
+    return aTime - bTime || b.level - a.level || a.name.localeCompare(b.name);
+  });
   const placeTitle = server.location.mode === 'city'
     ? CITY_NAME
     : server.location.mode === 'spot' && currentSpot
@@ -170,10 +176,41 @@ export const WorldScreen = () => {
         <div className="tab-row">
           <button className={tab === 'overview' ? 'active' : ''} onClick={() => setTab('overview')}>Обзор</button>
           <button className={tab === 'players' ? 'active' : ''} onClick={() => setTab('players')}>Игроки</button>
+          <button className={tab === 'elites' ? 'active' : ''} onClick={() => setTab('elites')}>Элитные противники{eliteSpawns.length > 0 ? ` · ${eliteSpawns.length}` : ''}</button>
         </div>
       </section>
 
       {tab === 'players' && <LocationNpcList />}
+
+      {tab === 'elites' && (
+        <section className="panel rare-threat-panel">
+          <div className="section-title">⚠ Элитные противники</div>
+          {eliteSpawns.length === 0 ? (
+            <p className="muted">Сейчас нет активных редких элитников и мировых боссов. Пропусти время или проверь позже.</p>
+          ) : (
+            <div className="list-lines">
+              {eliteSpawns.map((spawn) => {
+                const zone = getZoneById(spawn.zoneId);
+                const spot = spawn.spotId ? getSpotById(spawn.spotId) : undefined;
+                const isNear = server.location.mode !== 'city' && currentZoneId === spawn.zoneId && (server.location.mode !== 'spot' || spawn.kind === 'world_boss' || !spawn.spotId || spawn.spotId === server.location.spotId);
+                const locationText = spot && zone ? `${zone.name} · ${spot.name}` : zone?.name ?? 'неизвестная зона';
+                return (
+                  <div key={spawn.id} className={`list-line rare-threat-line ${spawn.kind === 'world_boss' ? 'boss-threat' : ''}`}>
+                    <span>
+                      <strong>{spawn.kind === 'world_boss' ? '☠ ' : '⚠ '}{spawn.name}</strong>
+                      <small> · {rareSpawnKindLabel(spawn.kind)} · Lv. {spawn.level} · {locationText} · осталось {formatRareSpawnTimeLeft(server, spawn)} · рек. Gear {getRareSpawnRecommendedGear(spawn)} · {isNear ? 'рядом' : 'далеко'}</small>
+                    </span>
+                    <span className="inline-actions">
+                      {!isNear && zone && <button onClick={() => travelToZone(spawn.zoneId)} disabled={Boolean(combat) || server.location.zoneId === spawn.zoneId}>К локации</button>}
+                      <button onClick={() => attackRareSpawn(spawn.id)} disabled={Boolean(combat) || !isNear}>Атаковать</button>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
 
       {tab === 'overview' && visibleRareSpawns.length > 0 && (
         <section className="panel rare-threat-panel">

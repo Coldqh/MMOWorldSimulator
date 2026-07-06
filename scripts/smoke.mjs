@@ -28,13 +28,15 @@ const rareSpawnSystem = read('src/systems/rareSpawnSystem.ts');
 const rareSpawns = read('src/content/rareSpawns.ts');
 const worldScreen = read('src/ui/screens/WorldScreen.tsx');
 
-assert(pkg.version === '0.7.56', 'package version is 0.7.56');
-assert(versionTs.includes("APP_VERSION = '0.7.56'") || versionTs.includes('APP_VERSION = "0.7.56"'), 'APP_VERSION is 0.7.56');
-assert(publicVersion.version === '0.7.56', 'public version is 0.7.56');
+assert(pkg.version === '0.7.57', 'package version is 0.7.57');
+assert(versionTs.includes("APP_VERSION = '0.7.57'") || versionTs.includes('APP_VERSION = "0.7.57"'), 'APP_VERSION is 0.7.57');
+assert(publicVersion.version === '0.7.57', 'public version is 0.7.57');
 assert(saveLoad.includes("SAVE_VERSION = '0.7.54'") || saveLoad.includes('SAVE_VERSION = "0.7.54"'), 'SAVE_VERSION is 0.7.54');
 assert(balanceConfig.includes('export const MAX_LEVEL = 60;'), 'MAX_LEVEL remains 60');
 assert(balanceConfig.includes("high: { min: 41, max: 59 }"), 'high band remains 41-59');
 assert(balanceConfig.includes("max: { min: 60, max: 60 }"), 'max band remains 60');
+assert(worldScreen.includes('Элитные противники'), 'WorldScreen has elite opponents tab');
+assert(worldScreen.includes('eliteSpawns.length'), 'WorldScreen counts elite opponents');
 assert(rareSpawnSystem.includes('export const tickRareSpawns'), 'rare spawn tick system exists');
 assert(rareSpawnSystem.includes('world_boss'), 'world boss spawning exists');
 assert(rareSpawnSystem.includes('getRareSpawnRecommendedGear'), 'rare spawn recommended gear helper exists');
@@ -86,7 +88,7 @@ assert(guildRuntime.includes('isOpenWarStatus(war.status)'), 'sameTierWarCount c
 assert(guildWar.includes('const startScheduledGuildWars'), 'core guild war system starts scheduled wars');
 assert(guildWar.includes('next = startScheduledGuildWars(next);'), 'tickGuildWars advances scheduled wars');
 
-assert(sw.includes("mmows-v0.7.56"), 'service worker cache is 0.7.56');
+assert(sw.includes("mmows-v0.7.57"), 'service worker cache is 0.7.57');
 assert(siegeSystem.includes('никто не зарегистрировался на осаду'), 'siege no-roster text is readable Russian');
 assert(siegeSystem.includes('осада завершена. Победитель'), 'siege finish news is readable Russian');
 assert(siegeSystem.includes("castle.tier === 'max') return guild.tier === 'max' || guild.tier === 'high'"), 'max sieges can fallback to high NPC guilds');
