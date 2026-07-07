@@ -24,8 +24,11 @@ const perfScale = read('scripts/perf-scale.mjs');
 const sw = read('public/sw.js');
 const siegeSystem = read('src/systems/siegeSystem.ts');
 const castlePanel = read('src/ui/components/CastlePanel.tsx');
+const rareSpawnSystem = read('src/systems/rareSpawnSystem.ts');
 const activityCurrencySystem = read('src/systems/activityCurrencySystem.ts');
 const characterScreen = read('src/ui/screens/CharacterScreen.tsx');
+const worldScreen = read('src/ui/screens/WorldScreen.tsx');
+const worldBossRaidSystem = read('src/systems/worldBossRaidSystem.ts');
 const dungeonSystem = read('src/systems/dungeonSystem.ts');
 const combatSystem = read('src/systems/combatSystem.ts');
 const arena3v3System = read('src/systems/arena3v3System.ts');
@@ -50,6 +53,18 @@ assert(combatSystem.includes("currencyRewardLine('arenaHonor'"), 'solo arena hon
 assert(arena3v3System.includes("currencyRewardLine('arenaHonor'"), 'team arena honor reward is wired');
 assert(guildWarCombatResultSystem.includes("currencyRewardLine('warCrests'"), 'guild war crests reward is wired');
 assert(!typeFile.includes('activityCurrencies?:'), 'no nested activityCurrencies save object');
+
+assert(typeFile.includes('WorldBossRaidParticipant'), 'world boss raid participant type exists');
+assert(worldBossRaidSystem.includes('WORLD_BOSS_RAID_MAX_PARTICIPANTS = 30'), 'world boss raid has 30 participant cap');
+assert(worldBossRaidSystem.includes('WORLD_BOSS_RAID_TURN_MINUTES = 5'), 'world boss raid attack advances 5 minutes');
+assert(worldBossRaidSystem.includes('rewardTierForRank'), 'world boss raid reward rank tiers are wired');
+assert(worldBossRaidSystem.includes("rank <= 5") && worldBossRaidSystem.includes("rank <= 10"), 'world boss reward tiers are 1-5 / 6-10 / 11-30');
+assert(worldBossRaidSystem.includes('addNpcRaidParticipants'), 'world boss raid NPC join system is wired');
+assert(worldBossRaidSystem.includes('attackWorldBossRaid'), 'world boss raid attack action system exists');
+assert(rareSpawnSystem.includes('initializeWorldBossRaid') || gameStore.includes('joinWorldBossRaid'), 'world boss raid spawn/store integration exists');
+assert(gameStore.includes('joinWorldBossRaid') && gameStore.includes('attackWorldBossRaid'), 'GameStore exposes world boss raid actions');
+assert(worldScreen.includes('Присоединиться') && worldScreen.includes('Рейд заполнен'), 'WorldScreen shows world boss raid join state');
+assert(worldScreen.includes('HP {raid.hpPercent}%') || worldScreen.includes('HP ${raid.hpPercent}%'), 'WorldScreen shows world boss raid HP');
 
 assert(guildRuntime.includes('export const getGuildTierMinLevel'), 'guild tier min-level helper exists');
 assert(guildRuntime.includes('export const normalizeGuildTierRequirement'), 'single guild tier requirement normalizer exists');

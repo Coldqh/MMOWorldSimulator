@@ -15,6 +15,7 @@ import { getQuestState } from '../../systems/questSystem';
 import { useGameStore } from '../../state/gameStore';
 import { getGearScore } from '../../systems/itemSystem';
 import { formatRareSpawnTimeLeft, getRareSpawnRecommendedGear, rareSpawnKindLabel, sortRareSpawnsForPlayer } from '../../systems/rareSpawnSystem';
+import { getWorldBossRaidSummary } from '../../systems/worldBossRaidSystem';
 import type { ScreenId } from '../../types/game';
 import { CombatPanel } from '../components/CombatPanel';
 import { QuestGiverCard } from '../components/QuestGiverCard';
@@ -116,6 +117,8 @@ export const WorldScreen = () => {
   const leaveSpot = useGameStore((state) => state.leaveSpot);
   const startFarm = useGameStore((state) => state.startFarm);
   const attackRareSpawn = useGameStore((state) => state.attackRareSpawn);
+  const joinWorldBossRaid = useGameStore((state) => state.joinWorldBossRaid);
+  const attackWorldBossRaid = useGameStore((state) => state.attackWorldBossRaid);
   const startDungeon = useGameStore((state) => state.startDungeon);
   const openNpcProfile = useGameStore((state) => state.openNpcProfile);
   const [tab, setTab] = useState<WorldTab>('overview');
@@ -220,15 +223,19 @@ export const WorldScreen = () => {
                 const spot = spawn.spotId ? getSpotById(spawn.spotId) : undefined;
                 const isNear = server.location.mode !== 'city' && currentZoneId === spawn.zoneId;
                 const locationText = spot && zone ? `${zone.name} · ${spot.name}` : zone?.name ?? 'неизвестная зона';
+                const raid = getWorldBossRaidSummary(server, spawn);
+                const raidFull = raid.participantCount >= raid.maxParticipants && !raid.playerJoined;
                 return (
                   <div key={spawn.id} className="list-line rare-threat-line boss-threat">
                     <span>
                       <strong>☠ {spawn.name}</strong>
-                      <small> · {rareSpawnKindLabel(spawn.kind)} · Lv. {spawn.level} · {locationText} · осталось {formatRareSpawnTimeLeft(server, spawn)} · рек. Gear {getRareSpawnRecommendedGear(spawn)} · {isNear ? 'рядом' : 'далеко'}</small>
+                      <small> · рейдовый мировой босс · Lv. {spawn.level} · {locationText} · HP {raid.hpPercent}% · участники {raid.participantCount}/{raid.maxParticipants} · ход {raid.round} · твой урон {raid.playerDamage}{raid.playerRank ? ` · место #${raid.playerRank}` : ''} · осталось {formatRareSpawnTimeLeft(server, spawn)} · {isNear ? 'рядом' : 'далеко'}</small>
                     </span>
                     <span className="inline-actions">
                       {!isNear && zone && <button onClick={() => travelToZone(spawn.zoneId)} disabled={Boolean(combat) || server.location.zoneId === spawn.zoneId}>К локации</button>}
-                      <button onClick={() => attackRareSpawn(spawn.id)} disabled={Boolean(combat) || !isNear}>Атаковать</button>
+                      {!raid.playerJoined
+                        ? <button onClick={() => joinWorldBossRaid(spawn.id)} disabled={Boolean(combat) || !isNear || raidFull}>{raidFull ? 'Рейд заполнен' : 'Присоединиться'}</button>
+                        : <button onClick={() => attackWorldBossRaid(spawn.id)} disabled={Boolean(combat) || !isNear}>Атаковать</button>}
                     </span>
                   </div>
                 );
@@ -246,15 +253,21 @@ export const WorldScreen = () => {
               const zone = getZoneById(spawn.zoneId);
               const spot = spawn.spotId ? getSpotById(spawn.spotId) : undefined;
               const isNear = server.location.mode !== 'city' && currentZoneId === spawn.zoneId && (server.location.mode !== 'spot' || spawn.kind === 'world_boss' || !spawn.spotId || spawn.spotId === server.location.spotId);
+              const raid = spawn.kind === 'world_boss' ? getWorldBossRaidSummary(server, spawn) : undefined;
+              const raidFull = raid ? raid.participantCount >= raid.maxParticipants && !raid.playerJoined : false;
               return (
                 <div key={spawn.id} className={`list-line rare-threat-line ${spawn.kind === 'world_boss' ? 'boss-threat' : ''}`}>
                   <span>
                     <strong>{spawn.kind === 'world_boss' ? '☠ ' : ''}{spawn.name}</strong>
-                    <small> · {rareSpawnKindLabel(spawn.kind)} · Lv. {spawn.level} · {spot?.name ?? zone?.name ?? 'зона'} · осталось {formatRareSpawnTimeLeft(server, spawn)} · рек. Gear {getRareSpawnRecommendedGear(spawn)}</small>
+                    <small> · {spawn.kind === 'world_boss' && raid ? `рейд · HP ${raid.hpPercent}% · ${raid.participantCount}/${raid.maxParticipants} участников · твой урон ${raid.playerDamage}` : rareSpawnKindLabel(spawn.kind)} · Lv. {spawn.level} · {spot?.name ?? zone?.name ?? 'зона'} · осталось {formatRareSpawnTimeLeft(server, spawn)} · рек. Gear {getRareSpawnRecommendedGear(spawn)}</small>
                   </span>
                   <span className="inline-actions">
                     {!isNear && zone && <button onClick={() => travelToZone(spawn.zoneId)} disabled={Boolean(combat) || server.location.zoneId === spawn.zoneId}>К локации</button>}
-                    <button onClick={() => attackRareSpawn(spawn.id)} disabled={Boolean(combat) || !isNear}>Атаковать</button>
+                    {spawn.kind === 'world_boss' && raid
+                      ? (!raid.playerJoined
+                          ? <button onClick={() => joinWorldBossRaid(spawn.id)} disabled={Boolean(combat) || !isNear || raidFull}>{raidFull ? 'Рейд заполнен' : 'Присоединиться'}</button>
+                          : <button onClick={() => attackWorldBossRaid(spawn.id)} disabled={Boolean(combat) || !isNear}>Атаковать</button>)
+                      : <button onClick={() => attackRareSpawn(spawn.id)} disabled={Boolean(combat) || !isNear}>Атаковать</button>}
                   </span>
                 </div>
               );

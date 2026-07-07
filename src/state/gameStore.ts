@@ -135,6 +135,10 @@ import {
   tickRareSpawns,
 } from "../systems/rareSpawnSystem";
 import {
+  attackWorldBossRaid as attackWorldBossRaidState,
+  joinWorldBossRaid as joinWorldBossRaidState,
+} from "../systems/worldBossRaidSystem";
+import {
   advanceCurrentSiege,
   normalizeSiegeState,
   registerPlayerGuildForCastle,
@@ -171,6 +175,8 @@ interface GameStore {
   leaveSpot: () => void;
   startFarm: (spotId: string, mobId?: string) => void;
   attackRareSpawn: (spawnId: string) => void;
+  joinWorldBossRaid: (spawnId: string) => void;
+  attackWorldBossRaid: (spawnId: string) => void;
   startDungeon: (dungeonId: string, difficulty?: DungeonDifficulty) => void;
   refreshPartyFinder: () => void;
   createPartyListing: (dungeonId: string, visibility?: "public" | "guild_internal") => void;
@@ -695,6 +701,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
   attackRareSpawn: (spawnId) => {
     const { server, combat } = get();
     if (combat || !server.characterCreated || server.currentDungeonRun) return;
+    const worldBoss = (server.activeRareSpawns ?? []).find((spawn) => spawn.id === spawnId && spawn.kind === 'world_boss');
+    if (worldBoss) {
+      get().joinWorldBossRaid(spawnId);
+      return;
+    }
     const rng = createRng(server.seed + server.serverDay * 1777 + server.currentMinute + spawnId.length);
     const rareCombat = startRareSpawnCombat(server, spawnId, rng);
     if (!rareCombat) {
@@ -709,6 +720,61 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
     commit(set, server, rareCombat, null);
+  },
+
+
+
+  joinWorldBossRaid: (spawnId) => {
+    const { server, combat } = get();
+    if (combat || !server.characterCreated || server.currentDungeonRun) return;
+    const rng = createRng(server.seed + server.serverDay * 1889 + server.currentMinute + spawnId.length);
+    const result = joinWorldBossRaidState(server, spawnId, rng);
+    if (!result.ok) {
+      commit(set, result.server, null, {
+        id: `modal_world_boss_join_failed_${server.serverDay}_${server.currentMinute}`,
+        type: "system",
+        title: "Рейд недоступен",
+        text: result.reason ?? "Не удалось вступить в рейд.",
+        lines: ["Проверь локацию и свободные места."],
+      });
+      return;
+    }
+    commit(set, result.server, null, {
+      id: `modal_world_boss_joined_${server.serverDay}_${server.currentMinute}`,
+      type: "system",
+      title: "Ты в рейде",
+      text: result.spawn?.name ?? "Мировой босс",
+      lines: result.lines ?? ["Можно атаковать босса."],
+    });
+  },
+
+  attackWorldBossRaid: (spawnId) => {
+    const { server, combat } = get();
+    if (combat || !server.characterCreated || server.currentDungeonRun) return;
+    const rng = createRng(server.seed + server.serverDay * 1993 + server.currentMinute + spawnId.length);
+    const result = attackWorldBossRaidState(server, spawnId, rng);
+    if (!result.ok) {
+      commit(set, result.server, null, {
+        id: `modal_world_boss_attack_failed_${server.serverDay}_${server.currentMinute}`,
+        type: "system",
+        title: "Рейд недоступен",
+        text: result.reason ?? "Не удалось атаковать босса.",
+        lines: ["Сначала вступи в рейд и проверь свободные места."],
+      });
+      return;
+    }
+    if (result.resolved && result.reward) {
+      commit(set, result.server, null, {
+        id: `modal_world_boss_reward_${server.serverDay}_${server.currentMinute}`,
+        type: "reward",
+        title: "Мировой босс убит",
+        text: result.spawn?.name ?? "Рейд завершён",
+        reward: result.reward,
+        lines: result.reward.lines,
+      });
+      return;
+    }
+    commit(set, result.server, null, null);
   },
 
 

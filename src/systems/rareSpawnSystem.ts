@@ -8,6 +8,7 @@ import type { CombatState, Combatant, InventoryStack, ItemDefinition, RareSpawnK
 import { addInventoryItem, getGearScore } from './itemSystem';
 import { addPlayerXp, xpRewardForMob } from './progressionSystem';
 import { createPlayerCombatant } from './combatSystem';
+import { hydrateActiveWorldBossRaids, initializeWorldBossRaid } from './worldBossRaidSystem';
 
 type WorldBossBand = 'low' | 'mid' | 'high' | 'max';
 
@@ -191,12 +192,13 @@ const countByBand = (active: RareSpawnState[], kind: RareSpawnKind): Record<Worl
 
 export const tickRareSpawns = (server: ServerState, rng: Rng, minutes = 0): ServerState => {
   let active = normalizeRareSpawns(server);
-  let next: ServerState = {
+  let next: ServerState = hydrateActiveWorldBossRaids({
     ...server,
     activeRareSpawns: active,
     rareSpawnHistory: server.rareSpawnHistory ?? [],
     lastWorldBossSpawnDay: server.lastWorldBossSpawnDay,
-  };
+  }, rng);
+  active = next.activeRareSpawns ?? [];
 
   const bossCounts = countByBand(active, 'world_boss');
   const spawnedBosses: RareSpawnState[] = [];
@@ -206,9 +208,12 @@ export const tickRareSpawns = (server: ServerState, rng: Rng, minutes = 0): Serv
     if (!rng.chance(chance)) return;
     const spawn = createWorldBossSpawnForBand(next, rng, band, slotIndex);
     if (!spawn) return;
+    const initialized = initializeWorldBossRaid(next, spawn, rng);
+    next = initialized.server;
+    const raidSpawn = initialized.spawn;
     bossCounts[band] += 1;
-    spawnedBosses.push(spawn);
-    active = [...active, spawn];
+    spawnedBosses.push(raidSpawn);
+    active = [...active, raidSpawn];
   });
 
   if (spawnedBosses.length > 0) {
@@ -273,7 +278,7 @@ const isPlayerNearSpawn = (server: ServerState, spawn: RareSpawnState) => {
 
 export const startRareSpawnCombat = (server: ServerState, spawnId: string, rng: Rng): CombatState | null => {
   const spawn = normalizeRareSpawns(server).find((entry) => entry.id === spawnId);
-  if (!spawn || !isPlayerNearSpawn(server, spawn)) return null;
+  if (!spawn || spawn.kind === 'world_boss' || !isPlayerNearSpawn(server, spawn)) return null;
 
   const enemy = rareEnemyFromMob(spawn);
   if (!enemy) return null;

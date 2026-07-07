@@ -779,6 +779,17 @@ export interface SiegeRun {
 
 
 export type RareSpawnKind = "rare_elite" | "world_boss";
+export type WorldBossRaidRewardTier = "top" | "high" | "normal";
+
+export interface WorldBossRaidParticipant {
+  id: Id;
+  name: string;
+  level: number;
+  damage: number;
+  joinedDay: number;
+  joinedMinute: number;
+  isPlayer?: boolean;
+}
 
 export interface RareSpawnState {
   id: Id;
@@ -793,6 +804,12 @@ export interface RareSpawnState {
   expiresDay: number;
   expiresMinute: number;
   defeated?: boolean;
+  raidMaxParticipants?: number;
+  raidBossMaxHp?: number;
+  raidBossHp?: number;
+  raidRound?: number;
+  raidParticipants?: WorldBossRaidParticipant[];
+  raidRewardClaimed?: boolean;
 }
 
 export interface ServerState {
