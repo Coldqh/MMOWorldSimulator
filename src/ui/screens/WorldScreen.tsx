@@ -14,7 +14,7 @@ import { getQuestGiversByZoneId, getQuestGiverById } from '../../content/questGi
 import { getQuestState } from '../../systems/questSystem';
 import { useGameStore } from '../../state/gameStore';
 import { getGearScore } from '../../systems/itemSystem';
-import { formatRareSpawnTimeLeft, getRareSpawnRecommendedGear, rareSpawnKindLabel } from '../../systems/rareSpawnSystem';
+import { formatRareSpawnTimeLeft, getRareSpawnRecommendedGear, rareSpawnKindLabel, sortRareSpawnsForPlayer } from '../../systems/rareSpawnSystem';
 import type { ScreenId } from '../../types/game';
 import { CombatPanel } from '../components/CombatPanel';
 import { QuestGiverCard } from '../components/QuestGiverCard';
@@ -137,26 +137,13 @@ export const WorldScreen = () => {
       ? server.location.zoneId
       : undefined;
   const activeRareSpawns = server.activeRareSpawns ?? [];
-  const worldBossSpawns = activeRareSpawns.filter((spawn) => spawn.kind === 'world_boss');
-  const localRareSpawns = activeRareSpawns
-    .filter((spawn) => spawn.kind !== 'world_boss')
+  const sortedRareSpawns = sortRareSpawnsForPlayer(activeRareSpawns, server.player.level);
+  const worldBossTabSpawns = sortedRareSpawns.filter((spawn) => spawn.kind === 'world_boss');
+  const eliteSpawns = sortedRareSpawns.filter((spawn) => spawn.kind === 'rare_elite');
+  const localRareSpawns = eliteSpawns
     .filter((spawn) => currentZoneId && spawn.zoneId === currentZoneId)
     .filter((spawn) => server.location.mode !== 'spot' || !spawn.spotId || spawn.spotId === server.location.spotId);
-  const visibleRareSpawns = [...worldBossSpawns, ...localRareSpawns];
-  const eliteSpawns = activeRareSpawns
-    .filter((spawn) => spawn.kind === 'rare_elite')
-    .sort((a, b) => {
-      const aTime = (a.expiresDay - 1) * 1440 + a.expiresMinute;
-      const bTime = (b.expiresDay - 1) * 1440 + b.expiresMinute;
-      return aTime - bTime || b.level - a.level || a.name.localeCompare(b.name);
-    });
-  const worldBossTabSpawns = activeRareSpawns
-    .filter((spawn) => spawn.kind === 'world_boss')
-    .sort((a, b) => {
-      const aTime = (a.expiresDay - 1) * 1440 + a.expiresMinute;
-      const bTime = (b.expiresDay - 1) * 1440 + b.expiresMinute;
-      return aTime - bTime || b.level - a.level || a.name.localeCompare(b.name);
-    });
+  const visibleRareSpawns = [...worldBossTabSpawns, ...localRareSpawns];
   const placeTitle = server.location.mode === 'city'
     ? CITY_NAME
     : server.location.mode === 'spot' && currentSpot

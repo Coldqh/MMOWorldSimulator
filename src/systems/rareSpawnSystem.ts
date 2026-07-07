@@ -9,39 +9,13 @@ import { addInventoryItem, getGearScore } from './itemSystem';
 import { addPlayerXp, xpRewardForMob } from './progressionSystem';
 import { createPlayerCombatant } from './combatSystem';
 
-type RareSpawnTier = 'low' | 'mid' | 'high' | 'max';
-
-export const RARE_ELITE_TARGET_LIST: Array<{ tier: RareSpawnTier; max: number }> = [
-  { tier: 'low', max: 2 },
-  { tier: 'mid', max: 2 },
-  { tier: 'high', max: 2 },
-  { tier: 'max', max: 2 },
-];
-
-export const WORLD_BOSS_TARGET_LIST: Array<{ tier: RareSpawnTier; max: number }> = [
-  { tier: 'low', max: 1 },
-  { tier: 'mid', max: 1 },
-  { tier: 'high', max: 1 },
-  { tier: 'max', max: 1 },
-];
-
-const tierForLevel = (level: number): RareSpawnTier => {
-  if (level >= 60) return 'max';
-  if (level >= 41) return 'high';
-  if (level >= 21) return 'mid';
-  return 'low';
-};
-
-const levelForTier = (tier: RareSpawnTier, fallback: number) => {
-  if (tier === 'low') return Math.max(1, Math.min(20, fallback));
-  if (tier === 'mid') return Math.max(21, Math.min(40, fallback));
-  if (tier === 'high') return Math.max(41, Math.min(59, fallback));
-  return Math.max(60, fallback);
-};
-
-export const getRareSpawnTier = (spawn: Pick<RareSpawnState, 'level'>): RareSpawnTier => tierForLevel(spawn.level);
-
 type WorldBossBand = 'low' | 'mid' | 'high' | 'max';
+
+const BAND_ORDER: WorldBossBand[] = ['low', 'mid', 'high', 'max'];
+const MAX_RARE_ELITES_PER_BAND: Record<WorldBossBand, number> = { low: 2, mid: 2, high: 2, max: 2 };
+const MAX_WORLD_BOSSES_PER_BAND: Record<WorldBossBand, number> = { low: 1, mid: 1, high: 1, max: 1 };
+export const RARE_ELITE_TARGET_LIST = BAND_ORDER.flatMap((band) => Array.from({ length: MAX_RARE_ELITES_PER_BAND[band] }, (_, slotIndex) => ({ band, slotIndex })));
+export const WORLD_BOSS_TARGET_LIST = BAND_ORDER.flatMap((band) => Array.from({ length: MAX_WORLD_BOSSES_PER_BAND[band] }, (_, slotIndex) => ({ band, slotIndex })));
 
 const toAbsoluteMinute = (day: number, minute: number) => (Math.max(1, day) - 1) * 1440 + Math.max(0, minute);
 const serverNow = (server: Pick<ServerState, 'serverDay' | 'currentMinute'>) => toAbsoluteMinute(server.serverDay, server.currentMinute);
@@ -72,7 +46,35 @@ export const getRareSpawnRecommendedGear = (spawn: RareSpawnState) => {
   return Math.max(100, Math.round(spawn.level * base));
 };
 
+const bandForLevel = (level: number): WorldBossBand => {
+  if (level >= 60) return 'max';
+  if (level >= 41) return 'high';
+  if (level >= 21) return 'mid';
+  return 'low';
+};
+
+const bandForSpot = (spot: { levelRange: readonly [number, number] }): WorldBossBand => {
+  const averageLevel = Math.round((spot.levelRange[0] + spot.levelRange[1]) / 2);
+  return bandForLevel(averageLevel);
+};
+
+export const getRareSpawnBand = (spawn: RareSpawnState): WorldBossBand => bandForLevel(spawn.level);
+
 const spawnLimitRank = (spawn: RareSpawnState) => spawn.kind === 'world_boss' ? 0 : 1;
+
+export const sortRareSpawnsForPlayer = (spawns: RareSpawnState[] = [], playerLevel = 1) =>
+  [...spawns].sort((a, b) => {
+    const aOver = a.level > playerLevel ? 1 : 0;
+    const bOver = b.level > playerLevel ? 1 : 0;
+    if (aOver !== bOver) return aOver - bOver;
+
+    const aDistance = aOver ? a.level - playerLevel : playerLevel - a.level;
+    const bDistance = bOver ? b.level - playerLevel : playerLevel - b.level;
+    if (aDistance !== bDistance) return aDistance - bDistance;
+
+    if (a.kind !== b.kind) return spawnLimitRank(a) - spawnLimitRank(b);
+    return a.name.localeCompare(b.name);
+  });
 
 export const normalizeRareSpawns = (server: ServerState): RareSpawnState[] => {
   const now = serverNow(server);
@@ -83,48 +85,34 @@ export const normalizeRareSpawns = (server: ServerState): RareSpawnState[] => {
     .filter((spawn) => Boolean(getZoneById(spawn.zoneId)))
     .filter((spawn) => !spawn.spotId || Boolean(getSpotById(spawn.spotId)))
     .filter((spawn) => toAbsoluteMinute(spawn.expiresDay, spawn.expiresMinute) > now)
-    .sort((a, b) => spawnLimitRank(a) - spawnLimitRank(b) || toAbsoluteMinute(a.expiresDay, a.expiresMinute) - toAbsoluteMinute(b.expiresDay, b.expiresMinute));
+    .sort((a, b) => spawnLimitRank(a) - spawnLimitRank(b) || BAND_ORDER.indexOf(getRareSpawnBand(a)) - BAND_ORDER.indexOf(getRareSpawnBand(b)) || toAbsoluteMinute(a.expiresDay, a.expiresMinute) - toAbsoluteMinute(b.expiresDay, b.expiresMinute));
 
-  const kept: RareSpawnState[] = [];
-  const counters: Record<string, number> = {};
+  const bossCounts: Record<WorldBossBand, number> = { low: 0, mid: 0, high: 0, max: 0 };
+  const eliteCounts: Record<WorldBossBand, number> = { low: 0, mid: 0, high: 0, max: 0 };
+  const result: RareSpawnState[] = [];
 
   valid.forEach((spawn) => {
-    const tier = getRareSpawnTier(spawn);
-    const max = spawn.kind === 'world_boss'
-      ? (WORLD_BOSS_TARGET_LIST.find((entry) => entry.tier === tier)?.max ?? 1)
-      : (RARE_ELITE_TARGET_LIST.find((entry) => entry.tier === tier)?.max ?? 2);
-    const key = `${spawn.kind}_${tier}`;
-    const count = counters[key] ?? 0;
-    if (count >= max) return;
-    counters[key] = count + 1;
-    kept.push(spawn);
+    const band = getRareSpawnBand(spawn);
+    if (spawn.kind === 'world_boss') {
+      if (bossCounts[band] >= MAX_WORLD_BOSSES_PER_BAND[band]) return;
+      bossCounts[band] += 1;
+      result.push(spawn);
+      return;
+    }
+
+    if (eliteCounts[band] >= MAX_RARE_ELITES_PER_BAND[band]) return;
+    eliteCounts[band] += 1;
+    result.push(spawn);
   });
 
-  return kept;
+  return result;
 };
 
-const candidateSpots = (server: ServerState, bossMode = false) => {
-  const playerLevel = server.player.level;
-  const levelPadding = bossMode ? 12 : 8;
-  const availableZoneIds = new Set(
-    ZONES
-      .filter((zone) => playerLevel >= zone.levelRange[0] - 2)
-      .filter((zone) => zone.levelRange[0] <= playerLevel + levelPadding)
-      .map((zone) => zone.id),
-  );
-
-  const close = SPOTS
-    .filter((spot) => availableZoneIds.has(spot.zoneId))
-    .filter((spot) => spot.mobIds.some((mobId) => Boolean(getMobById(mobId))))
-    .filter((spot) => spot.levelRange[0] <= playerLevel + levelPadding && spot.levelRange[1] >= playerLevel - levelPadding);
-
-  if (close.length > 0) return close;
-
-  const available = SPOTS
-    .filter((spot) => availableZoneIds.has(spot.zoneId))
+const spotsForBand = (band: WorldBossBand) => {
+  const filtered = SPOTS
+    .filter((spot) => bandForSpot(spot) === band)
     .filter((spot) => spot.mobIds.some((mobId) => Boolean(getMobById(mobId))));
-
-  return available.length > 0 ? available : SPOTS.filter((spot) => spot.mobIds.some((mobId) => Boolean(getMobById(mobId))));
+  return filtered.length > 0 ? filtered : SPOTS.filter((spot) => spot.mobIds.some((mobId) => Boolean(getMobById(mobId))));
 };
 
 const pickMobForSpawn = (spot: { mobIds: string[] }, rng: Rng, kind: RareSpawnKind) => {
@@ -141,38 +129,19 @@ const pickMobForSpawn = (spot: { mobIds: string[] }, rng: Rng, kind: RareSpawnKi
   return rng.pick(mobs);
 };
 
+const createRareEliteSpawnForBand = (server: ServerState, rng: Rng, band: WorldBossBand, slotIndex = 0): RareSpawnState | undefined => {
+  const spots = spotsForBand(band);
+  if (spots.length === 0) return undefined;
 
-const rareSpotCandidates = () => SPOTS.filter((spot) => spot.mobIds.some((mobId) => Boolean(getMobById(mobId))));
-
-const bandForLevel = (level: number): WorldBossBand => {
-  if (level >= 60) return 'max';
-  if (level >= 41) return 'high';
-  if (level >= 21) return 'mid';
-  return 'low';
-};
-
-const bandForSpot = (spot: { levelRange: [number, number] }): WorldBossBand => {
-  const middle = Math.round((spot.levelRange[0] + spot.levelRange[1]) / 2);
-  return bandForLevel(middle);
-};
-
-const spotsForWorldBossBand = (band: WorldBossBand) => {
-  const all = rareSpotCandidates();
-  const exact = all.filter((spot) => bandForSpot(spot) === band);
-  if (exact.length > 0) return exact;
-  if (band === 'max') return all.filter((spot) => spot.levelRange[1] >= 60 || spot.levelRange[0] >= 55);
-  if (band === 'high') return all.filter((spot) => spot.levelRange[1] >= 41 && spot.levelRange[0] <= 59);
-  if (band === 'mid') return all.filter((spot) => spot.levelRange[1] >= 21 && spot.levelRange[0] <= 40);
-  return all.filter((spot) => spot.levelRange[0] <= 20);
-};
-
-const createRareEliteSpawnForSpot = (server: ServerState, rng: Rng, spot: { id: string; zoneId: string; mobIds: string[] }): RareSpawnState | undefined => {
+  const spot = rng.pick(spots);
   const mob = pickMobForSpawn(spot, rng, 'rare_elite');
   if (!mob) return undefined;
-  const expires = addMinutes(server, rng.int(360, 720));
+
+  const expires = addMinutes(server, rng.int(75, 180));
   const prefix = rng.pick(RARE_ELITE_PREFIXES);
+
   return {
-    id: uid('rare_elite', rng),
+    id: uid(`rare_elite_${band}_${slotIndex}`, rng),
     kind: 'rare_elite',
     mobId: mob.id,
     name: `${prefix} ${mob.name}`,
@@ -186,47 +155,20 @@ const createRareEliteSpawnForSpot = (server: ServerState, rng: Rng, spot: { id: 
   };
 };
 
-const createWorldBossSpawnForBand = (server: ServerState, rng: Rng, band: WorldBossBand, slotIndex: number): RareSpawnState | undefined => {
-  const spots = spotsForWorldBossBand(band);
-  if (spots.length === 0) return undefined;
-  const indexSeed = Math.abs(server.seed + server.serverDay * 31 + server.currentMinute + slotIndex * 17 + band.length);
-  const spot = spots[(indexSeed + rng.int(0, Math.max(0, spots.length - 1))) % spots.length];
-  const mob = pickMobForSpawn(spot, rng, 'world_boss');
-  if (!mob) return undefined;
-  const expires = addMinutes(server, rng.int(720, 1440));
-  const prefix = rng.pick(WORLD_BOSS_PREFIXES);
-  const levelFloor = band === 'max' ? 60 : band === 'high' ? 41 : band === 'mid' ? 21 : 1;
-  const levelCeil = band === 'max' ? Math.max(60, mob.level) : band === 'high' ? 59 : band === 'mid' ? 40 : 20;
-  const level = Math.max(levelFloor, Math.min(levelCeil, Math.max(mob.level, spot.levelRange[0])));
-  return {
-    id: uid(`world_boss_${band}`, rng),
-    kind: 'world_boss',
-    mobId: mob.id,
-    name: `${prefix} ${mob.name}`,
-    zoneId: spot.zoneId,
-    spotId: spot.id,
-    level,
-    spawnedDay: server.serverDay,
-    spawnedMinute: server.currentMinute,
-    expiresDay: expires.day,
-    expiresMinute: expires.minute,
-  };
-};
-
-const createRareEliteSpawn = (server: ServerState, rng: Rng): RareSpawnState | undefined => {
-  const spots = candidateSpots(server);
+const createWorldBossSpawnForBand = (server: ServerState, rng: Rng, band: WorldBossBand, slotIndex = 0): RareSpawnState | undefined => {
+  const spots = spotsForBand(band);
   if (spots.length === 0) return undefined;
 
   const spot = rng.pick(spots);
-  const mob = pickMobForSpawn(spot, rng, 'rare_elite');
+  const mob = pickMobForSpawn(spot, rng, 'world_boss');
   if (!mob) return undefined;
 
-  const expires = addMinutes(server, rng.int(75, 180));
-  const prefix = rng.pick(RARE_ELITE_PREFIXES);
+  const expires = addMinutes(server, rng.int(360, 720));
+  const prefix = rng.pick(WORLD_BOSS_PREFIXES);
 
   return {
-    id: uid('rare_elite', rng),
-    kind: 'rare_elite',
+    id: uid(`world_boss_${band}_${slotIndex}`, rng),
+    kind: 'world_boss',
     mobId: mob.id,
     name: `${prefix} ${mob.name}`,
     zoneId: spot.zoneId,
@@ -239,103 +181,13 @@ const createRareEliteSpawn = (server: ServerState, rng: Rng): RareSpawnState | u
   };
 };
 
-const createWorldBossSpawn = (server: ServerState, rng: Rng): RareSpawnState | undefined => {
-  const spots = candidateSpots(server, true);
-  if (spots.length === 0) return undefined;
-
-  const spot = rng.pick(spots);
-  const mob = pickMobForSpawn(spot, rng, 'world_boss');
-  if (!mob) return undefined;
-
-  const expires = addMinutes(server, rng.int(360, 720));
-  const prefix = rng.pick(WORLD_BOSS_PREFIXES);
-
-  return {
-    id: uid('world_boss', rng),
-    kind: 'world_boss',
-    mobId: mob.id,
-    name: `${prefix} ${mob.name}`,
-    zoneId: spot.zoneId,
-    spotId: spot.id,
-    level: Math.max(mob.level, server.player.level),
-    spawnedDay: server.serverDay,
-    spawnedMinute: server.currentMinute,
-    expiresDay: expires.day,
-    expiresMinute: expires.minute,
-  };
+const countByBand = (active: RareSpawnState[], kind: RareSpawnKind): Record<WorldBossBand, number> => {
+  const counts: Record<WorldBossBand, number> = { low: 0, mid: 0, high: 0, max: 0 };
+  active.filter((spawn) => spawn.kind === kind).forEach((spawn) => {
+    counts[getRareSpawnBand(spawn)] += 1;
+  });
+  return counts;
 };
-
-const spotTier = (spot: { levelRange: [number, number] }) => tierForLevel(spot.levelRange[1]);
-
-const spotsForTier = (tier: RareSpawnTier, bossMode = false, blockedSpotIds = new Set<string>()) => {
-  const exact = SPOTS
-    .filter((spot) => spotTier(spot) === tier)
-    .filter((spot) => !blockedSpotIds.has(spot.id))
-    .filter((spot) => spot.mobIds.some((mobId) => Boolean(getMobById(mobId))));
-  if (exact.length > 0) return exact;
-
-  const fallback = SPOTS
-    .filter((spot) => !blockedSpotIds.has(spot.id))
-    .filter((spot) => spot.mobIds.some((mobId) => Boolean(getMobById(mobId))));
-  return fallback.length > 0 ? fallback : SPOTS.filter((spot) => spot.mobIds.some((mobId) => Boolean(getMobById(mobId))));
-};
-
-const createTieredRareEliteSpawn = (server: ServerState, rng: Rng, tier: RareSpawnTier, active: RareSpawnState[]): RareSpawnState | undefined => {
-  const blockedSpotIds = new Set(active.filter((spawn) => spawn.kind === 'rare_elite').map((spawn) => spawn.spotId).filter((id): id is string => Boolean(id)));
-  const spots = spotsForTier(tier, false, blockedSpotIds);
-  if (spots.length === 0) return undefined;
-
-  const spot = rng.pick(spots);
-  const mob = pickMobForSpawn(spot, rng, 'rare_elite');
-  if (!mob) return undefined;
-
-  const expires = addMinutes(server, rng.int(75, 180));
-  const prefix = rng.pick(RARE_ELITE_PREFIXES);
-
-  return {
-    id: uid('rare_elite', rng),
-    kind: 'rare_elite',
-    mobId: mob.id,
-    name: `${prefix} ${mob.name}`,
-    zoneId: spot.zoneId,
-    spotId: spot.id,
-    level: levelForTier(tier, mob.level),
-    spawnedDay: server.serverDay,
-    spawnedMinute: server.currentMinute,
-    expiresDay: expires.day,
-    expiresMinute: expires.minute,
-  };
-};
-
-const createTieredWorldBossSpawn = (server: ServerState, rng: Rng, tier: RareSpawnTier, active: RareSpawnState[]): RareSpawnState | undefined => {
-  const blockedSpotIds = new Set(active.filter((spawn) => spawn.kind === 'world_boss').map((spawn) => spawn.spotId).filter((id): id is string => Boolean(id)));
-  const spots = spotsForTier(tier, true, blockedSpotIds);
-  if (spots.length === 0) return undefined;
-
-  const spot = rng.pick(spots);
-  const mob = pickMobForSpawn(spot, rng, 'world_boss');
-  if (!mob) return undefined;
-
-  const expires = addMinutes(server, rng.int(360, 720));
-  const prefix = rng.pick(WORLD_BOSS_PREFIXES);
-
-  return {
-    id: uid('world_boss', rng),
-    kind: 'world_boss',
-    mobId: mob.id,
-    name: `${prefix} ${mob.name}`,
-    zoneId: spot.zoneId,
-    spotId: spot.id,
-    level: levelForTier(tier, Math.max(mob.level, server.player.level)),
-    spawnedDay: server.serverDay,
-    spawnedMinute: server.currentMinute,
-    expiresDay: expires.day,
-    expiresMinute: expires.minute,
-  };
-};
-
-const countSpawnsByTier = (active: RareSpawnState[], kind: RareSpawnKind, tier: RareSpawnTier) =>
-  active.filter((spawn) => spawn.kind === kind && getRareSpawnTier(spawn) === tier).length;
 
 export const tickRareSpawns = (server: ServerState, rng: Rng, minutes = 0): ServerState => {
   let active = normalizeRareSpawns(server);
@@ -346,37 +198,42 @@ export const tickRareSpawns = (server: ServerState, rng: Rng, minutes = 0): Serv
     lastWorldBossSpawnDay: server.lastWorldBossSpawnDay,
   };
 
+  const bossCounts = countByBand(active, 'world_boss');
   const spawnedBosses: RareSpawnState[] = [];
-  WORLD_BOSS_TARGET_LIST.forEach((target) => {
-    while (countSpawnsByTier(active, 'world_boss', target.tier) < target.max) {
-      const spawn = createTieredWorldBossSpawn(next, rng, target.tier, active);
-      if (!spawn) break;
-      active = [...active, spawn];
-      spawnedBosses.push(spawn);
-    }
+  WORLD_BOSS_TARGET_LIST.forEach(({ band, slotIndex }) => {
+    if (bossCounts[band] >= MAX_WORLD_BOSSES_PER_BAND[band]) return;
+    const chance = minutes >= 60 ? 0.42 : 0.08;
+    if (!rng.chance(chance)) return;
+    const spawn = createWorldBossSpawnForBand(next, rng, band, slotIndex);
+    if (!spawn) return;
+    bossCounts[band] += 1;
+    spawnedBosses.push(spawn);
+    active = [...active, spawn];
   });
 
   if (spawnedBosses.length > 0) {
     next = { ...next, activeRareSpawns: normalizeRareSpawns({ ...next, activeRareSpawns: active }), lastWorldBossSpawnDay: next.serverDay };
-    const bossNames = spawnedBosses.slice(0, 4).map((spawn) => spawn.name).join(', ');
-    next = addNews(next, rng, 'raid', `В мире появились боссы: ${bossNames}${spawnedBosses.length > 4 ? ` и ещё ${spawnedBosses.length - 4}` : ''}.`, true);
+    const names = spawnedBosses.map((spawn) => spawn.name).join(', ');
+    next = addNews(next, rng, 'raid', `Мировые боссы появились: ${names}.`, true);
     active = next.activeRareSpawns ?? [];
   }
 
+  const eliteCounts = countByBand(active, 'rare_elite');
   const spawnedElites: RareSpawnState[] = [];
-  RARE_ELITE_TARGET_LIST.forEach((target) => {
-    while (countSpawnsByTier(active, 'rare_elite', target.tier) < target.max) {
-      const spawn = createTieredRareEliteSpawn(next, rng, target.tier, active);
-      if (!spawn) break;
-      active = [...active, spawn];
-      spawnedElites.push(spawn);
-    }
+  RARE_ELITE_TARGET_LIST.forEach(({ band, slotIndex }) => {
+    if (eliteCounts[band] >= MAX_RARE_ELITES_PER_BAND[band]) return;
+    const chance = minutes >= 60 ? 0.64 : 0.14;
+    if (!rng.chance(chance)) return;
+    const spawn = createRareEliteSpawnForBand(next, rng, band, slotIndex);
+    if (!spawn) return;
+    eliteCounts[band] += 1;
+    spawnedElites.push(spawn);
+    active = [...active, spawn];
   });
 
   if (spawnedElites.length > 0) {
     next = { ...next, activeRareSpawns: normalizeRareSpawns({ ...next, activeRareSpawns: active }) };
-    const eliteNames = spawnedElites.slice(0, 4).map((spawn) => spawn.name).join(', ');
-    next = addNews(next, rng, 'system', `Редкие элитки замечены на спотах: ${eliteNames}${spawnedElites.length > 4 ? ` и ещё ${spawnedElites.length - 4}` : ''}.`, true);
+    next = addNews(next, rng, 'system', `Редкие элиты активны: +${spawnedElites.length}.`, spawnedElites.length >= 2);
   }
 
   return next;
