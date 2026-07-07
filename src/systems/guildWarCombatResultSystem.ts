@@ -1,6 +1,7 @@
 import { addNews } from '../engine/news';
 import type { CombatState, CombatantV2, GuildWar, GuildWarKillRecord, GuildWarTopKiller, NpcPlayer, RewardSummary, ServerState } from '../types/game';
 import type { Rng } from '../engine/rng';
+import { currencyRewardLine } from './activityCurrencySystem';
 
 const updateTopKillers = (list: GuildWarTopKiller[] = [], characterId: string, guildId: string) => {
   const map = new Map(list.map((entry) => [entry.characterId, { ...entry }]));
@@ -115,9 +116,11 @@ export const finishGuildWarVictoryV2 = (server: ServerState, combat: CombatState
       : [];
   const enemies = enemyIds.map((id) => server.npcs.find((entry) => entry.id === id)).filter((npc): npc is NpcPlayer => Boolean(npc));
 
+  const warCrests = Math.max(2, Math.min(30, enemies.length * 4 + 6));
+
   let nextServer: ServerState = {
     ...server,
-    player: { ...server.player, hp: Math.max(1, combat.player.hp), mana: Math.max(0, combat.player.mana) },
+    player: { ...server.player, hp: Math.max(1, combat.player.hp), mana: Math.max(0, combat.player.mana), warCrests: (server.player.warCrests ?? 0) + warCrests },
     npcs: server.npcs.map((npc) => enemyIds.includes(npc.id) ? { ...npc, locationMode: 'city', currentZoneId: undefined, currentSpotId: undefined } : npc),
   };
 
@@ -147,6 +150,7 @@ export const finishGuildWarVictoryV2 = (server: ServerState, combat: CombatState
       'Дуэль войны гильдий: победа.',
       `Побеждено врагов: ${Math.max(1, enemies.length)}.`,
       enemies.length > 0 ? `В город отправлены: ${enemies.map((npc) => npc.name).join(', ')}.` : `${combat.enemy.name} отправлен в город.`,
+      currencyRewardLine('warCrests', warCrests),
       `HP: ${Math.max(1, combat.player.hp)}/${combat.player.maxHp}.`,
       `Mana: ${Math.max(0, combat.player.mana)}/${combat.player.maxMana}.`,
     ],

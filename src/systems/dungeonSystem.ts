@@ -6,6 +6,7 @@ import type { CombatState, DungeonDefinition, DungeonDifficulty, DungeonRunRank,
 import { addInventoryItem, getGearScore, getPlayerStats } from './itemSystem';
 import { startBossCombat } from './combatSystem';
 import { buildPartyRolesFromMembers, getClassPartyRole, isDpsRole } from './partyRoleSystem';
+import { currencyRewardLine } from './activityCurrencySystem';
 
 export const DUNGEON_DIFFICULTIES: DungeonDifficulty[] = ['normal', 'hard', 'mythic'];
 
@@ -173,6 +174,9 @@ export const completeDungeonRunReward = (server: ServerState, completedRun: Dung
 
   const baseMarks = config.marks + rankMarkBonus(rank);
   const marks = baseMarks + (dailyBonus ? 4 : 0) + (weeklyBonus ? 10 : 0);
+  const isRaidRun = dungeon.contentType === 'raid';
+  const dungeonMarks = isRaidRun ? Math.max(1, Math.ceil(marks * 0.35)) : marks;
+  const raidSeals = isRaidRun ? Math.max(1, Math.ceil(marks * 0.75)) : 0;
   const gold = Math.max(1, Math.round((dungeon.levelRange[0] * 14 + dungeon.partySize * 18) * config.rewardGold + rankMarkBonus(rank) * 12));
   const rewardRng = createRng(server.seed + server.serverDay * 9001 + server.currentMinute + completedRun.id.length);
   const stoneId = stoneIdForRun(dungeon, difficulty, rank);
@@ -186,7 +190,8 @@ export const completeDungeonRunReward = (server: ServerState, completedRun: Dung
     'Время: ' + duration + ' мин.',
     'Смерти: ' + deaths + '.',
     'Энкаунтеры: ' + cleared + '/' + totalEncounters(dungeon) + '.',
-    'Dungeon Marks: +' + marks + '.',
+    currencyRewardLine('dungeonMarks', dungeonMarks),
+    ...(raidSeals > 0 ? [currencyRewardLine('raidSeals', raidSeals)] : []),
     'Gold: +' + gold + '.',
   ];
 
@@ -202,7 +207,8 @@ export const completeDungeonRunReward = (server: ServerState, completedRun: Dung
   const player = {
     ...server.player,
     gold: server.player.gold + gold,
-    dungeonMarks: (server.player.dungeonMarks ?? 0) + marks,
+    dungeonMarks: (server.player.dungeonMarks ?? 0) + dungeonMarks,
+    raidSeals: (server.player.raidSeals ?? 0) + raidSeals,
     lastDailyDungeonBonusDay: dailyBonus ? server.serverDay : server.player.lastDailyDungeonBonusDay,
     lastWeeklyDungeonChestWeek: weeklyBonus ? weekly : server.player.lastWeeklyDungeonChestWeek,
     inventory,

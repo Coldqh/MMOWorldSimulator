@@ -27,14 +27,32 @@ const castlePanel = read('src/ui/components/CastlePanel.tsx');
 const rareSpawnSystem = read('src/systems/rareSpawnSystem.ts');
 const rareSpawns = read('src/content/rareSpawns.ts');
 const worldScreen = read('src/ui/screens/WorldScreen.tsx');
+const activityCurrencySystem = read('src/systems/activityCurrencySystem.ts');
+const characterScreen = read('src/ui/screens/CharacterScreen.tsx');
+const dungeonSystem = read('src/systems/dungeonSystem.ts');
+const combatSystem = read('src/systems/combatSystem.ts');
+const arena3v3System = read('src/systems/arena3v3System.ts');
+const guildWarCombatResultSystem = read('src/systems/guildWarCombatResultSystem.ts');
+const typeFile = read('src/types/game.ts');
 
-assert(pkg.version === '0.7.60', 'package version is 0.7.60');
-assert(versionTs.includes("APP_VERSION = '0.7.60'") || versionTs.includes('APP_VERSION = "0.7.60"'), 'APP_VERSION is 0.7.60');
-assert(publicVersion.version === '0.7.60', 'public version is 0.7.60');
+assert(pkg.version === '0.8.0', 'package version is 0.8.0');
+assert(versionTs.includes("APP_VERSION = '0.8.0'") || versionTs.includes('APP_VERSION = "0.8.0"'), 'APP_VERSION is 0.8.0');
+assert(publicVersion.version === '0.8.0', 'public version is 0.8.0');
 assert(saveLoad.includes("SAVE_VERSION = '0.7.54'") || saveLoad.includes('SAVE_VERSION = "0.7.54"'), 'SAVE_VERSION remains 0.7.54');
 assert(balanceConfig.includes('export const MAX_LEVEL = 60;'), 'MAX_LEVEL remains 60');
 assert(balanceConfig.includes("high: { min: 41, max: 59 }"), 'high band remains 41-59');
 assert(balanceConfig.includes("max: { min: 60, max: 60 }"), 'max band remains 60');
+
+assert(typeFile.includes('export type ActivityCurrencyKey'), 'activity currency key type exists');
+assert(typeFile.includes('raidSeals?: number;') && typeFile.includes('arenaHonor?: number;') && typeFile.includes('warCrests?: number;'), 'player activity currency fields exist');
+assert(activityCurrencySystem.includes('ACTIVITY_CURRENCY_LABELS'), 'activity currency labels exist');
+assert(activityCurrencySystem.includes('currencyRewardLine'), 'activity currency reward line helper exists');
+assert(characterScreen.includes('Валюты активностей'), 'CharacterScreen shows activity currencies');
+assert(dungeonSystem.includes("currencyRewardLine('raidSeals'"), 'raid seals reward is wired');
+assert(combatSystem.includes("currencyRewardLine('arenaHonor'"), 'solo arena honor reward is wired');
+assert(arena3v3System.includes("currencyRewardLine('arenaHonor'"), 'team arena honor reward is wired');
+assert(guildWarCombatResultSystem.includes("currencyRewardLine('warCrests'"), 'guild war crests reward is wired');
+assert(!typeFile.includes('activityCurrencies?:'), 'no nested activityCurrencies save object');
 assert(worldScreen.includes('Элитные противники'), 'WorldScreen has elite opponents tab');
 assert(worldScreen.includes('eliteSpawns.length'), 'WorldScreen counts elite opponents');
 assert(rareSpawnSystem.includes('export const tickRareSpawns'), 'rare spawn tick system exists');
@@ -88,7 +106,7 @@ assert(guildRuntime.includes('isOpenWarStatus(war.status)'), 'sameTierWarCount c
 assert(guildWar.includes('const startScheduledGuildWars'), 'core guild war system starts scheduled wars');
 assert(guildWar.includes('next = startScheduledGuildWars(next);'), 'tickGuildWars advances scheduled wars');
 
-assert(sw.includes("mmows-v0.7.60"), 'service worker cache is 0.7.60');
+assert(sw.includes("mmows-v0.8.0"), 'service worker cache is 0.8.0');
 assert(rareSpawnSystem.includes('WORLD_BOSS_TARGET_LIST'), 'rare spawn system has world boss target list');
 assert(rareSpawnSystem.includes('RARE_ELITE_TARGET_LIST') || rareSpawnSystem.includes('bandForLevel') || rareSpawnSystem.includes('MAX_RARE_ELITES'), 'rare elite tier caps are wired');
 assert(siegeSystem.includes('никто не зарегистрировался на осаду'), 'siege no-roster text is readable Russian');

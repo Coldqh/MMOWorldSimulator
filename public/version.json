@@ -1,6 +1,6 @@
 {
-  "version": "0.7.60",
+  "version": "0.8.0",
   "channel": "stable",
-  "build": "2026-07-07-v0760-boss-caps-sorting",
-  "buildTime": "2026-07-07T07:42:37.689Z"
+  "build": "2026-07-07-v0800-activity-currencies",
+  "buildTime": "2026-07-07T12:00:00.000Z"
 }

@@ -3,6 +3,7 @@ import { getGearScore, getPlayerStats } from './itemSystem';
 import { addPlayerXp } from './progressionSystem';
 import { finishGuildWarDefeatV2, finishGuildWarVictoryV2 } from './guildWarCombatResultSystem';
 import { getNpcEffectiveGearScore, getNpcPlayerEquivalentStats } from './pvpStatSystem';
+import { currencyRewardLine } from './activityCurrencySystem';
 
 import type { Rng } from '../engine/rng';
 import { uid } from '../engine/rng';
@@ -557,6 +558,9 @@ const finishIfNeeded = (server: ServerState, combat: CombatState, rng: Rng): { s
     : -Math.max(10, Math.min(32, 18 + Math.round((server.player.arenaRating - enemyAvgRating) / 70) + rng.int(-2, 5)));
   const xp = playerWon ? Math.max(8, Math.floor(26 + server.player.level * 2.2)) : Math.max(2, Math.floor(8 + server.player.level * 0.8));
   const gold = playerWon ? rng.int(24, 46) + Math.floor(server.player.level * 3) : rng.int(4, 12);
+  const arenaHonor = playerWon
+    ? Math.max(8, Math.round(12 + (combat.teamA?.members.length ?? 1) * 3 + server.player.level * 0.45))
+    : Math.max(2, Math.round(4 + (combat.teamA?.members.length ?? 1) + server.player.level * 0.12));
 
   let player = addPlayerXp(server.player, xp);
   const fullStats = getPlayerStats(player);
@@ -564,6 +568,7 @@ const finishIfNeeded = (server: ServerState, combat: CombatState, rng: Rng): { s
     ...player,
     arenaRating: Math.max(100, player.arenaRating + ratingDelta),
     gold: player.gold + gold,
+    arenaHonor: (player.arenaHonor ?? 0) + arenaHonor,
     hp: fullStats.hp,
     mana: fullStats.mana,
   };
@@ -588,6 +593,7 @@ const finishIfNeeded = (server: ServerState, combat: CombatState, rng: Rng): { s
       `Текущий рейтинг: ${player.arenaRating}.`,
       `XP: +${xp}.`,
       `Gold: +${gold}.`,
+      currencyRewardLine('arenaHonor', arenaHonor),
       'HP и Mana восстановлены.',
     ],
   };

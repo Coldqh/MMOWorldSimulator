@@ -36,6 +36,7 @@ export type NpcLocationMode = "city" | "zone" | "spot";
 export type GuildWarVoteKind = "declare" | "accept" | "extend";
 export type GuildWarVoteStatus = "active" | "passed" | "failed" | "expired" | "cancelled";
 export type GuildWarStatus = "pending_votes" | "scheduled" | "active" | "finished" | "cancelled";
+export type ActivityCurrencyKey = "dungeonMarks" | "raidSeals" | "arenaHonor" | "warCrests";
 export type NewsType =
   | "drop"
   | "guild"
@@ -187,6 +188,9 @@ export interface Player {
   lastWarAttackDay?: number;
   lastWarAttackMinute?: number;
   dungeonMarks?: number;
+  raidSeals?: number;
+  arenaHonor?: number;
+  warCrests?: number;
   lastDailyDungeonBonusDay?: number;
   lastWeeklyDungeonChestWeek?: number;
 }

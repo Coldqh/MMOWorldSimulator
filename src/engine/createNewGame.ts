@@ -66,7 +66,11 @@ const createStarterPlayer = (name: string, raceId: string, classId: string, rngS
       chest: { instanceId: `starter_chest_${rngSeed}`, itemId: 'linen_armor', enhancement: 0 }
     },
     reputation: 0,
-    arenaRating: 1000
+    arenaRating: 1000,
+    dungeonMarks: 0,
+    raidSeals: 0,
+    arenaHonor: 0,
+    warCrests: 0
   };
 };
 

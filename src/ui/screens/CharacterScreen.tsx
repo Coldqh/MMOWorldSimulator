@@ -3,6 +3,7 @@ import { getItemById } from '../../content/items';
 import { getRaceById } from '../../content/races';
 import { useGameStore } from '../../state/gameStore';
 import { canEquipItem, getGearScore, getPlayerStats } from '../../systems/itemSystem';
+import { ACTIVITY_CURRENCY_LABELS, ACTIVITY_CURRENCY_ORDER, getActivityCurrencyAmount } from '../../systems/activityCurrencySystem';
 import { xpForNextLevel } from '../../systems/progressionSystem';
 import { ItemLine } from '../components/ItemLine';
 
@@ -78,6 +79,15 @@ export const CharacterScreen = () => {
           <button onClick={recoverFullHp}>Восстановить · ~{recoveryMinutes} мин</button>
           <button onClick={skipHour}>Пропустить час</button>
           <button onClick={skipDay}>Пропустить день</button>
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="section-title">Валюты активностей</div>
+        <div className="stat-grid stat-grid-compact">
+          {ACTIVITY_CURRENCY_ORDER.map((key) => (
+            <span key={key}>{ACTIVITY_CURRENCY_LABELS[key]} {getActivityCurrencyAmount(player, key)}</span>
+          ))}
         </div>
       </section>
 

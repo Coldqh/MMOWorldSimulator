@@ -19,6 +19,7 @@ import { rollLoot } from './lootSystem';
 import { addPlayerXp, xpForNextLevel, xpRewardForMob } from './progressionSystem';
 import { finishGuildWarDefeatV2, finishGuildWarVictoryV2 } from './guildWarCombatResultSystem';
 import { getNpcPlayerEquivalentStats } from './pvpStatSystem';
+import { currencyRewardLine } from './activityCurrencySystem';
 
 
 const bestPotionStack = (inventory: InventoryStack[], playerLevel: number, kind: 'hp' | 'mana') => {
@@ -429,18 +430,19 @@ const finishArenaVictory = (server: ServerState, combat: CombatState, rng: Rng):
   const diff = opponentRating - server.player.arenaRating;
   const ratingGain = Math.max(12, Math.min(38, 22 + Math.round(diff / 35) + rng.int(-3, 5)));
   const gold = rng.int(8, 18) + Math.floor(server.player.level * 1.5);
+  const arenaHonor = Math.max(3, Math.round(6 + server.player.level * 0.35));
   const xp = Math.max(1, Math.floor((18 + server.player.level * 2) / 3));
   const opponentId = combat.enemyNpcId;
   let player = addPlayerXp(server.player, xp);
   const fullStats = getPlayerStats(player);
-  player = { ...player, arenaRating: player.arenaRating + ratingGain, gold: player.gold + gold, hp: fullStats.hp, mana: fullStats.mana };
+  player = { ...player, arenaRating: player.arenaRating + ratingGain, gold: player.gold + gold, arenaHonor: (player.arenaHonor ?? 0) + arenaHonor, hp: fullStats.hp, mana: fullStats.mana };
 
   const nextServer: ServerState = {
     ...server,
     player,
     npcs: server.npcs.map((npc) => npc.id === opponentId ? { ...npc, arenaRating: Math.max(100, npc.arenaRating - rng.int(10, 22)) } : npc),
   };
-  const reward: RewardSummary = { xp, gold, items: [], lines: [`Рейтинг: +${ratingGain}.`, `Текущий рейтинг: ${player.arenaRating}.`, `HP и Mana восстановлены.`] };
+  const reward: RewardSummary = { xp, gold, items: [], lines: [`Рейтинг: +${ratingGain}.`, `Текущий рейтинг: ${player.arenaRating}.`, currencyRewardLine('arenaHonor', arenaHonor), `HP и Mana восстановлены.`] };
 
   return { server: nextServer, combat: { ...combat, player: { ...combat.player, hp: player.hp, mana: player.mana, level: player.level }, status: 'victory', reward, log: [...combat.log, `Победа. Рейтинг +${ratingGain}.`] } };
 };

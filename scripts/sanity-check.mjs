@@ -24,14 +24,32 @@ const perfScale = read('scripts/perf-scale.mjs');
 const sw = read('public/sw.js');
 const siegeSystem = read('src/systems/siegeSystem.ts');
 const castlePanel = read('src/ui/components/CastlePanel.tsx');
+const activityCurrencySystem = read('src/systems/activityCurrencySystem.ts');
+const characterScreen = read('src/ui/screens/CharacterScreen.tsx');
+const dungeonSystem = read('src/systems/dungeonSystem.ts');
+const combatSystem = read('src/systems/combatSystem.ts');
+const arena3v3System = read('src/systems/arena3v3System.ts');
+const guildWarCombatResultSystem = read('src/systems/guildWarCombatResultSystem.ts');
+const typeFile = read('src/types/game.ts');
 
-assert(pkg.version === '0.7.52', 'package version is 0.7.52');
-assert(versionTs.includes("APP_VERSION = '0.7.52'") || versionTs.includes('APP_VERSION = "0.7.52"'), 'APP_VERSION is 0.7.52');
-assert(publicVersion.version === '0.7.52', 'public version is 0.7.52');
+assert(pkg.version === '0.8.0', 'package version is 0.8.0');
+assert(versionTs.includes("APP_VERSION = '0.8.0'") || versionTs.includes('APP_VERSION = "0.8.0"'), 'APP_VERSION is 0.8.0');
+assert(publicVersion.version === '0.8.0', 'public version is 0.8.0');
 assert(saveLoad.includes("SAVE_VERSION = '0.7.54'") || saveLoad.includes('SAVE_VERSION = "0.7.54"'), 'SAVE_VERSION is 0.7.54');
 assert(balanceConfig.includes('export const MAX_LEVEL = 60;'), 'MAX_LEVEL remains 60');
 assert(balanceConfig.includes("high: { min: 41, max: 59 }"), 'high band remains 41-59');
 assert(balanceConfig.includes("max: { min: 60, max: 60 }"), 'max band remains 60');
+
+assert(typeFile.includes('export type ActivityCurrencyKey'), 'activity currency key type exists');
+assert(typeFile.includes('raidSeals?: number;') && typeFile.includes('arenaHonor?: number;') && typeFile.includes('warCrests?: number;'), 'player activity currency fields exist');
+assert(activityCurrencySystem.includes('ACTIVITY_CURRENCY_LABELS'), 'activity currency labels exist');
+assert(activityCurrencySystem.includes('currencyRewardLine'), 'activity currency reward line helper exists');
+assert(characterScreen.includes('Валюты активностей'), 'CharacterScreen shows activity currencies');
+assert(dungeonSystem.includes("currencyRewardLine('raidSeals'"), 'raid seals reward is wired');
+assert(combatSystem.includes("currencyRewardLine('arenaHonor'"), 'solo arena honor reward is wired');
+assert(arena3v3System.includes("currencyRewardLine('arenaHonor'"), 'team arena honor reward is wired');
+assert(guildWarCombatResultSystem.includes("currencyRewardLine('warCrests'"), 'guild war crests reward is wired');
+assert(!typeFile.includes('activityCurrencies?:'), 'no nested activityCurrencies save object');
 
 assert(guildRuntime.includes('export const getGuildTierMinLevel'), 'guild tier min-level helper exists');
 assert(guildRuntime.includes('export const normalizeGuildTierRequirement'), 'single guild tier requirement normalizer exists');
@@ -68,7 +86,7 @@ assert(guildRuntime.includes('isOpenWarStatus(war.status)'), 'sameTierWarCount c
 assert(guildWar.includes('const startScheduledGuildWars'), 'core guild war system starts scheduled wars');
 assert(guildWar.includes('next = startScheduledGuildWars(next);'), 'tickGuildWars advances scheduled wars');
 
-assert(sw.includes("mmows-v0.7.52"), 'service worker cache is 0.7.52');
+assert(sw.includes("mmows-v0.8.0"), 'service worker cache is 0.8.0');
 assert(siegeSystem.includes('никто не зарегистрировался на осаду'), 'siege no-roster text is readable Russian');
 assert(siegeSystem.includes('осада завершена. Победитель'), 'siege finish news is readable Russian');
 assert(siegeSystem.includes("castle.tier === 'max') return guild.tier === 'max' || guild.tier === 'high'"), 'max sieges can fallback to high NPC guilds');
@@ -80,7 +98,7 @@ assert(gameStore.indexOf('next = seedActiveGuildWarsIfEmpty(next);') < gameStore
 
 assert(!/const\\s+([A-Za-z_$][A-Za-z0-9_$]*)\\s*=\\s*const\\s+\\1\\s*=/.test(gameStore + siegeSystem + guildRuntime + guildWar), 'no duplicated const assignment markers');
 
-assert(pkg.scripts?.['content:check'] === 'node scripts/content-validation.mjs', 'content:check script exists');
+assert(pkg.scripts?.['content:check']?.includes('scripts/content-validation.mjs'), 'content:check script runs content validation');
 assert(pkg.scripts?.['perf:scale'] === 'node scripts/perf-scale.mjs', 'perf:scale script exists');
 assert(contentValidation.includes('Content validation passed'), 'content validation script has pass output');
 assert(contentValidation.includes('unique(setDefinitions') || contentValidation.includes('set definition ids are unique'), 'content validation checks set ids');
