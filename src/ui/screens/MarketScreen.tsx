@@ -3,6 +3,8 @@ import { CLASSES } from "../../content/classes";
 import { getItemById } from "../../content/items";
 import { useGameStore } from "../../state/gameStore";
 import { getSellPrice, estimateItemPrice } from "../../systems/marketSystem";
+import { ACTIVITY_CURRENCY_LABELS, getActivityCurrencyAmount } from "../../systems/activityCurrencySystem";
+import { getActivityShopEntriesForPlayer, ACTIVITY_SHOP_LABELS, type ActivityShopKind } from "../../systems/activityShopSystem";
 import type { EquipmentSlot } from "../../types/game";
 import { ItemLine } from "../components/ItemLine";
 import { buildMarketViewModel, type MarketCategory, type MarketLevelBand } from "../selectors/marketSelectors";
@@ -41,12 +43,13 @@ const levelBandLabel: Record<MarketLevelBand, string> = {
 export const MarketScreen = () => {
   const server = useGameStore((state) => state.server);
   const buy = useGameStore((state) => state.buyMarketListing);
+  const buyActivityShopItem = useGameStore((state) => state.buyActivityShopItem);
   const sell = useGameStore((state) => state.sellItem);
   const repairMarket = useGameStore((state) => state.repairMarket);
   const setScreen = useGameStore((state) => state.setScreen);
   const openNpcProfile = useGameStore((state) => state.openNpcProfile);
   const openItemProfile = useGameStore((state) => state.openItemProfile);
-  const [mode, setMode] = useState<"buy" | "sell">("buy");
+  const [mode, setMode] = useState<"buy" | "sell" | ActivityShopKind>("buy");
   const [category, setCategory] = useState<MarketCategory>("all");
   const [classFilter, setClassFilter] = useState("all");
   const [slotFilter, setSlotFilter] = useState<EquipmentSlot | "">("");
@@ -86,10 +89,12 @@ export const MarketScreen = () => {
     <div className="screen-stack">
       <section className="panel hero-panel premium-panel">
         <div className="section-title">🛒 Рынок</div>
-        <h1>{mode === "buy" ? "Покупка" : "Продажа"}</h1>
+        <h1>{mode === "buy" ? "Покупка" : mode === "sell" ? "Продажа" : ACTIVITY_SHOP_LABELS[mode]}</h1>
         <div className="tab-row">
           <button className={mode === "buy" ? "active" : ""} onClick={() => setMode("buy")}>Покупка</button>
           <button className={mode === "sell" ? "active" : ""} onClick={() => setMode("sell")}>Продажа</button>
+          <button className={mode === "pve" ? "active" : ""} onClick={() => setMode("pve")}>PvE магазин</button>
+          <button className={mode === "pvp" ? "active" : ""} onClick={() => setMode("pvp")}>PvP магазин</button>
         </div>
       </section>
 
@@ -185,6 +190,47 @@ export const MarketScreen = () => {
             )}
           </section>
         </>
+      )}
+
+      {(mode === "pve" || mode === "pvp") && (
+        <section className="panel">
+          <div className="section-title">{ACTIVITY_SHOP_LABELS[mode]}</div>
+          <div className="list-lines">
+            <div className="list-line"><span>Dungeon Marks</span><strong>{getActivityCurrencyAmount(server.player, "dungeonMarks")}</strong></div>
+            <div className="list-line"><span>Raid Seals</span><strong>{getActivityCurrencyAmount(server.player, "raidSeals")}</strong></div>
+            <div className="list-line"><span>Arena Honor</span><strong>{getActivityCurrencyAmount(server.player, "arenaHonor")}</strong></div>
+            <div className="list-line"><span>War Crests</span><strong>{getActivityCurrencyAmount(server.player, "warCrests")}</strong></div>
+          </div>
+          <p className="muted">Показываются предметы под твой класс. Все товары BoP.</p>
+          <div className="list-lines">
+            {getActivityShopEntriesForPlayer(server.player, mode).map((entry) => {
+              const item = getItemById(entry.itemId);
+              const balance = getActivityCurrencyAmount(server.player, entry.currencyKey);
+              const canBuy = Boolean(item) && balance >= entry.price && server.player.level >= (item?.levelReq ?? 1);
+              return (
+                <div key={entry.id} className="market-group-card">
+                  <div className="market-group-head">
+                    <button className="text-button" onClick={() => item && openItemProfile(item.id, "market", 0)} disabled={!item}>
+                      {item ? <ItemLine itemId={item.id} amount={1} enhancement={0} showLevel /> : entry.itemId}
+                    </button>
+                    <strong>{entry.price} {ACTIVITY_CURRENCY_LABELS[entry.currencyKey]}</strong>
+                  </div>
+                  <small>{entry.description}</small>
+                  {item && <small> · {item.sourceName} · {item.bindType === "bindOnPickup" ? "BoP" : "обычный"}</small>}
+                  <div className="seller-list">
+                    <div className="seller-row">
+                      <span>
+                        <strong>Баланс: {balance}</strong>
+                        {item && server.player.level < item.levelReq && <small> · нужен Lv. {item.levelReq}</small>}
+                      </span>
+                      <button onClick={() => buyActivityShopItem(entry.id)} disabled={!canBuy}>Купить</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
       )}
 
       {mode === "sell" && (

@@ -34,5 +34,10 @@ export const addPlayerActivityCurrencies = (player: Player, rewards: Partial<Rec
     return amount > 0 ? addPlayerActivityCurrency(next, key, amount) : next;
   }, player);
 
+export const spendPlayerActivityCurrency = (player: Player, key: ActivityCurrencyKey, amount: number): Player => ({
+  ...player,
+  [key]: Math.max(0, getActivityCurrencyAmount(player, key) - Math.max(0, Math.floor(amount))),
+});
+
 export const currencyRewardLine = (key: ActivityCurrencyKey, amount: number) =>
   `${ACTIVITY_CURRENCY_LABELS[key]}: +${Math.max(0, Math.floor(amount))}.`;
