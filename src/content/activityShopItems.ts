@@ -1,4 +1,5 @@
 import type { ActivityCurrencyKey, EquipmentSlot, ItemDefinition, ItemType, Rarity, StatBlock } from '../types/game';
+import { calculateItemStatBudget } from '../balance';
 import { CLASS_LABEL, CLASS_MAIN_STAT, SET_CLASSES, SET_SLOTS, SLOT_LABEL, type SetClassId, type SetSlotId } from './itemSetDefinitions';
 
 export type ActivityShopKind = 'pve' | 'pvp';
@@ -14,6 +15,7 @@ export interface ActivityShopSetDefinition {
   sourceName: string;
   description: string;
   priceBase: number;
+  powerScale: number;
 }
 
 export interface ActivityShopCatalogEntry {
@@ -28,7 +30,7 @@ export interface ActivityShopCatalogEntry {
   description: string;
 }
 
-const ACTIVITY_SHOP_SET_DEFINITIONS: ActivityShopSetDefinition[] = [
+export const ACTIVITY_SHOP_SET_DEFINITIONS: ActivityShopSetDefinition[] = [
   {
     id: 'activity_pve_dungeon_60',
     prefix: 'activity_pve_dungeon_60',
@@ -40,6 +42,7 @@ const ACTIVITY_SHOP_SET_DEFINITIONS: ActivityShopSetDefinition[] = [
     sourceName: 'PvE магазин · Dungeon Marks',
     description: 'PvE-сет для стабильного прохождения данжей и фарма элитных целей.',
     priceBase: 130,
+    powerScale: 1.0,
   },
   {
     id: 'activity_pve_raid_60',
@@ -52,6 +55,7 @@ const ACTIVITY_SHOP_SET_DEFINITIONS: ActivityShopSetDefinition[] = [
     sourceName: 'PvE магазин · Raid Seals',
     description: 'Рейдовый PvE-сет для боссов, рейдов и мировых угроз.',
     priceBase: 85,
+    powerScale: 1.0,
   },
   {
     id: 'activity_pvp_arena_60',
@@ -64,6 +68,7 @@ const ACTIVITY_SHOP_SET_DEFINITIONS: ActivityShopSetDefinition[] = [
     sourceName: 'PvP магазин · Arena Honor',
     description: 'PvP-сет для арены и дуэлей против игроков.',
     priceBase: 150,
+    powerScale: 1.0,
   },
   {
     id: 'activity_pvp_war_60',
@@ -76,6 +81,7 @@ const ACTIVITY_SHOP_SET_DEFINITIONS: ActivityShopSetDefinition[] = [
     sourceName: 'PvP магазин · War Crests',
     description: 'Тяжёлый PvP-сет для гильдейских войн и осад.',
     priceBase: 95,
+    powerScale: 1.0,
   },
 ];
 
@@ -101,23 +107,32 @@ const itemPriceFor = (definition: ActivityShopSetDefinition, slot: SetSlotId) =>
 };
 
 const buildStats = (definition: ActivityShopSetDefinition, slot: EquipmentSlot, classId: SetClassId): Partial<StatBlock> => {
+  const type = slotType(slot as SetSlotId);
   const main = CLASS_MAIN_STAT[classId];
-  const level = Math.max(1, definition.level);
-  const rarityPower = definition.rarity === 'legendary' ? 1.25 : definition.rarity === 'epic' ? 1.05 : 1;
-  const pvpPower = definition.shop === 'pvp' ? 1.06 : 1;
-  const budget = Math.max(8, Math.round((level * 0.9 + 12) * rarityPower * pvpPower));
+  const budget = Math.max(1, Math.round(calculateItemStatBudget({
+    level: definition.level,
+    rarity: definition.rarity,
+    type,
+    slot,
+  }) * definition.powerScale));
 
-  if (slot === 'weapon') return { [main]: Math.round(budget * 1.55), hp: Math.round(level * 2.4) };
+  if (slot === 'weapon') return { [main]: budget + Math.round(definition.level * 0.9) };
   if (slot === 'ring' || slot === 'amulet') {
     const caster = classId === 'mage' || classId === 'priest';
     return {
-      hp: Math.round(budget * 3.2),
-      mana: caster ? Math.round(budget * 2.6) : Math.round(budget * 1.2),
-      [main]: Math.round(budget * 0.55),
+      hp: Math.max(4, budget * 3),
+      mana: caster ? Math.max(3, budget * 2) : Math.max(1, budget),
+      [main]: Math.max(1, Math.round(budget * 0.45)),
     };
   }
-  if (slot === 'boots') return { hp: Math.round(budget * 4.2), defense: Math.round(budget * 0.8), speed: definition.rarity === 'legendary' ? 3 : 2 };
-  return { hp: Math.round(budget * 5.1), defense: Math.round(budget * 1.05) };
+  if (slot === 'boots') {
+    return {
+      hp: budget * 3,
+      defense: Math.max(1, Math.round(budget * 0.55)),
+      speed: definition.rarity === 'legendary' ? 3 : 2,
+    };
+  }
+  return { hp: budget * 4, defense: Math.max(1, Math.round(budget * 0.75)) };
 };
 
 const createActivityShopItem = (definition: ActivityShopSetDefinition, classId: SetClassId, slot: SetSlotId): ItemDefinition => {

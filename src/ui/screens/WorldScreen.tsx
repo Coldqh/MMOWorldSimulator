@@ -123,6 +123,7 @@ export const WorldScreen = () => {
   const openNpcProfile = useGameStore((state) => state.openNpcProfile);
   const [tab, setTab] = useState<WorldTab>('overview');
   const [travelOpen, setTravelOpen] = useState(false);
+  const [selectedWorldBossId, setSelectedWorldBossId] = useState<string | null>(null);
 
   const currentZone = server.location.zoneId ? getZoneById(server.location.zoneId) : undefined;
   const currentSpot = server.location.spotId ? getSpotById(server.location.spotId) : undefined;
@@ -147,6 +148,7 @@ export const WorldScreen = () => {
     .filter((spawn) => currentZoneId && spawn.zoneId === currentZoneId)
     .filter((spawn) => server.location.mode !== 'spot' || !spawn.spotId || spawn.spotId === server.location.spotId);
   const visibleRareSpawns = [...worldBossTabSpawns, ...localRareSpawns];
+  const selectedWorldBoss = worldBossTabSpawns.find((spawn) => spawn.id === selectedWorldBossId);
   const placeTitle = server.location.mode === 'city'
     ? CITY_NAME
     : server.location.mode === 'spot' && currentSpot
@@ -235,7 +237,7 @@ export const WorldScreen = () => {
                       {!isNear && zone && <button onClick={() => travelToZone(spawn.zoneId)} disabled={Boolean(combat) || server.location.zoneId === spawn.zoneId}>К локации</button>}
                       {!raid.playerJoined
                         ? <button onClick={() => joinWorldBossRaid(spawn.id)} disabled={Boolean(combat) || !isNear || raidFull}>{raidFull ? 'Рейд заполнен' : 'Присоединиться'}</button>
-                        : <button onClick={() => attackWorldBossRaid(spawn.id)} disabled={Boolean(combat) || !isNear}>Атаковать</button>}
+                        : <button onClick={() => setSelectedWorldBossId(spawn.id)} disabled={Boolean(combat) || !isNear}>Открыть бой</button>}
                     </span>
                   </div>
                 );
@@ -266,7 +268,7 @@ export const WorldScreen = () => {
                     {spawn.kind === 'world_boss' && raid
                       ? (!raid.playerJoined
                           ? <button onClick={() => joinWorldBossRaid(spawn.id)} disabled={Boolean(combat) || !isNear || raidFull}>{raidFull ? 'Рейд заполнен' : 'Присоединиться'}</button>
-                          : <button onClick={() => attackWorldBossRaid(spawn.id)} disabled={Boolean(combat) || !isNear}>Атаковать</button>)
+                          : <button onClick={() => setSelectedWorldBossId(spawn.id)} disabled={Boolean(combat) || !isNear}>Открыть бой</button>)
                       : <button onClick={() => attackRareSpawn(spawn.id)} disabled={Boolean(combat) || !isNear}>Атаковать</button>}
                   </span>
                 </div>
@@ -312,7 +314,7 @@ export const WorldScreen = () => {
                   <button key={spot.id} className="content-card" onClick={() => enterSpot(spot.id)} disabled={Boolean(combat)}>
                     <strong>{spot.name}</strong>
                     <span>{spotLevelText(spot.mobIds)}</span>
-                    <span>{spot.timeCostMinutes} мин · риск {spot.risk}</span>
+                    <span>риск {spot.risk}</span>
                   </button>
                 );
               })}
@@ -366,7 +368,6 @@ export const WorldScreen = () => {
           <section className="panel">
             <div className="section-title">Спот</div>
             <div className="list-lines">
-              <div className="list-line"><span>Время фарма</span><strong>{currentSpot.timeCostMinutes} мин</strong></div>
               <div className="list-line"><span>Риск</span><strong>{currentSpot.risk}</strong></div>
               <div className="list-line"><span>Игроки рядом</span><strong>{locationPlayers.length + 1}</strong></div>
             </div>
@@ -386,6 +387,69 @@ export const WorldScreen = () => {
           <button onClick={() => setTravelOpen(true)} disabled={Boolean(combat)}>Сменить локацию</button>
         </div>
       </section>
+
+
+      {selectedWorldBoss && (() => {
+        const zone = getZoneById(selectedWorldBoss.zoneId);
+        const spot = selectedWorldBoss.spotId ? getSpotById(selectedWorldBoss.spotId) : undefined;
+        const raid = getWorldBossRaidSummary(server, selectedWorldBoss);
+        const isNear = server.location.mode !== 'city' && currentZoneId === selectedWorldBoss.zoneId;
+        const raidFull = raid.participantCount >= raid.maxParticipants && !raid.playerJoined;
+        const topFive = raid.participants.slice(0, 5);
+        return (
+          <div className="modal-backdrop" onClick={() => setSelectedWorldBossId(null)}>
+            <section className="result-modal full-window-modal boss-raid-combat-modal" onClick={(event) => event.stopPropagation()}>
+              <div className="modal-header-line">
+                <div>
+                  <div className="section-title">☠ Рейдовый бой</div>
+                  <h2>{selectedWorldBoss.name}</h2>
+                </div>
+                <button className="small-close" onClick={() => setSelectedWorldBossId(null)}>×</button>
+              </div>
+              <p className="muted modal-subtitle">{spot && zone ? `${zone.name} · ${spot.name}` : zone?.name ?? 'неизвестная зона'} · Lv. {selectedWorldBoss.level} · осталось {formatRareSpawnTimeLeft(server, selectedWorldBoss)}</p>
+              <div className="profile-grid-modal item-profile-grid">
+                <div className="profile-cell"><span>HP босса</span><strong>{raid.hp}/{raid.maxHp} · {raid.hpPercent}%</strong></div>
+                <div className="profile-cell"><span>Участники</span><strong>{raid.participantCount}/{raid.maxParticipants}</strong></div>
+                <div className="profile-cell"><span>Ход рейда</span><strong>{raid.round}</strong></div>
+                <div className="profile-cell"><span>Твой урон</span><strong>{raid.playerDamage}</strong></div>
+                <div className="profile-cell"><span>Твоё место</span><strong>{raid.playerRank ? `#${raid.playerRank}` : 'нет'}</strong></div>
+                <div className="profile-cell"><span>Статус</span><strong>{raid.playerJoined ? 'в рейде' : raidFull ? 'рейд заполнен' : 'можно вступить'}</strong></div>
+              </div>
+              <div className="combatants-grid">
+                <div className="combat-card player-card">
+                  <div className="section-title">Игрок</div>
+                  <h3>{server.player.name}</h3>
+                  <p>GS {playerGear} · Lv. {server.player.level}</p>
+                  <p>Урон: {raid.playerDamage}</p>
+                </div>
+                <div className="combat-card enemy-card">
+                  <div className="section-title">Босс</div>
+                  <h3>{selectedWorldBoss.name}</h3>
+                  <p>HP {raid.hpPercent}%</p>
+                  <p>Рекомендуемый Gear {getRareSpawnRecommendedGear(selectedWorldBoss)}</p>
+                </div>
+              </div>
+              <div className="modal-section">
+                <div className="section-title">Топ урона</div>
+                <div className="list-lines">
+                  {topFive.length === 0 ? <p className="muted">Пока нет участников.</p> : topFive.map((entry, index) => (
+                    <div key={entry.id} className="list-line">
+                      <span>#{index + 1} {entry.name}{entry.isPlayer ? ' · ты' : ''}</span>
+                      <strong>{entry.damage}</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="action-grid">
+                {!isNear && zone && <button onClick={() => travelToZone(selectedWorldBoss.zoneId)} disabled={Boolean(combat) || server.location.zoneId === selectedWorldBoss.zoneId}>К локации</button>}
+                {!raid.playerJoined
+                  ? <button onClick={() => joinWorldBossRaid(selectedWorldBoss.id)} disabled={Boolean(combat) || !isNear || raidFull}>{raidFull ? 'Рейд заполнен' : 'Присоединиться'}</button>
+                  : <button onClick={() => attackWorldBossRaid(selectedWorldBoss.id)} disabled={Boolean(combat) || !isNear}>Атаковать ход</button>}
+              </div>
+            </section>
+          </div>
+        );
+      })()}
 
       {travelOpen && (
         <div className="modal-backdrop travel-modal-backdrop" onClick={() => setTravelOpen(false)}>

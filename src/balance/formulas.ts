@@ -81,7 +81,7 @@ export const calculateCardPrice = (card: Pick<ItemDefinition, 'id' | 'rarity' | 
 export const calculateGearScore = (item: ItemDefinition, enhancement = 0, cardIds: Array<string | GearScoreCardLike> = []) => {
   const cardPower = cardIds.reduce<number>((sum, card) => {
     if (typeof card === 'string') return sum + GEAR_SCORE.cardStringFallback;
-    return sum + cardGearValue(card) * 0.42;
+    return sum + cardGearValue(card);
   }, 0);
   const base =
     statScore(item.stats) * GEAR_SCORE.stat +

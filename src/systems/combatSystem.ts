@@ -2,6 +2,7 @@ import { getClassById, getSkillById } from '../content/classes';
 import { ITEMS, getItemById } from '../content/items';
 import { getLootTableById, getMobById, getSpotById, getDungeonById } from '../content/world';
 import { addNews } from '../engine/news';
+import { advanceServerClock } from '../engine/time';
 import type { Rng } from '../engine/rng';
 import { uid } from '../engine/rng';
 import type {
@@ -20,6 +21,8 @@ import { addPlayerXp, xpForNextLevel, xpRewardForMob } from './progressionSystem
 import { finishGuildWarDefeatV2, finishGuildWarVictoryV2 } from './guildWarCombatResultSystem';
 import { getNpcPlayerEquivalentStats } from './pvpStatSystem';
 import { currencyRewardLine } from './activityCurrencySystem';
+
+export const COMBAT_TURN_MINUTES = 5;
 
 
 const bestPotionStack = (inventory: InventoryStack[], playerLevel: number, kind: 'hp' | 'mana') => {
@@ -670,6 +673,7 @@ export const resolveCombatAction = (server: ServerState, combat: CombatState, ac
   const groupAtStart = combat.source === 'dungeon' || combat.source === 'raid';
   const partyAliveAtStart = (combat.partyMembers ?? []).some((member) => member.id !== server.player.id && member.hp > 0);
   if (combat.player.hp <= 0 && (!groupAtStart || !partyAliveAtStart)) return finishDefeat(server, combat, rng);
+  server = advanceServerClock(server, COMBAT_TURN_MINUTES);
 
   let player = { ...combat.player, defending: false, cooldowns: reduceCooldowns(combat.player.cooldowns), shield: Math.max(0, combat.player.shield - 2) };
   let enemy = { ...combat.enemy, defending: false, cooldowns: reduceCooldowns(combat.enemy.cooldowns), shield: Math.max(0, combat.enemy.shield - 2) };

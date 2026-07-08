@@ -83,7 +83,7 @@ import {
   startDungeonFloorCombat,
 } from "../systems/dungeonSystem";
 import { enhanceItem, type EnhanceTarget } from "../systems/enhancementSystem";
-import { buyActivityShopItem as buyActivityShopItemState } from "../systems/activityShopSystem";
+import { buyActivityShopItem as buyActivityShopItemState, sellActivityShopItem as sellActivityShopItemState, type ActivityShopKind } from "../systems/activityShopSystem";
 import {
   acceptPartyApplicant as acceptPartyFinderApplicant,
   cancelPartyListing as cancelPartyFinderListing,
@@ -207,6 +207,7 @@ interface GameStore {
   resolveLootRoll: (choice: LootChoice) => void;
   buyMarketListing: (listingId: string) => void;
   buyActivityShopItem: (entryId: string) => void;
+  sellActivityShopItem: (shop: ActivityShopKind, itemId: string, enhancement?: number, cardIds?: string[]) => void;
   sellItem: (itemId: string, enhancement?: number, cardIds?: string[]) => void;
   repairMarket: () => void;
   socketCard: (source: "equipment" | "inventory", itemIdOrSlot: string, cardId: string, enhancement?: number, cardIds?: string[]) => void;
@@ -1283,8 +1284,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       source === "inventory" &&
       Boolean(item.slot) &&
       server.location.mode === "city";
+    const cardSocketGear = item.type === 'card' ? getInstanceGearScore(item, 0) : 0;
     const lines = [
       `Gear Score: ${getInstanceGearScore(item, enhancement, cardIds)}.`,
+      item.type === 'card' ? `При вставке: +${cardSocketGear} Gear Score.` : undefined,
       `Уровень предмета: ${item.levelReq}.`,
       `Класс: ${classText}.`,
       `Слот: ${item.slot ?? "нет"}.`,
@@ -1296,7 +1299,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         ? `Бонусы: ${statLines.join(" · ")}.`
         : "Бонусы: нет.",
       `Торгуемый: ${item.tradeable ? "да" : "нет"}.`,
-    ];
+    ].filter((line): line is string => Boolean(line));
     if (source === "inventory" && item.slot && server.location.mode !== "city")
       lines.push("Заточка доступна только в городе.");
     const socketCount = item.slot ? getSocketSlotCount(item, { itemId, enhancement, cardIds }) : 0;
@@ -1426,6 +1429,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
   buyActivityShopItem: (entryId) => {
     const { server } = get();
     const result = buyActivityShopItemState(server, entryId);
+    commit(set, result.server, undefined, result.modal);
+  },
+
+  sellActivityShopItem: (shop, itemId, enhancement = 0, cardIds = []) => {
+    const { server } = get();
+    const result = sellActivityShopItemState(server, shop, itemId, enhancement, cardIds);
     commit(set, result.server, undefined, result.modal);
   },
 

@@ -4,8 +4,15 @@ import { getItemById } from "../../content/items";
 import { useGameStore } from "../../state/gameStore";
 import { getSellPrice, estimateItemPrice } from "../../systems/marketSystem";
 import { ACTIVITY_CURRENCY_LABELS, getActivityCurrencyAmount } from "../../systems/activityCurrencySystem";
-import { getActivityShopEntriesForPlayer, ACTIVITY_SHOP_LABELS, type ActivityShopKind } from "../../systems/activityShopSystem";
-import type { EquipmentSlot } from "../../types/game";
+import {
+  ACTIVITY_SHOP_LABELS,
+  getActivityShopSellQuote,
+  getActivityShopSetsForPlayer,
+  type ActivityShopKind,
+  type ActivityShopSetView,
+} from "../../systems/activityShopSystem";
+import { getInstanceGearScore } from "../../systems/itemSystem";
+import type { EquipmentSlot, InventoryStack } from "../../types/game";
 import { ItemLine } from "../components/ItemLine";
 import { buildMarketViewModel, type MarketCategory, type MarketLevelBand } from "../selectors/marketSelectors";
 
@@ -40,16 +47,31 @@ const levelBandLabel: Record<MarketLevelBand, string> = {
   max: "Max 60",
 };
 
+const stackKey = (entry: InventoryStack) => `${entry.itemId}_${entry.enhancement ?? 0}_${(entry.cardIds ?? []).join('_')}`;
+
+const currencyBalanceLine = (server: ReturnType<typeof useGameStore.getState>["server"]) => (
+  <div className="list-lines">
+    <div className="list-line"><span>Dungeon Marks</span><strong>{getActivityCurrencyAmount(server.player, "dungeonMarks")}</strong></div>
+    <div className="list-line"><span>Raid Seals</span><strong>{getActivityCurrencyAmount(server.player, "raidSeals")}</strong></div>
+    <div className="list-line"><span>Arena Honor</span><strong>{getActivityCurrencyAmount(server.player, "arenaHonor")}</strong></div>
+    <div className="list-line"><span>War Crests</span><strong>{getActivityCurrencyAmount(server.player, "warCrests")}</strong></div>
+  </div>
+);
+
+const setCurrencyText = (set: ActivityShopSetView) => ACTIVITY_CURRENCY_LABELS[set.currencyKey];
+
 export const MarketScreen = () => {
   const server = useGameStore((state) => state.server);
   const buy = useGameStore((state) => state.buyMarketListing);
   const buyActivityShopItem = useGameStore((state) => state.buyActivityShopItem);
+  const sellActivityShopItem = useGameStore((state) => state.sellActivityShopItem);
   const sell = useGameStore((state) => state.sellItem);
   const repairMarket = useGameStore((state) => state.repairMarket);
   const setScreen = useGameStore((state) => state.setScreen);
   const openNpcProfile = useGameStore((state) => state.openNpcProfile);
   const openItemProfile = useGameStore((state) => state.openItemProfile);
   const [mode, setMode] = useState<"buy" | "sell" | ActivityShopKind>("buy");
+  const [selectedSetId, setSelectedSetId] = useState<string | null>(null);
   const [category, setCategory] = useState<MarketCategory>("all");
   const [classFilter, setClassFilter] = useState("all");
   const [slotFilter, setSlotFilter] = useState<EquipmentSlot | "">("");
@@ -61,6 +83,10 @@ export const MarketScreen = () => {
     setVisibleLimit(160);
   }, [category, classFilter, slotFilter, levelBand]);
 
+  useEffect(() => {
+    setSelectedSetId(null);
+  }, [mode]);
+
   const marketView = useMemo(
     () => buildMarketViewModel(server, { category, classFilter, slotFilter, visibleLimit, levelBand }),
     [server, category, classFilter, slotFilter, visibleLimit, levelBand],
@@ -71,6 +97,13 @@ export const MarketScreen = () => {
   }, [inCity, marketView.shouldRepair, repairMarket]);
 
   const marketDiagnostics = marketView.diagnostics;
+  const activitySets = mode === "pve" || mode === "pvp" ? getActivityShopSetsForPlayer(server.player, mode) : [];
+  const selectedSet = activitySets.find((set) => set.id === selectedSetId);
+  const activitySellStacks = mode === "pve" || mode === "pvp"
+    ? server.player.inventory
+        .map((entry) => ({ entry, quote: getActivityShopSellQuote(mode, entry) }))
+        .filter((pair): pair is { entry: InventoryStack; quote: NonNullable<ReturnType<typeof getActivityShopSellQuote>> } => Boolean(pair.quote))
+    : [];
 
   if (!inCity) {
     return (
@@ -193,44 +226,56 @@ export const MarketScreen = () => {
       )}
 
       {(mode === "pve" || mode === "pvp") && (
-        <section className="panel">
-          <div className="section-title">{ACTIVITY_SHOP_LABELS[mode]}</div>
-          <div className="list-lines">
-            <div className="list-line"><span>Dungeon Marks</span><strong>{getActivityCurrencyAmount(server.player, "dungeonMarks")}</strong></div>
-            <div className="list-line"><span>Raid Seals</span><strong>{getActivityCurrencyAmount(server.player, "raidSeals")}</strong></div>
-            <div className="list-line"><span>Arena Honor</span><strong>{getActivityCurrencyAmount(server.player, "arenaHonor")}</strong></div>
-            <div className="list-line"><span>War Crests</span><strong>{getActivityCurrencyAmount(server.player, "warCrests")}</strong></div>
-          </div>
-          <p className="muted">Показываются предметы под твой класс. Все товары BoP.</p>
-          <div className="list-lines">
-            {getActivityShopEntriesForPlayer(server.player, mode).map((entry) => {
-              const item = getItemById(entry.itemId);
-              const balance = getActivityCurrencyAmount(server.player, entry.currencyKey);
-              const canBuy = Boolean(item) && balance >= entry.price && server.player.level >= (item?.levelReq ?? 1);
-              return (
-                <div key={entry.id} className="market-group-card">
-                  <div className="market-group-head">
-                    <button className="text-button" onClick={() => item && openItemProfile(item.id, "market", 0)} disabled={!item}>
-                      {item ? <ItemLine itemId={item.id} amount={1} enhancement={0} showLevel /> : entry.itemId}
-                    </button>
-                    <strong>{entry.price} {ACTIVITY_CURRENCY_LABELS[entry.currencyKey]}</strong>
-                  </div>
-                  <small>{entry.description}</small>
-                  {item && <small> · {item.sourceName} · {item.bindType === "bindOnPickup" ? "BoP" : "обычный"}</small>}
-                  <div className="seller-list">
-                    <div className="seller-row">
+        <>
+          <section className="panel">
+            <div className="section-title">{ACTIVITY_SHOP_LABELS[mode]} · валюты</div>
+            {currencyBalanceLine(server)}
+            <p className="muted">Выбери сет, открой окно с деталями и купи нужный элемент. Все товары BoP.</p>
+          </section>
+
+          <section className="panel">
+            <div className="section-title">Сеты</div>
+            <div className="card-grid">
+              {activitySets.map((set) => {
+                const minPrice = Math.min(...set.entries.map((entry) => entry.price));
+                const maxPrice = Math.max(...set.entries.map((entry) => entry.price));
+                return (
+                  <button key={set.id} className="content-card" onClick={() => setSelectedSetId(set.id)}>
+                    <strong>{set.familyName}</strong>
+                    <span>Lv. {set.level} · {set.rarity} · {setCurrencyText(set)}</span>
+                    <span>{set.entries.length} элементов · цена {minPrice}–{maxPrice}</span>
+                    <span>{set.description}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="panel">
+            <div className="section-title">Продажа за валюты</div>
+            {activitySellStacks.length === 0 ? (
+              <p className="muted">Нет подходящих сетовых предметов для этого магазина.</p>
+            ) : (
+              <div className="list-lines">
+                {activitySellStacks.map(({ entry, quote }) => {
+                  const enhancement = entry.enhancement ?? 0;
+                  const cardIds = entry.cardIds ?? [];
+                  return (
+                    <div key={stackKey(entry)} className="list-line market-line">
                       <span>
-                        <strong>Баланс: {balance}</strong>
-                        {item && server.player.level < item.levelReq && <small> · нужен Lv. {item.levelReq}</small>}
+                        <button className="text-button" onClick={() => openItemProfile(entry.itemId, "inventory", enhancement, cardIds)}>
+                          <ItemLine itemId={entry.itemId} amount={entry.amount} enhancement={enhancement} cardIds={cardIds} showLevel />
+                        </button>
+                        <small>{quote.reason} · продажа {quote.amount} {ACTIVITY_CURRENCY_LABELS[quote.currencyKey]}</small>
                       </span>
-                      <button onClick={() => buyActivityShopItem(entry.id)} disabled={!canBuy}>Купить</button>
+                      <button onClick={() => sellActivityShopItem(mode, entry.itemId, enhancement, cardIds)}>Продать</button>
                     </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </>
       )}
 
       {mode === "sell" && (
@@ -242,12 +287,12 @@ export const MarketScreen = () => {
               const item = getItemById(entry.itemId);
               const price = item ? getSellPrice(item) : 0;
               return (
-                <div key={`${entry.itemId}_${entry.enhancement ?? 0}_${(entry.cardIds ?? []).join('_')}`} className="list-line market-line">
+                <div key={stackKey(entry)} className="list-line market-line">
                   <span>
                     <button className="text-button" onClick={() => openItemProfile(entry.itemId, "inventory", entry.enhancement ?? 0, entry.cardIds ?? [])}>
                       <ItemLine itemId={entry.itemId} amount={entry.amount} enhancement={entry.enhancement ?? 0} cardIds={entry.cardIds ?? []} showLevel />
                     </button>
-                    {item && <small>{item.bindType === "bindOnPickup" ? "BoP · нельзя продать" : `продажа ${price}g · база ${estimateItemPrice(item)}g`}</small>}
+                    {item && <small>{item.bindType === "bindOnPickup" ? "BoP · нельзя продать за золото" : `продажа ${price}g · база ${estimateItemPrice(item)}g`}</small>}
                   </span>
                   <button disabled={!item?.tradeable || item?.bindType === "bindOnPickup"} onClick={() => sell(entry.itemId, entry.enhancement ?? 0, entry.cardIds ?? [])}>Продать {price}g</button>
                 </div>
@@ -255,6 +300,48 @@ export const MarketScreen = () => {
             })}
           </div>
         </section>
+      )}
+
+      {selectedSet && (mode === "pve" || mode === "pvp") && (
+        <div className="modal-backdrop" onClick={() => setSelectedSetId(null)}>
+          <section className="result-modal full-window-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header-line">
+              <div>
+                <div className="section-title">{ACTIVITY_SHOP_LABELS[mode]}</div>
+                <h2>Сет {selectedSet.familyName}</h2>
+              </div>
+              <button className="small-close" onClick={() => setSelectedSetId(null)}>×</button>
+            </div>
+            <p className="muted modal-subtitle">{selectedSet.description}</p>
+            <div className="profile-grid-modal item-profile-grid">
+              <div className="profile-cell"><span>Уровень</span><strong>Lv. {selectedSet.level}</strong></div>
+              <div className="profile-cell"><span>Редкость</span><strong>{selectedSet.rarity}</strong></div>
+              <div className="profile-cell"><span>Валюта</span><strong>{setCurrencyText(selectedSet)}</strong></div>
+              <div className="profile-cell"><span>Источник</span><strong>{selectedSet.sourceName}</strong></div>
+            </div>
+            <div className="modal-section">
+              <div className="section-title">Элементы сета</div>
+              <div className="list-lines">
+                {selectedSet.entries.map((entry) => {
+                  const item = getItemById(entry.itemId);
+                  const balance = getActivityCurrencyAmount(server.player, entry.currencyKey);
+                  const canBuy = Boolean(item) && balance >= entry.price && server.player.level >= (item?.levelReq ?? 1);
+                  return (
+                    <div key={entry.id} className="list-line market-line">
+                      <span>
+                        <button className="text-button" onClick={() => item && openItemProfile(item.id, "market", 0)} disabled={!item}>
+                          {item ? <ItemLine itemId={item.id} amount={1} enhancement={0} showLevel /> : entry.itemId}
+                        </button>
+                        {item && <small>Gear {getInstanceGearScore(item, 0)} · {item.bindType === "bindOnPickup" ? "BoP" : "обычный"}</small>}
+                      </span>
+                      <button onClick={() => buyActivityShopItem(entry.id)} disabled={!canBuy}>Купить за {entry.price}</button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        </div>
       )}
     </div>
   );
