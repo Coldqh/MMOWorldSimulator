@@ -15,7 +15,6 @@ export interface ActivityShopSetDefinition {
   sourceName: string;
   description: string;
   priceBase: number;
-  powerScale: number;
 }
 
 export interface ActivityShopCatalogEntry {
@@ -30,7 +29,7 @@ export interface ActivityShopCatalogEntry {
   description: string;
 }
 
-export const ACTIVITY_SHOP_SET_DEFINITIONS: ActivityShopSetDefinition[] = [
+const ACTIVITY_SHOP_SET_DEFINITIONS: ActivityShopSetDefinition[] = [
   {
     id: 'activity_pve_dungeon_60',
     prefix: 'activity_pve_dungeon_60',
@@ -42,7 +41,6 @@ export const ACTIVITY_SHOP_SET_DEFINITIONS: ActivityShopSetDefinition[] = [
     sourceName: 'PvE магазин · Dungeon Marks',
     description: 'PvE-сет для стабильного прохождения данжей и фарма элитных целей.',
     priceBase: 130,
-    powerScale: 1.0,
   },
   {
     id: 'activity_pve_raid_60',
@@ -55,7 +53,6 @@ export const ACTIVITY_SHOP_SET_DEFINITIONS: ActivityShopSetDefinition[] = [
     sourceName: 'PvE магазин · Raid Seals',
     description: 'Рейдовый PvE-сет для боссов, рейдов и мировых угроз.',
     priceBase: 85,
-    powerScale: 1.0,
   },
   {
     id: 'activity_pvp_arena_60',
@@ -68,7 +65,6 @@ export const ACTIVITY_SHOP_SET_DEFINITIONS: ActivityShopSetDefinition[] = [
     sourceName: 'PvP магазин · Arena Honor',
     description: 'PvP-сет для арены и дуэлей против игроков.',
     priceBase: 150,
-    powerScale: 1.0,
   },
   {
     id: 'activity_pvp_war_60',
@@ -81,7 +77,6 @@ export const ACTIVITY_SHOP_SET_DEFINITIONS: ActivityShopSetDefinition[] = [
     sourceName: 'PvP магазин · War Crests',
     description: 'Тяжёлый PvP-сет для гильдейских войн и осад.',
     priceBase: 95,
-    powerScale: 1.0,
   },
 ];
 
@@ -106,17 +101,22 @@ const itemPriceFor = (definition: ActivityShopSetDefinition, slot: SetSlotId) =>
   return Math.max(1, Math.round(definition.priceBase * slotMultiplier));
 };
 
-const buildStats = (definition: ActivityShopSetDefinition, slot: EquipmentSlot, classId: SetClassId): Partial<StatBlock> => {
-  const type = slotType(slot as SetSlotId);
-  const main = CLASS_MAIN_STAT[classId];
-  const budget = Math.max(1, Math.round(calculateItemStatBudget({
-    level: definition.level,
-    rarity: definition.rarity,
-    type,
-    slot,
-  }) * definition.powerScale));
+const activityShopBudgetMultiplier = (definition: ActivityShopSetDefinition) => {
+  if (definition.id === 'activity_pve_raid_60') return 1.10;
+  if (definition.id === 'activity_pvp_arena_60') return 1.12;
+  if (definition.id === 'activity_pvp_war_60') return 1.18;
+  return 1.05;
+};
 
-  if (slot === 'weapon') return { [main]: budget + Math.round(definition.level * 0.9) };
+const buildStats = (definition: ActivityShopSetDefinition, slot: EquipmentSlot, classId: SetClassId): Partial<StatBlock> => {
+  const main = CLASS_MAIN_STAT[classId];
+  const level = Math.max(1, definition.level);
+  const type = slotType(slot as SetSlotId);
+  const budget = Math.max(1, Math.round(
+    calculateItemStatBudget({ level, rarity: definition.rarity, type, slot }) * activityShopBudgetMultiplier(definition),
+  ));
+
+  if (slot === 'weapon') return { [main]: budget + Math.round(level * 0.9) };
   if (slot === 'ring' || slot === 'amulet') {
     const caster = classId === 'mage' || classId === 'priest';
     return {
