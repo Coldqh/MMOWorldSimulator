@@ -83,6 +83,7 @@ assert(worldScreen.includes('Присоединиться') && worldScreen.inclu
 assert(worldScreen.includes('HP {raid.hpPercent}%') || worldScreen.includes('HP ${raid.hpPercent}%'), 'WorldScreen shows world boss raid HP');
 assert(activityShopItems.includes('ACTIVITY_SHOP_ITEMS'), 'activity shop items exist');
 assert(activityShopItems.includes('activity_pve_dungeon_60') && activityShopItems.includes('activity_pvp_war_60'), 'activity shop set families exist');
+assert(activityShopItems.includes('export const ACTIVITY_SHOP_SET_DEFINITIONS'), 'activity shop set definitions are exported');
 assert(activityShopSystem.includes('buyActivityShopItem'), 'activity shop purchase system exists');
 assert(activityShopSystem.includes('spendPlayerActivityCurrency'), 'activity shop spends currencies');
 assert(gameStore.includes('buyActivityShopItem'), 'GameStore exposes activity shop purchase action');

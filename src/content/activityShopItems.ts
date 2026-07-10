@@ -29,7 +29,7 @@ export interface ActivityShopCatalogEntry {
   description: string;
 }
 
-const ACTIVITY_SHOP_SET_DEFINITIONS: ActivityShopSetDefinition[] = [
+export const ACTIVITY_SHOP_SET_DEFINITIONS: ActivityShopSetDefinition[] = [
   {
     id: 'activity_pve_dungeon_60',
     prefix: 'activity_pve_dungeon_60',
