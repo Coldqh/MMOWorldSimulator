@@ -25,8 +25,12 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - name: Install
-        run: npm ci
+      - name: Install build dependencies
+        run: npm ci --include=dev
+      - name: Verify Vite
+        run: npm exec -- vite --version
+      - name: Typecheck
+        run: npm run typecheck
       - name: Build
         run: npm run build
       - name: Upload artifact
