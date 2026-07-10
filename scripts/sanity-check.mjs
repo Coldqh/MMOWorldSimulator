@@ -49,6 +49,11 @@ assert(characterScreen.includes('inventory-filters') && characterScreen.includes
 assert(uiStyles.includes('@media (max-width: 899px)') && uiStyles.includes('.bottom-nav'), 'mobile UI breakpoint is wired');
 assert(uiStyles.includes('.team-combat-layout') && uiStyles.includes('.combat-overlay'), 'combat presentation styles are wired');
 assert(uiStyles.includes('prefers-reduced-motion'), 'reduced motion accessibility is wired');
+assert(characterScreen.includes('inventory-priority-layout') && characterScreen.includes('inventory-row-wide'), 'inventory priority layout is wired');
+assert(uiStyles.includes('0.8.2c — UI Layout Repair') && uiStyles.includes('grid-template-columns: minmax(280px, 320px) minmax(0, 1fr)'), 'targeted UI layout repair is wired');
+assert(guildScreen.includes('tab === "summons" && isGuildMaster'), 'guild summon content is isolated to the GM summon tab');
+assert(guildScreen.includes('isGuildMaster && <button className={tab === "summons"'), 'guild summon tab is visible only to the GM');
+assert(!guildScreen.includes('Нужна роль ГМ / зам / офицер'), 'guild summon UI no longer exposes officer access text');
 
 assert(saveLoad.includes("SAVE_VERSION = '0.7.54'") || saveLoad.includes('SAVE_VERSION = "0.7.54"'), 'SAVE_VERSION is 0.7.54');
 assert(balanceConfig.includes('export const MAX_LEVEL = 60;'), 'MAX_LEVEL remains 60');

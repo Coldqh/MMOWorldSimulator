@@ -11,7 +11,7 @@ import { CastlePanel } from "../components/CastlePanel";
 import type { Guild, GuildFocus, GuildTier } from "../../types/game";
 
 type MainGuildTab = "guilds" | "wars" | "castles";
-type GuildTab = "profile" | "roster" | "applications" | "relations" | "events" | "castles";
+type GuildTab = "profile" | "roster" | "applications" | "relations" | "events" | "summons" | "castles";
 type PlayerGuildTier = GuildTier;
 
 
@@ -86,8 +86,8 @@ export const GuildScreen = () => {
   if (mainTab === "wars") {
     const showServerWars = !playerGuild || showAllGuilds;
     return (
-      <div className="screen-stack">
-        <section className="panel hero-panel">
+      <div className="screen-stack guild-screen">
+        <section className="panel hero-panel guild-hero">
           <div className="section-title">Гильдии</div>
           <div className="title-row">
             <h1>{showServerWars ? "Войны сервера" : "Войны твоей гильдии"}</h1>
@@ -133,11 +133,11 @@ export const GuildScreen = () => {
     const summonCost = getGuildBossSummonCost(playerGuild.tier ?? "low");
     const summonCooldownLeft = getGuildBossCooldownLeft(server, playerGuild);
     const activeSummonedBoss = getActiveGuildSummonedBoss(server, playerGuild.id);
-    const canManageGuildBoss = playerGuild.leaderId === server.player.id || playerGuild.deputyId === server.player.id || (playerGuild.officerIds ?? []).includes(server.player.id);
+    const isGuildMaster = playerGuild.leaderId === server.player.id;
 
     return (
-      <div className="screen-stack">
-        <section className="panel hero-panel">
+      <div className="screen-stack guild-screen">
+        <section className="panel hero-panel guild-hero">
           <div className="section-title">Твоя гильдия</div>
           <div className="title-row">
             <h1>{playerGuild.name}</h1>
@@ -149,18 +149,19 @@ export const GuildScreen = () => {
             <button onClick={() => setMainTab("castles")}>Замки</button>
           </div>
           <p className="muted">{guildFocusLabel(playerGuild.guildFocus)} · {playerGuild.tier ?? "low"} · сила {guildPower(playerGuild)}</p>
-          <div className="tab-row">
+          <div className="tab-row guild-tab-strip">
             <button className={tab === "profile" ? "active" : ""} onClick={() => setTab("profile")}>Профиль</button>
             <button className={tab === "roster" ? "active" : ""} onClick={() => setTab("roster")}>Ростер</button>
-            {playerGuild.leaderId === server.player.id && <button className={tab === "applications" ? "active" : ""} onClick={() => setTab("applications")}>Заявки {applications.length}</button>}
+            {isGuildMaster && <button className={tab === "applications" ? "active" : ""} onClick={() => setTab("applications")}>Заявки {applications.length}</button>}
             <button className={tab === "relations" ? "active" : ""} onClick={() => setTab("relations")}>Отношения</button>
             <button className={tab === "events" ? "active" : ""} onClick={() => setTab("events")}>События</button>
+            {isGuildMaster && <button className={tab === "summons" ? "active" : ""} onClick={() => setTab("summons")}>Призыв</button>}
             <button className={tab === "castles" ? "active" : ""} onClick={() => setTab("castles")}>Замки</button>
           </div>
         </section>
 
         {tab === "profile" && (
-          <section className="panel">
+          <section className="panel guild-content-panel">
             <div className="section-title">Профиль</div>
             <div className="profile-grid-modal">
               <div className="profile-cell"><span>Тип</span><strong>{guildFocusLabel(playerGuild.guildFocus)}</strong></div>
@@ -178,7 +179,7 @@ export const GuildScreen = () => {
         )}
 
         {tab === "applications" && playerGuild.leaderId === server.player.id && (
-          <section className="panel">
+          <section className="panel guild-content-panel">
             <div className="section-title">Заявки одиночек</div>
             <p className="muted">Новая заявка приходит раз в 12 игровых часов.</p>
             <div className="list-lines">
@@ -198,7 +199,7 @@ export const GuildScreen = () => {
         )}
 
         {tab === "roster" && (
-          <section className="panel">
+          <section className="panel guild-content-panel">
             <div className="section-title">Ростер</div>
             <div className="list-lines scroll-list">
               {roster.map((member: any) => (
@@ -212,7 +213,7 @@ export const GuildScreen = () => {
         )}
 
         {tab === "relations" && (
-          <section className="panel">
+          <section className="panel guild-content-panel">
             <div className="section-title">Отношения</div>
             <div className="list-lines scroll-list">
               {relationRows.map(({ guild, outgoing, incoming }) => (
@@ -234,43 +235,50 @@ export const GuildScreen = () => {
 
         {tab === "castles" && <CastlePanel onBack={() => setTab("profile")} />}
 
-        <section className="panel premium-panel">
-          <div className="section-title">Гильдейский призыв</div>
-          <div className="profile-grid-modal">
-            <div className="profile-cell"><span>Твоя роль</span><strong>{guildRole(playerGuild, server.player.id)}</strong></div>
-            <div className="profile-cell"><span>Откат</span><strong>{formatGuildBossCooldown(summonCooldownLeft)}</strong></div>
-            <div className="profile-cell"><span>Активный босс</span><strong>{activeSummonedBoss ? activeSummonedBoss.name : "нет"}</strong></div>
-            <div className="profile-cell"><span>Цена</span><strong>{summonCost.gold} Gold</strong></div>
-            <div className="profile-cell"><span>Raid Seals</span><strong>{getActivityCurrencyAmount(server.player, "raidSeals")}/{summonCost.raidSeals}</strong></div>
-            <div className="profile-cell"><span>War Crests</span><strong>{getActivityCurrencyAmount(server.player, "warCrests")}/{summonCost.warCrests}</strong></div>
-          </div>
-          <p className="muted">Призыв доступен только вне города. Босс появляется в текущей зоне или на текущем споте, автоматически открывает рейд и даёт бонусные War Crests членам той же гильдии.</p>
-          <button
-            className="wide-button"
-            disabled={!canManageGuildBoss || summonCooldownLeft > 0 || Boolean(activeSummonedBoss)}
-            onClick={summonGuildWorldBoss}
-          >
-            {!canManageGuildBoss
-              ? "Нужна роль ГМ / зам / офицер"
-              : activeSummonedBoss
-                ? "Сначала закройте активный призыв"
+        {tab === "summons" && isGuildMaster && (
+          <section className="panel premium-panel guild-summon-panel guild-content-panel">
+            <div className="panel-heading compact">
+              <div>
+                <div className="section-title">Гильдейский призыв</div>
+                <h2>Мировой босс гильдии</h2>
+              </div>
+              <span className="panel-kicker">только ГМ</span>
+            </div>
+            <div className="profile-grid-modal guild-summon-grid">
+              <div className="profile-cell"><span>Откат</span><strong>{formatGuildBossCooldown(summonCooldownLeft)}</strong></div>
+              <div className="profile-cell"><span>Активный босс</span><strong>{activeSummonedBoss ? activeSummonedBoss.name : "нет"}</strong></div>
+              <div className="profile-cell"><span>Цена</span><strong>{summonCost.gold} Gold</strong></div>
+              <div className="profile-cell"><span>Raid Seals</span><strong>{getActivityCurrencyAmount(server.player, "raidSeals")}/{summonCost.raidSeals}</strong></div>
+              <div className="profile-cell"><span>War Crests</span><strong>{getActivityCurrencyAmount(server.player, "warCrests")}/{summonCost.warCrests}</strong></div>
+            </div>
+            <p className="muted guild-summon-help">Вызов доступен вне города. Босс появляется в текущей зоне, открывает рейд и даёт гильдейский бонус к наградам.</p>
+            <button
+              className="wide-button"
+              disabled={summonCooldownLeft > 0 || Boolean(activeSummonedBoss)}
+              onClick={summonGuildWorldBoss}
+            >
+              {activeSummonedBoss
+                ? "Сначала закрой активный призыв"
                 : summonCooldownLeft > 0
                   ? `Откат: ${formatGuildBossCooldown(summonCooldownLeft)}`
                   : "Призвать мирового босса"}
-          </button>
-        </section>
+            </button>
+          </section>
+        )}
 
         {tab === "events" && (
-          <section className="panel">
+          <section className="panel guild-content-panel">
             <div className="section-title">События</div>
             {guildNews.length === 0 ? <p className="muted">Нет событий.</p> : <div className="list-lines">{guildNews.map((entry) => <div key={entry.id} className="list-line"><span>{entry.text}</span><strong>День {entry.day}</strong></div>)}</div>}
           </section>
         )}
 
-        <section className="panel">
-          <div className="section-title">Управление</div>
-          <button className="danger-button wide-button" onClick={leaveGuild}>Покинуть гильдию</button>
-        </section>
+        {tab === "profile" && (
+          <section className="panel guild-management-panel">
+            <div className="section-title">Управление</div>
+            <button className="danger-button wide-button" onClick={leaveGuild}>Покинуть гильдию</button>
+          </section>
+        )}
       </div>
     );
   }

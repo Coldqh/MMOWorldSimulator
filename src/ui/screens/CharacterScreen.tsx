@@ -167,8 +167,8 @@ export const CharacterScreen = () => {
         </div>
       </section>
 
-      <div className="character-content-grid">
-        <section className="panel equipment-panel">
+      <div className="character-content-grid inventory-priority-layout">
+        <section className="panel equipment-panel equipment-column">
           <div className="panel-heading compact">
             <div>
               <div className="section-title">ЭКИПИРОВКА</div>
@@ -199,13 +199,13 @@ export const CharacterScreen = () => {
           </div>
         </section>
 
-        <section className="panel inventory-panel">
+        <section className="panel inventory-panel inventory-column">
           <div className="panel-heading compact">
             <div>
               <div className="section-title">ИНВЕНТАРЬ</div>
               <h2>Хранилище</h2>
             </div>
-            <span className="panel-kicker">{player.inventory.length} поз.</span>
+            <span className="panel-kicker">{filteredInventory.length}/{player.inventory.length} поз.</span>
           </div>
 
           <div className="chip-row inventory-filters">
@@ -226,7 +226,7 @@ export const CharacterScreen = () => {
               const item = getItemById(entry.itemId);
               const equippable = item ? canEquipItem(player, item) : false;
               return (
-                <article key={`${entry.itemId}_${entry.enhancement ?? 0}_${(entry.cardIds ?? []).join('_')}`} className={`inventory-row rarity-border-${item?.rarity ?? 'common'}`}>
+                <article key={`${entry.itemId}_${entry.enhancement ?? 0}_${(entry.cardIds ?? []).join('_')}`} className={`inventory-row inventory-row-wide rarity-border-${item?.rarity ?? 'common'}`}>
                   <button className="inventory-item-main" onClick={() => openItemProfile(entry.itemId, 'inventory', entry.enhancement ?? 0, entry.cardIds ?? [])}>
                     <span className={`item-orb rarity-bg-${item?.rarity ?? 'common'}`}>{item?.slot ? slotIcon[item.slot] : item?.type === 'card' ? '◆' : '◇'}</span>
                     <span className="inventory-item-copy">

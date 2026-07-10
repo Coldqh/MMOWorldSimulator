@@ -908,423 +908,269 @@ small { color: var(--muted); }
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
 }
 
-/* 0.8.2a — Compact UI density pass */
+/* 0.8.2c — UI Layout Repair
+   Targeted density: readable controls, content-sized panels, wide inventory,
+   and a dedicated GM-only guild summon tab. */
+
 :root {
-  --sidebar-width: 232px;
+  --sidebar-width: 228px;
   --topbar-height: 58px;
-  --mobile-nav-height: 54px;
-  --radius-xs: 6px;
-  --radius-sm: 9px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 22px;
+  --mobile-nav-height: 58px;
 }
 
 body { font-size: 13px; }
-h1 { margin-bottom: 5px; font-size: clamp(21px, 2.3vw, 30px); }
-h2 { margin-bottom: 5px; font-size: clamp(16px, 1.7vw, 20px); }
-h3 { margin-bottom: 4px; font-size: 14px; }
-small { font-size: 10px; }
+button { min-height: 38px; padding: 8px 11px; border-radius: 10px; font-size: 12px; }
+input, select, textarea, .text-input { min-height: 38px; padding: 8px 10px; border-radius: 10px; font-size: 12px; }
 
-button {
-  min-height: 34px;
-  padding: 7px 10px;
-  border-radius: 9px;
-  font-size: 12px;
-}
-input, select, textarea, .text-input {
-  min-height: 36px;
-  padding: 8px 10px;
-  border-radius: 9px;
-  font-size: 12px;
-}
+.side-drawer { padding: 14px 11px 12px; }
+.side-brand { min-height: 46px; gap: 9px; padding: 1px 4px 10px; }
+.brand-mark { width: 36px; height: 36px; border-radius: 11px; }
+.sidebar-player { margin-bottom: 10px; padding: 8px 9px; }
+.nav-group { gap: 3px; }
+.nav-group-title { margin: 7px 8px 3px; font-size: 8px; }
+.nav-item { min-height: 36px; padding: 7px 9px; border-radius: 9px; font-size: 11px; }
 
-.side-drawer { padding: 12px 10px; }
-.brand { gap: 8px; margin-bottom: 10px; }
-.brand-mark { width: 34px; height: 34px; border-radius: 10px; font-size: 13px; }
-.brand-copy strong { font-size: 13px; }
-.brand-copy small { font-size: 9px; }
-.sidebar-player { margin-bottom: 10px; padding: 7px 8px; gap: 7px; }
-.sidebar-player-copy strong { font-size: 12px; }
-.sidebar-player-copy small { font-size: 9px; }
-.sidebar-gs { min-width: 46px; padding: 4px 6px; border-radius: 9px; font-size: 9px; }
-.side-list { gap: 8px; }
-.nav-group { gap: 2px; }
-.nav-group-title { margin: 5px 7px 2px; font-size: 8px; }
-.nav-item { min-height: 34px; gap: 8px; padding: 6px 8px; border-radius: 9px; font-size: 11px; }
-.nav-item-icon { width: 20px; font-size: 13px; }
+.topbar { height: var(--topbar-height); padding: 0 14px; gap: 10px; }
+.topbar-context strong { font-size: 16px; }
+.world-clock { min-width: 190px; }
+.hud-chip, .world-clock, .player-mini { min-height: 38px; }
+.player-avatar.small { width: 34px; height: 34px; border-radius: 10px; }
 
-.topbar { height: var(--topbar-height); padding: 0 12px; gap: 10px; }
-.topbar-context span, .world-clock span, .hud-chip span, .player-mini-copy span { font-size: 8px; }
-.topbar-context strong, .world-clock strong, .hud-chip strong, .player-mini-copy strong { font-size: 12px; }
-.hud-chip, .world-clock, .player-mini { min-height: 34px; padding: 5px 8px; border-radius: 10px; }
-.player-avatar.small { width: 32px; height: 32px; border-radius: 10px; }
-.menu-button { width: 34px; min-height: 34px; padding: 7px; }
-
-.screen-frame { padding: 12px 14px 18px; }
-.screen-stack { gap: 9px; }
-.panel { padding: 11px; border-radius: 14px; }
-.hero-panel { padding: 12px; }
-.section-title, .panel-kicker { margin-bottom: 6px; font-size: 8px; letter-spacing: .12em; }
-.title-row, .panel-heading, .modal-header-line { gap: 8px; }
-.tab-row, .chip-row, .inline-actions, .action-grid, .compact-actions { gap: 5px; }
-.tab-row button, .chip-row button { min-height: 32px; padding: 6px 9px; font-size: 11px; }
-
-.card-grid { gap: 8px; }
-.content-card, .market-group-card, .guild-card, .currency-card, .equipment-slot, .inventory-row, .quick-action {
-  padding: 9px;
-  border-radius: 11px;
-}
-.content-card { gap: 5px; }
-.content-card > strong { font-size: 13px; }
-.content-card > span, .content-card > small { font-size: 10px; line-height: 1.25; }
-.list-lines { gap: 5px; }
-.list-line { min-height: 34px; gap: 8px; padding: 7px 9px; border-radius: 10px; }
-.list-line > span { gap: 3px; }
-.list-line strong { font-size: 11px; }
-.list-line small { font-size: 9px; }
-.scroll-list { max-height: 440px; }
-
-.profile-grid-modal, .combat-stat-grid, .currency-grid, .reward-grid { gap: 7px; }
-.profile-cell, .combat-stat, .reward-cell { padding: 8px; border-radius: 10px; }
-.profile-cell span, .combat-stat span, .reward-cell span { font-size: 8px; }
-.profile-cell strong, .combat-stat strong, .reward-cell strong { font-size: 12px; }
-
-.character-hero { gap: 12px; }
-.character-avatar { width: 58px; height: 58px; border-radius: 17px; font-size: 17px; }
-.character-copy h1 { font-size: 22px; }
-.character-badges { gap: 4px; margin-top: 7px; }
-.character-badges span { padding: 4px 7px; font-size: 9px; }
-.character-content-grid { gap: 9px; }
-.currency-grid { gap: 6px; }
-.currency-card { gap: 6px; }
-.currency-icon { width: 28px; height: 28px; border-radius: 8px; }
-.currency-card strong { font-size: 13px; }
-.equipment-grid { gap: 6px; }
-.equipment-slot { min-height: 56px; }
-.inventory-list { gap: 5px; }
-.inventory-row { min-height: 48px; }
-
-.quick-action-grid { gap: 7px; }
-.quick-action { min-height: 52px; gap: 5px; }
-.quick-action strong { font-size: 12px; }
-.quick-action span { font-size: 9px; }
-
-.combat-panel { border-radius: 16px; }
-.combat-overlay { padding: 10px; }
-.combatant-card { min-height: 104px; padding: 10px; border-radius: 13px; }
-.combatant-card h2, .combatant-card h3 { font-size: 15px; }
-.combat-bars { gap: 6px; }
-.combat-actions { gap: 6px; }
-.combat-actions button { min-height: 34px; }
-.combat-log { max-height: 104px; padding: 8px; font-size: 10px; }
-.party-member-card { padding: 7px; border-radius: 10px; }
-
-.result-modal, .travel-modal {
-  width: min(620px, calc(100vw - 24px));
-  max-height: 88dvh;
-  padding: 13px;
+.screen-frame { padding: 15px clamp(12px, 1.8vw, 24px) 28px; }
+.screen-stack { gap: 12px; align-content: start; }
+.screen-stack > *, .character-content-grid > *, .card-grid > * { min-width: 0; }
+.panel {
+  align-self: start;
+  padding: 14px;
   border-radius: 16px;
 }
-.modal-subtitle { margin-bottom: 8px; }
-.small-close { width: 32px; min-height: 32px; padding: 0; font-size: 18px; }
-.item-profile-box { margin: 8px 0; padding: 9px; border-radius: 10px; }
-.socket-box { width: 30px; height: 30px; border-radius: 8px; }
+.hero-panel { padding: 15px; }
+.panel::after { opacity: .8; }
+.section-title { margin-bottom: 7px; font-size: 9px; }
+.panel-heading { margin-bottom: 11px; }
+.panel-heading.compact { margin-bottom: 10px; }
+.panel-kicker { padding: 5px 8px; font-size: 9px; }
+.title-row, .panel-heading, .modal-header-line { gap: 10px; }
 
-@media (max-width: 1180px) {
-  :root { --sidebar-width: 218px; }
-  .character-content-grid { grid-template-columns: minmax(260px, .9fr) minmax(320px, 1.1fr); }
+.tab-row, .mini-tabs { gap: 5px; padding: 4px; border-radius: 12px; }
+.tab-row button, .mini-tabs button { flex: 1 1 96px; min-height: 34px; padding: 7px 9px; font-size: 11px; }
+.chip-row { gap: 6px; margin-top: 8px; }
+.chip-row button { min-height: 32px; padding: 6px 10px; font-size: 10px; }
+
+.card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-auto-rows: max-content;
+  align-items: start;
+  gap: 9px;
 }
-
-@media (max-width: 899px) {
-  :root { --topbar-height: 50px; --mobile-nav-height: 50px; }
-  body { font-size: 12px; }
-  .side-drawer { width: min(250px, 80vw); padding: 10px 8px; }
-  .topbar { gap: 6px; padding: 0 8px; }
-  .topbar-context strong { font-size: 12px; }
-  .screen-frame { padding: 7px 8px 12px; }
-  .screen-stack { gap: 7px; }
-  .panel { padding: 9px; border-radius: 12px; }
-  .hero-panel { padding: 10px; }
-  .bottom-nav {
-    left: 7px;
-    right: 7px;
-    bottom: max(6px, env(safe-area-inset-bottom));
-    height: 44px;
-    gap: 2px;
-    padding: 3px;
-    border-radius: 15px;
-  }
-  .bottom-nav button { min-height: 36px; padding: 2px; border-radius: 10px; }
-  .bottom-nav button > span { font-size: 13px; }
-  .bottom-nav button small { font-size: 7px; }
-  .quick-action { min-height: 46px; }
-  .combat-panel { min-height: calc(100dvh - 14px); border-radius: 15px; }
-  .combat-overlay { padding: 7px; }
+.content-card, .guild-card { min-height: 0; height: auto; padding: 11px; }
+.list-lines, .inventory-list, .loot-card-list { gap: 7px; }
+.list-line {
+  min-height: 40px;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 11px;
 }
+.list-line strong { font-size: 11px; }
+.list-line small { font-size: 9px; line-height: 1.35; }
+.scroll-list { max-height: min(62vh, 620px); }
+.profile-grid-modal, .combat-stat-grid, .currency-grid, .reward-grid { gap: 8px; }
+.profile-cell, .combat-stat, .reward-cell { padding: 10px; border-radius: 11px; }
 
-@media (max-width: 599px) {
-  body { font-size: 11px; }
-  h1 { font-size: 19px; }
-  h2 { font-size: 15px; }
-  h3 { font-size: 13px; }
-  small { font-size: 9px; }
-  button { min-height: 32px; padding: 6px 8px; font-size: 11px; }
-  input, select, textarea, .text-input { min-height: 34px; padding: 7px 8px; font-size: 11px; }
-  .screen-frame { padding: 6px 7px 10px; }
-  .screen-stack { gap: 6px; }
-  .panel { padding: 8px; border-radius: 11px; }
-  .section-title, .panel-kicker { margin-bottom: 5px; font-size: 7px; }
-  .tab-row button { min-width: 78px; min-height: 30px; padding: 5px 7px; font-size: 10px; }
-  .chip-row button { min-height: 30px; padding: 5px 7px; font-size: 10px; }
-  .card-grid { gap: 6px; }
-  .content-card, .market-group-card, .guild-card, .currency-card, .equipment-slot, .inventory-row, .quick-action { padding: 7px; border-radius: 9px; }
-  .content-card > strong { font-size: 12px; }
-  .content-card > span, .content-card > small { font-size: 9px; }
-  .list-lines { gap: 4px; }
-  .list-line { min-height: 30px; gap: 5px; padding: 6px 7px; border-radius: 8px; }
-  .list-line strong { font-size: 10px; }
-  .list-line small { font-size: 8px; }
-  .profile-grid-modal, .combat-stat-grid, .currency-grid, .reward-grid { gap: 5px; }
-  .profile-cell, .combat-stat, .reward-cell { padding: 6px; border-radius: 8px; }
-  .profile-cell span, .combat-stat span, .reward-cell span { font-size: 7px; }
-  .profile-cell strong, .combat-stat strong, .reward-cell strong { font-size: 10px; }
-  .character-avatar { width: 48px; height: 48px; border-radius: 14px; font-size: 15px; }
-  .character-copy h1 { font-size: 19px; }
-  .character-badges span { padding: 3px 5px; font-size: 8px; }
-  .currency-icon { width: 24px; height: 24px; }
-  .currency-card strong { font-size: 11px; }
-  .equipment-slot { min-height: 48px; }
-  .inventory-row { min-height: 42px; }
-  .quick-action { min-height: 42px; }
-  .combatant-card { min-height: 92px; padding: 8px; }
-  .combatant-card h2, .combatant-card h3 { font-size: 13px; }
-  .combat-log { max-height: 88px; padding: 6px; font-size: 9px; }
-  .result-modal, .travel-modal { max-height: 90dvh; padding: 10px 9px calc(10px + env(safe-area-inset-bottom)); border-radius: 16px 16px 0 0; }
-  .small-close { width: 28px; min-height: 28px; font-size: 16px; }
+/* Character screen: inventory receives the available width instead of being squeezed. */
+.character-screen { align-content: start; }
+.character-hero { gap: 14px; }
+.character-copy h1 { font-size: 23px; }
+.character-badges { margin-top: 8px; }
+.quick-action-grid { gap: 8px; }
+.quick-action { min-height: 58px; padding: 9px 10px; }
+.quick-action-icon { width: 36px; height: 36px; border-radius: 10px; font-size: 17px; }
+.currency-grid { gap: 7px; }
+.currency-card { padding: 9px 10px; border-radius: 11px; }
+.currency-icon { width: 32px; height: 32px; border-radius: 10px; }
+
+.character-content-grid.inventory-priority-layout {
+  grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
 }
+.equipment-column, .inventory-column { align-self: start; height: auto; }
+.equipment-grid { grid-template-columns: 1fr; gap: 7px; }
+.equipment-slot { min-height: 62px; padding: 8px 9px; border-radius: 11px; }
+.equipment-slot-icon { width: 36px; height: 36px; border-radius: 10px; }
+.equipment-slot-copy strong { white-space: normal; line-height: 1.25; }
 
-@media (max-width: 379px) {
-  .side-drawer { width: min(232px, 82vw); }
-  .screen-frame { padding-right: 5px; padding-left: 5px; }
-  .panel { padding: 7px; }
-  .currency-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.inventory-column { min-width: 0; }
+.inventory-filters {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  margin: 0 0 10px;
+  padding-bottom: 2px;
+  scrollbar-width: none;
 }
-
-/* MMOWorldSimulator 0.8.2b — Ultra Compact UI Density Pass */
-:root {
-  --sidebar-width: 196px;
-  --topbar-height: 52px;
-  --mobile-nav-height: 46px;
-  --radius-xs: 5px;
-  --radius-sm: 7px;
-  --radius-md: 10px;
-  --radius-lg: 13px;
-  --radius-xl: 17px;
-}
-
-body { font-size: 12px; line-height: 1.3; }
-h1 { margin-bottom: 4px; font-size: clamp(18px, 1.8vw, 24px); line-height: 1.02; }
-h2 { margin-bottom: 4px; font-size: clamp(15px, 1.4vw, 18px); }
-h3 { margin-bottom: 3px; font-size: 12px; }
-p { margin-bottom: 7px; }
-small { font-size: 9px; }
-
-button {
-  min-height: 30px;
-  padding: 5px 8px;
-  border-radius: 7px;
-  font-size: 11px;
-}
-input, select, textarea, .text-input {
-  min-height: 32px;
-  padding: 6px 8px;
-  border-radius: 7px;
-  font-size: 11px;
-}
-
-.side-drawer { padding: 8px 7px; }
-.brand { gap: 6px; margin-bottom: 7px; }
-.brand-mark { width: 28px; height: 28px; border-radius: 8px; font-size: 11px; }
-.brand-copy strong { font-size: 11px; }
-.brand-copy small { font-size: 8px; }
-.drawer-close { width: 30px; min-height: 30px; font-size: 17px; }
-.sidebar-player { margin-bottom: 7px; padding: 5px 6px; gap: 5px; }
-.sidebar-player-copy strong { font-size: 10px; }
-.sidebar-player-copy small { font-size: 8px; }
-.sidebar-gs { min-width: 40px; padding: 3px 5px; border-radius: 7px; font-size: 8px; }
-.side-list { gap: 5px; }
-.nav-group { gap: 1px; }
-.nav-group-title { margin: 4px 5px 1px; font-size: 7px; }
-.nav-item { min-height: 29px; gap: 6px; padding: 4px 6px; border-radius: 7px; font-size: 10px; }
-.nav-item-icon { width: 17px; font-size: 11px; }
-
-.topbar { height: var(--topbar-height); padding: 0 9px; gap: 7px; }
-.topbar-leading { gap: 7px; }
-.topbar-context { gap: 1px; }
-.topbar-context span, .world-clock span, .hud-chip span, .player-mini-copy span { font-size: 7px; }
-.topbar-context strong, .world-clock strong, .hud-chip strong, .player-mini-copy strong { font-size: 11px; }
-.hud-chip, .world-clock, .player-mini { min-height: 30px; padding: 4px 6px; border-radius: 8px; }
-.hud-chip { min-width: 60px; }
-.player-avatar.small { width: 28px; height: 28px; border-radius: 8px; }
-.menu-button { width: 30px; min-height: 30px; padding: 5px; }
-
-.screen-frame { padding: 8px 10px 12px; }
-.screen-stack { gap: 6px; }
-.panel { padding: 8px; border-radius: 10px; }
-.hero-panel { padding: 9px; }
-.section-title, .panel-kicker { margin-bottom: 4px; font-size: 7px; letter-spacing: .1em; }
-.title-row, .panel-heading, .modal-header-line { gap: 6px; }
-.panel-heading { margin-bottom: 8px; }
-.panel-heading.compact { margin-bottom: 7px; }
-.tab-row, .chip-row, .inline-actions, .action-grid, .compact-actions { gap: 4px; }
-.tab-row button, .mini-tabs button, .chip-row button { min-height: 28px; padding: 4px 7px; font-size: 10px; }
-.chip-row { margin-top: 6px; }
-
-.card-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 6px; }
-.content-card, .market-group-card, .guild-card, .currency-card, .equipment-slot, .inventory-row, .quick-action {
-  padding: 7px;
-  border-radius: 9px;
-}
-.content-card, .guild-card { gap: 4px; }
-.content-card strong, .guild-card strong { font-size: 11px; }
-.content-card span, .content-card small, .guild-card span, .guild-card small { font-size: 9px; line-height: 1.2; }
-.list-lines, .inventory-list, .loot-card-list { gap: 4px; }
-.list-line { min-height: 28px; gap: 6px; padding: 5px 7px; border-radius: 8px; }
-.list-line strong { font-size: 10px; }
-.list-line small { font-size: 8px; line-height: 1.25; }
-.scroll-list { max-height: 380px; }
-.seller-row { gap: 6px; padding-top: 5px; }
-.seller-row button { min-height: 28px; padding: 4px 7px; font-size: 8px; }
-.market-group-card { gap: 6px; }
-
-.profile-grid-modal, .combat-stat-grid, .currency-grid, .reward-grid { gap: 5px; }
-.profile-cell, .combat-stat, .reward-cell, .reward-box { padding: 6px; border-radius: 8px; }
-.profile-cell span, .combat-stat span, .reward-cell span, .reward-box span { font-size: 7px; }
-.profile-cell strong, .combat-stat strong, .reward-cell strong, .reward-box strong { font-size: 10px; }
-
-.character-hero { gap: 9px; }
-.character-avatar { width: 48px; height: 48px; border-radius: 13px; font-size: 14px; }
-.character-copy h1 { font-size: 18px; }
-.character-badges { gap: 3px; margin-top: 5px; }
-.character-badges span { padding: 3px 5px; font-size: 8px; }
-.character-content-grid { gap: 7px; }
-.currency-grid { gap: 4px; }
-.currency-card { gap: 5px; }
-.currency-icon { width: 22px; height: 22px; border-radius: 7px; font-size: 11px; }
-.currency-card strong { font-size: 11px; }
-.currency-card small { font-size: 7px; }
-.equipment-grid { gap: 4px; }
-.equipment-slot { min-height: 44px; gap: 6px; }
-.equipment-slot-icon { width: 30px; height: 30px; border-radius: 8px; font-size: 13px; }
-.equipment-slot-copy strong { font-size: 9px; }
-.inventory-row { min-height: 38px; gap: 6px; }
-
-.quick-action-grid { gap: 5px; }
-.quick-action { min-height: 42px; gap: 6px; }
-.quick-action-icon { width: 30px; height: 30px; border-radius: 8px; font-size: 14px; }
-.quick-action strong { font-size: 10px; }
-.quick-action small, .quick-action span { font-size: 8px; }
-
-.combat-panel { border-radius: 12px; }
-.combat-overlay { padding: 7px; }
-.combatant-card { min-height: 84px; gap: 6px; padding: 8px; border-radius: 10px; }
-.combatant-card > strong, .combatant-card h2, .combatant-card h3 { font-size: 12px; }
-.combatant-card > span { font-size: 8px; }
-.team-combat-layout { gap: 8px; }
-.combat-bars { gap: 4px; }
-.combat-actions { gap: 4px; padding: 6px; border-radius: 10px; }
-.combat-actions button { min-height: 30px; }
-.combat-log { max-height: 76px; padding: 5px; font-size: 8px; }
-.party-member-card { padding: 5px; border-radius: 8px; }
-
-.result-modal, .travel-modal {
-  width: min(540px, calc(100vw - 18px));
-  max-height: 86dvh;
-  padding: 9px;
+.inventory-filters::-webkit-scrollbar { display: none; }
+.inventory-filters button { flex: 0 0 auto; white-space: nowrap; }
+.inventory-list { max-height: min(72vh, 780px); gap: 7px; padding-right: 3px; }
+.inventory-row.inventory-row-wide {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: 60px;
+  gap: 8px;
   border-radius: 12px;
 }
-.modal-subtitle { margin-bottom: 6px; }
-.small-close { width: 28px; min-height: 28px; padding: 0; font-size: 16px; }
-.item-profile-box { margin: 6px 0; padding: 7px; border-radius: 8px; }
-.socket-box { width: 26px; height: 26px; border-radius: 7px; }
+.inventory-item-main {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  min-width: 0;
+  gap: 10px;
+  padding: 9px 10px;
+}
+.item-orb { width: 40px; height: 40px; border-radius: 11px; }
+.inventory-item-copy { min-width: 0; }
+.inventory-item-copy strong {
+  white-space: normal;
+  overflow: visible;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.25;
+  font-size: 11px;
+}
+.inventory-item-copy small {
+  white-space: normal;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.3;
+  font-size: 9px;
+}
+.inventory-equip-button { min-width: 68px; min-height: 34px; margin-right: 8px; padding: 6px 9px; }
 
-@media (max-width: 1180px) {
-  :root { --sidebar-width: 188px; }
-  .character-content-grid { grid-template-columns: minmax(230px, .9fr) minmax(280px, 1.1fr); }
+/* Guild screen: no repeated summon card; summon controls live in a dedicated GM tab. */
+.guild-screen { align-content: start; }
+.guild-hero { padding-bottom: 12px; }
+.guild-hero > .muted { margin: 8px 0; }
+.guild-tab-strip {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  justify-content: flex-start;
+  margin-top: 8px;
+  scrollbar-width: none;
+}
+.guild-tab-strip::-webkit-scrollbar { display: none; }
+.guild-tab-strip button { flex: 0 0 auto; min-width: 92px; }
+.guild-content-panel { width: 100%; height: auto; align-self: start; }
+.guild-summon-panel { max-width: 860px; }
+.guild-summon-grid { grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); }
+.guild-summon-help { max-width: 720px; margin: 10px 0 0; }
+.guild-management-panel { max-width: 520px; }
+.guild-management-panel .wide-button { margin-top: 4px; }
+
+/* Keep combat controls readable. They are not part of the compact data UI. */
+.combat-panel { border-radius: 18px; }
+.combatant-card { min-height: 118px; }
+.combat-actions button { min-height: 40px; }
+.result-modal, .travel-modal { width: min(680px, calc(100vw - 28px)); padding: 15px; }
+
+@media (max-width: 1120px) {
+  :root { --sidebar-width: 214px; }
+  .character-content-grid.inventory-priority-layout {
+    grid-template-columns: minmax(250px, 290px) minmax(0, 1fr);
+  }
+  .world-clock { min-width: 160px; }
 }
 
 @media (max-width: 899px) {
-  :root { --topbar-height: 44px; --mobile-nav-height: 44px; }
-  body { font-size: 11px; }
-  .side-drawer { width: min(224px, 78vw); padding: 7px 6px; }
-  .topbar { gap: 5px; padding: 0 6px; }
-  .topbar-context strong { font-size: 10px; }
-  .screen-frame { padding: 5px 6px 8px; }
-  .screen-stack { gap: 5px; }
-  .panel { padding: 7px; border-radius: 9px; }
-  .hero-panel { padding: 8px; }
+  :root { --topbar-height: 54px; --mobile-nav-height: 56px; }
+  body { font-size: 12px; }
+  .side-drawer { width: min(280px, 84vw); padding: 11px 9px; }
+  .topbar { padding: 0 9px; gap: 7px; }
+  .topbar-context strong { font-size: 14px; }
+  .menu-button { width: 38px; min-height: 38px; padding: 8px; }
+  .screen-frame { padding: 9px 9px 18px; }
+  .screen-stack { gap: 10px; }
+  .panel { padding: 11px; border-radius: 14px; }
+  .hero-panel { padding: 12px; }
+
   .bottom-nav {
-    left: 5px;
-    right: 5px;
-    bottom: max(4px, env(safe-area-inset-bottom));
-    height: 40px;
-    gap: 1px;
-    padding: 2px;
-    border-radius: 12px;
+    left: 8px;
+    right: 8px;
+    bottom: max(7px, env(safe-area-inset-bottom));
+    height: 50px;
+    gap: 3px;
+    padding: 4px;
+    border-radius: 16px;
   }
-  .bottom-nav button { min-height: 34px; padding: 1px; border-radius: 8px; }
-  .bottom-nav button > span { font-size: 12px; }
-  .bottom-nav button small { font-size: 6px; }
-  .quick-action { min-height: 38px; }
-  .combat-panel { min-height: calc(100dvh - 10px); border-radius: 12px; }
-  .combat-overlay { padding: 5px; }
+  .bottom-nav button { min-height: 42px; padding: 3px; border-radius: 11px; }
+  .bottom-nav button > span { font-size: 14px; }
+  .bottom-nav button small { font-size: 7px; }
+
+  .character-content-grid.inventory-priority-layout { grid-template-columns: 1fr; }
+  .equipment-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .inventory-list { max-height: none; }
+  .guild-summon-panel { max-width: none; }
 }
 
 @media (max-width: 599px) {
-  body { font-size: 10px; }
-  h1 { font-size: 16px; }
-  h2 { font-size: 13px; }
-  h3 { font-size: 11px; }
-  small { font-size: 8px; }
-  button { min-height: 30px; padding: 5px 7px; font-size: 10px; }
-  input, select, textarea, .text-input { min-height: 30px; padding: 5px 7px; font-size: 10px; }
-  .screen-frame { padding: 4px 5px 7px; }
-  .screen-stack { gap: 4px; }
-  .panel { padding: 6px; border-radius: 8px; }
-  .section-title, .panel-kicker { margin-bottom: 3px; font-size: 6px; }
-  .tab-row button { min-width: 66px; min-height: 27px; padding: 4px 6px; font-size: 9px; }
-  .chip-row button { min-height: 27px; padding: 4px 6px; font-size: 9px; }
-  .card-grid { grid-template-columns: 1fr; gap: 4px; }
-  .content-card, .market-group-card, .guild-card, .currency-card, .equipment-slot, .inventory-row, .quick-action { padding: 6px; border-radius: 8px; }
-  .content-card strong, .guild-card strong { font-size: 10px; }
-  .content-card span, .content-card small, .guild-card span, .guild-card small { font-size: 8px; }
-  .list-lines { gap: 3px; }
-  .list-line { min-height: 26px; gap: 4px; padding: 4px 6px; border-radius: 7px; }
-  .list-line strong { font-size: 9px; }
-  .list-line small { font-size: 7px; }
-  .profile-grid-modal, .combat-stat-grid, .currency-grid, .reward-grid { gap: 4px; }
-  .profile-cell, .combat-stat, .reward-cell { padding: 5px; border-radius: 7px; }
-  .profile-cell span, .combat-stat span, .reward-cell span { font-size: 6px; }
-  .profile-cell strong, .combat-stat strong, .reward-cell strong { font-size: 9px; }
-  .character-avatar { width: 40px; height: 40px; border-radius: 11px; font-size: 12px; }
-  .character-copy h1 { font-size: 16px; }
-  .character-badges span { padding: 2px 4px; font-size: 7px; }
-  .currency-icon { width: 20px; height: 20px; }
-  .currency-card strong { font-size: 10px; }
-  .equipment-slot { min-height: 40px; }
-  .inventory-row { min-height: 36px; }
-  .quick-action { min-height: 36px; }
-  .combatant-card { min-height: 76px; padding: 6px; }
-  .combatant-card > strong, .combatant-card h2, .combatant-card h3 { font-size: 11px; }
-  .combat-log { max-height: 68px; padding: 5px; font-size: 8px; }
-  .result-modal, .travel-modal { max-height: 90dvh; padding: 8px 7px calc(8px + env(safe-area-inset-bottom)); border-radius: 12px 12px 0 0; }
-  .small-close { width: 26px; min-height: 26px; font-size: 14px; }
+  body { font-size: 12px; }
+  h1 { font-size: 21px; }
+  h2 { font-size: 16px; }
+  h3 { font-size: 14px; }
+  small { font-size: 9px; }
+  button { min-height: 36px; padding: 7px 9px; font-size: 11px; }
+  input, select, textarea, .text-input { min-height: 36px; padding: 7px 9px; font-size: 11px; }
+
+  .screen-frame { padding: 8px 7px 16px; }
+  .screen-stack { gap: 9px; }
+  .panel { padding: 10px; border-radius: 13px; }
+  .section-title { margin-bottom: 6px; font-size: 8px; }
+  .title-row, .panel-heading, .modal-header-line { gap: 8px; }
+  .panel-heading { margin-bottom: 9px; }
+
+  .tab-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    justify-content: flex-start;
+    scrollbar-width: none;
+  }
+  .tab-row::-webkit-scrollbar { display: none; }
+  .tab-row button { flex: 0 0 auto; min-width: 86px; min-height: 34px; padding: 6px 8px; }
+  .guild-tab-strip button { min-width: 82px; }
+
+  .quick-action-grid { grid-template-columns: 1fr; }
+  .quick-action { min-height: 50px; }
+  .currency-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .combat-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .equipment-grid { grid-template-columns: 1fr; }
+
+  .inventory-row.inventory-row-wide {
+    grid-template-columns: minmax(0, 1fr) auto;
+    min-height: 62px;
+  }
+  .inventory-item-main { grid-template-columns: 38px minmax(0, 1fr); padding: 8px; }
+  .item-orb { width: 38px; height: 38px; }
+  .inventory-equip-button { min-width: 62px; margin-right: 6px; padding: 6px 7px; }
+
+  .profile-grid-modal { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .guild-summon-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .list-line { min-height: 38px; padding: 8px 9px; }
+
+  .combatant-card { min-height: 110px; }
+  .result-modal, .travel-modal {
+    width: calc(100vw - 12px);
+    max-height: 91dvh;
+    padding: 11px 10px calc(12px + env(safe-area-inset-bottom));
+    border-radius: 17px 17px 0 0;
+  }
 }
 
 @media (max-width: 379px) {
-  .side-drawer { width: min(210px, 80vw); }
-  .screen-frame { padding-right: 4px; padding-left: 4px; }
-  .panel { padding: 5px; }
-  .currency-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .screen-frame { padding-right: 5px; padding-left: 5px; }
+  .panel { padding: 9px; }
+  .inventory-row.inventory-row-wide { grid-template-columns: minmax(0, 1fr); }
+  .inventory-equip-button { width: calc(100% - 12px); margin: 0 6px 6px; }
+  .guild-summon-grid { grid-template-columns: 1fr; }
 }

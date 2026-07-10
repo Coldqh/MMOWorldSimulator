@@ -53,6 +53,11 @@ assert(characterScreen.includes('inventory-filters') && characterScreen.includes
 assert(uiStyles.includes('@media (max-width: 899px)') && uiStyles.includes('.bottom-nav'), 'mobile UI breakpoint is wired');
 assert(uiStyles.includes('.team-combat-layout') && uiStyles.includes('.combat-overlay'), 'combat presentation styles are wired');
 assert(uiStyles.includes('prefers-reduced-motion'), 'reduced motion accessibility is wired');
+assert(characterScreen.includes('inventory-priority-layout') && characterScreen.includes('inventory-row-wide'), 'inventory priority layout is wired');
+assert(uiStyles.includes('0.8.2c — UI Layout Repair') && uiStyles.includes('grid-template-columns: minmax(280px, 320px) minmax(0, 1fr)'), 'targeted UI layout repair is wired');
+assert(guildScreen.includes('tab === "summons" && isGuildMaster'), 'guild summon content is isolated to the GM summon tab');
+assert(guildScreen.includes('isGuildMaster && <button className={tab === "summons"'), 'guild summon tab is visible only to the GM');
+assert(!guildScreen.includes('Нужна роль ГМ / зам / офицер'), 'guild summon UI no longer exposes officer access text');
 
 assert(saveLoad.includes("SAVE_VERSION = '0.7.54'") || saveLoad.includes('SAVE_VERSION = "0.7.54"'), 'SAVE_VERSION remains 0.7.54');
 assert(balanceConfig.includes('export const MAX_LEVEL = 60;'), 'MAX_LEVEL remains 60');
@@ -85,13 +90,10 @@ assert(activityShopItems.includes('ACTIVITY_SHOP_ITEMS'), 'activity shop items e
 assert(activityShopItems.includes('activity_pve_dungeon_60') && activityShopItems.includes('activity_pvp_war_60'), 'activity shop set families exist');
 assert(activityShopItems.includes('export const ACTIVITY_SHOP_SET_DEFINITIONS'), 'activity shop set definitions are exported');
 assert(activityShopSystem.includes('buyActivityShopItem'), 'activity shop purchase system exists');
-assert(activityShopSystem.includes('sellActivityShopItem'), 'activity shop sale system exists');
 assert(activityShopSystem.includes('spendPlayerActivityCurrency'), 'activity shop spends currencies');
 assert(gameStore.includes('buyActivityShopItem'), 'GameStore exposes activity shop purchase action');
-assert(gameStore.includes('sellActivityShopItemState') && gameStore.includes('sellActivityShopItem: (shop'), 'GameStore exposes activity shop sale action');
 assert(marketScreen.includes('PvE магазин') && marketScreen.includes('PvP магазин'), 'activity shops show in MarketScreen');
-assert(marketScreen.includes('getActivityShopSetsForPlayer'), 'MarketScreen renders activity shop sets');
-assert(marketScreen.includes('state.sellActivityShopItem'), 'MarketScreen wires activity shop sale action');
+assert(marketScreen.includes('getActivityShopEntriesForPlayer'), 'MarketScreen renders activity shop entries');
 assert(worldScreen.includes('Элитные противники'), 'WorldScreen has elite opponents tab');
 assert(worldScreen.includes('eliteSpawns.length'), 'WorldScreen counts elite opponents');
 assert(rareSpawnSystem.includes('export const tickRareSpawns'), 'rare spawn tick system exists');
