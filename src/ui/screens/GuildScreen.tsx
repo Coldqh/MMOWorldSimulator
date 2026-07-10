@@ -4,6 +4,8 @@ import { useGameStore } from "../../state/gameStore";
 import { getGearScore } from "../../systems/itemSystem";
 import { getGuildTierMinLevel, getPlayerGuildPendingApplications } from "../../systems/guildRuntimeSystem";
 import { guildFocusLabel } from "../../systems/guildIdentitySystem";
+import { getActivityCurrencyAmount } from "../../systems/activityCurrencySystem";
+import { formatGuildBossCooldown, getActiveGuildSummonedBoss, getGuildBossCooldownLeft, getGuildBossSummonCost } from "../../systems/guildBossSystem";
 import { GuildWarPanel, ServerGuildWarList } from "../components/GuildWarPanel";
 import { CastlePanel } from "../components/CastlePanel";
 import type { Guild, GuildFocus, GuildTier } from "../../types/game";
@@ -49,6 +51,7 @@ export const GuildScreen = () => {
   const createPlayerGuild = useGameStore((state) => state.createPlayerGuild);
   const acceptGuildApplicant = useGameStore((state) => state.acceptGuildApplicant);
   const rejectGuildApplicant = useGameStore((state) => state.rejectGuildApplicant);
+  const summonGuildWorldBoss = useGameStore((state) => state.summonGuildWorldBoss);
 
   const [mainTab, setMainTab] = useState<MainGuildTab>("guilds");
   const [showAllGuilds, setShowAllGuilds] = useState(false);
@@ -127,6 +130,10 @@ export const GuildScreen = () => {
     const guildNews = server.worldNews.filter((entry) => entry.text.includes(playerGuild.name)).slice(0, 8);
     const activeWars = server.guildWars.filter((war) => war.status === "active" && (war.attackerGuildId === playerGuild.id || war.defenderGuildId === playerGuild.id));
     const officerText = (playerGuild.officerIds ?? []).length === 0 ? <span>нет</span> : (playerGuild.officerIds ?? []).slice(0, 4).map((id) => <span key={id}> {renderNpcLink(id)}</span>);
+    const summonCost = getGuildBossSummonCost(playerGuild.tier ?? "low");
+    const summonCooldownLeft = getGuildBossCooldownLeft(server, playerGuild);
+    const activeSummonedBoss = getActiveGuildSummonedBoss(server, playerGuild.id);
+    const canManageGuildBoss = playerGuild.leaderId === server.player.id || playerGuild.deputyId === server.player.id || (playerGuild.officerIds ?? []).includes(server.player.id);
 
     return (
       <div className="screen-stack">
@@ -226,6 +233,32 @@ export const GuildScreen = () => {
         )}
 
         {tab === "castles" && <CastlePanel onBack={() => setTab("profile")} />}
+
+        <section className="panel premium-panel">
+          <div className="section-title">Гильдейский призыв</div>
+          <div className="profile-grid-modal">
+            <div className="profile-cell"><span>Твоя роль</span><strong>{guildRole(playerGuild, server.player.id)}</strong></div>
+            <div className="profile-cell"><span>Откат</span><strong>{formatGuildBossCooldown(summonCooldownLeft)}</strong></div>
+            <div className="profile-cell"><span>Активный босс</span><strong>{activeSummonedBoss ? activeSummonedBoss.name : "нет"}</strong></div>
+            <div className="profile-cell"><span>Цена</span><strong>{summonCost.gold} Gold</strong></div>
+            <div className="profile-cell"><span>Raid Seals</span><strong>{getActivityCurrencyAmount(server.player, "raidSeals")}/{summonCost.raidSeals}</strong></div>
+            <div className="profile-cell"><span>War Crests</span><strong>{getActivityCurrencyAmount(server.player, "warCrests")}/{summonCost.warCrests}</strong></div>
+          </div>
+          <p className="muted">Призыв доступен только вне города. Босс появляется в текущей зоне или на текущем споте, автоматически открывает рейд и даёт бонусные War Crests членам той же гильдии.</p>
+          <button
+            className="wide-button"
+            disabled={!canManageGuildBoss || summonCooldownLeft > 0 || Boolean(activeSummonedBoss)}
+            onClick={summonGuildWorldBoss}
+          >
+            {!canManageGuildBoss
+              ? "Нужна роль ГМ / зам / офицер"
+              : activeSummonedBoss
+                ? "Сначала закройте активный призыв"
+                : summonCooldownLeft > 0
+                  ? `Откат: ${formatGuildBossCooldown(summonCooldownLeft)}`
+                  : "Призвать мирового босса"}
+          </button>
+        </section>
 
         {tab === "events" && (
           <section className="panel">

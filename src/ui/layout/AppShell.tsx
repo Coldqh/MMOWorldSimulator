@@ -205,8 +205,7 @@ export const AppShell = () => {
           <button className="drawer-close" onClick={closeSidebar} aria-label="Закрыть меню">×</button>
         </div>
 
-        <button className="sidebar-player" onClick={() => navigate('character')}>
-          <span className="player-avatar">{playerInitials}</span>
+        <button className="sidebar-player compact" onClick={() => navigate('character')}>
           <span className="sidebar-player-copy">
             <strong>{server.player.name}</strong>
             <small>Lv. {server.player.level} · {playerClass}</small>

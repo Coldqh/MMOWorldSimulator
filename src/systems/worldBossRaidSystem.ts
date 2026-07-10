@@ -76,8 +76,6 @@ const eligibleNpcPool = (server: ServerState, spawn: RareSpawnState) => {
     .sort((a, b) => {
       const locationDiff = sameBossLocationScore(spawn, a) - sameBossLocationScore(spawn, b);
       if (locationDiff !== 0) return locationDiff;
-      const gearDiff = (b.gearScore ?? 0) - (a.gearScore ?? 0);
-      if (gearDiff !== 0) return gearDiff;
       const levelDiff = Math.abs(a.level - spawn.level) - Math.abs(b.level - spawn.level);
       if (levelDiff !== 0) return levelDiff;
       return (b.activityLevel + b.ambition + b.risk) - (a.activityLevel + a.ambition + a.risk);
@@ -126,13 +124,10 @@ const moveJoinedNpcsToBoss = (server: ServerState, spawn: RareSpawnState, npcIds
   };
 };
 
-const estimateParticipantDamage = (level: number, attack: number, magic: number, bossDefense: number, gearScore = 0, rng?: Rng) => {
-  const primary = Math.max(attack, magic);
-  const secondary = Math.min(attack, magic);
-  const gearPower = Math.sqrt(Math.max(0, gearScore)) * 9.5 + Math.max(0, gearScore) * 0.018;
-  const base = Math.max(12, primary * 1.25 + secondary * 0.45 + level * 9 + gearPower);
-  const roll = rng ? 0.78 + rng.next() * 0.34 : 0.95;
-  return Math.max(1, Math.round(base * roll - bossDefense * 0.24));
+const estimateParticipantDamage = (level: number, attack: number, magic: number, bossDefense: number, rng?: Rng) => {
+  const base = Math.max(12, attack + magic * 0.85 + level * 8);
+  const roll = rng ? 0.76 + rng.next() * 0.42 : 0.97;
+  return Math.max(1, Math.round(base * roll - bossDefense * 0.35));
 };
 
 const estimateBossHp = (spawn: RareSpawnState) => {
@@ -141,7 +136,7 @@ const estimateBossHp = (spawn: RareSpawnState) => {
   const attack = mob?.stats.attack ?? level * 4;
   const magic = mob?.stats.magic ?? level * 3;
   const defense = mob?.stats.defense ?? level * 2;
-  const expectedOne = estimateParticipantDamage(level, attack, magic, defense, level * 210);
+  const expectedOne = estimateParticipantDamage(level, attack, magic, defense);
   const expectedFullRaidRound = Math.max(30, expectedOne * WORLD_BOSS_RAID_MAX_PARTICIPANTS);
   return Math.max((mob?.stats.hp ?? level * 120) * 80, Math.round(expectedFullRaidRound * WORLD_BOSS_TARGET_ROUNDS));
 };
@@ -250,12 +245,12 @@ const participantRoundDamage = (server: ServerState, spawn: RareSpawnState, part
   const bossDefense = mob?.stats.defense ?? spawn.level * 2;
   if (participant.isPlayer || participant.id === server.player.id) {
     const stats = getPlayerStats(server.player);
-    return estimateParticipantDamage(server.player.level, stats.attack, stats.magic, bossDefense, getGearScore(server.player.equipment), rng);
+    return estimateParticipantDamage(server.player.level, stats.attack, stats.magic, bossDefense, rng);
   }
   const npc = server.npcs.find((entry) => entry.id === participant.id);
-  if (!npc) return estimateParticipantDamage(participant.level, participant.level * 4, participant.level * 2, bossDefense, participant.level * 180, rng);
+  if (!npc) return estimateParticipantDamage(participant.level, participant.level * 4, participant.level * 2, bossDefense, rng);
   const stats = getNpcPlayerEquivalentStats(npc);
-  return estimateParticipantDamage(npc.level, stats.attack, stats.magic, bossDefense, npc.gearScore ?? 0, rng);
+  return estimateParticipantDamage(npc.level, stats.attack, stats.magic, bossDefense, rng);
 };
 
 const rewardTierForRank = (rank: number): WorldBossRaidRewardTier => {
@@ -302,12 +297,15 @@ const resolveWorldBossRaidVictory = (server: ServerState, spawn: RareSpawnState,
   const tierScale = tier === 'top' ? 8 : tier === 'high' ? 5 : 3;
   const goldScale = tier === 'top' ? 8 : tier === 'high' ? 5 : 3;
   const raidSeals = tier === 'top' ? 24 : tier === 'high' ? 14 : 6;
+  const guildSummonBonus = spawn.summonSource === 'guild' && Boolean(server.player.guildId) && server.player.guildId === spawn.summonedByGuildId;
+  const warCrests = guildSummonBonus ? (tier === 'top' ? 8 : tier === 'high' ? 5 : 3) : 0;
   const bonusXp = xpRewardForMob(mob, server.player.level) * tierScale;
   const bonusGold = Math.max(1, Array.from({ length: goldScale }).reduce<number>((sum) => sum + rng.int(mob.gold[0], mob.gold[1]), 0));
   const beforeLevel = server.player.level;
   let player = addPlayerXp(server.player, bonusXp);
   const leveledUp = player.level > beforeLevel;
   player = addPlayerActivityCurrency({ ...player, gold: player.gold + bonusGold }, 'raidSeals', raidSeals);
+  if (warCrests > 0) player = addPlayerActivityCurrency(player, 'warCrests', warCrests);
 
   let rewardItems: InventoryStack[] = [];
   const lines = [
@@ -317,6 +315,7 @@ const resolveWorldBossRaidVictory = (server: ServerState, spawn: RareSpawnState,
     `+${bonusXp} XP${leveledUp ? ` · Lv. ${player.level}` : ''}.`,
     `+${bonusGold} Gold.`,
     currencyRewardLine('raidSeals', raidSeals),
+    ...(warCrests > 0 ? [currencyRewardLine('warCrests', warCrests), `Бонус гильдейского призыва: ${spawn.summonedByGuildName ?? 'твоя гильдия'}.`] : []),
   ];
 
   const picked = maybeWorldBossItemReward(server, spawn, tier, rng);

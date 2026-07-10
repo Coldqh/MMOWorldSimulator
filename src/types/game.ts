@@ -250,6 +250,8 @@ export interface Guild {
   founderPlayerId?: Id;
   createdDay?: number;
   createdMinute?: number;
+  lastBossSummonDay?: number;
+  lastBossSummonMinute?: number;
 }
 
 export interface GuildRelation {
@@ -810,6 +812,10 @@ export interface RareSpawnState {
   raidRound?: number;
   raidParticipants?: WorldBossRaidParticipant[];
   raidRewardClaimed?: boolean;
+  summonSource?: "natural" | "guild";
+  summonedByGuildId?: Id;
+  summonedByGuildName?: string;
+  summonedByPlayerId?: Id;
 }
 
 export interface ServerState {

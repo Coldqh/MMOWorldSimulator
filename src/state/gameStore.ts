@@ -83,7 +83,7 @@ import {
   startDungeonFloorCombat,
 } from "../systems/dungeonSystem";
 import { enhanceItem, type EnhanceTarget } from "../systems/enhancementSystem";
-import { buyActivityShopItem as buyActivityShopItemState, sellActivityShopItem as sellActivityShopItemState, type ActivityShopKind } from "../systems/activityShopSystem";
+import { buyActivityShopItem as buyActivityShopItemState } from "../systems/activityShopSystem";
 import {
   acceptPartyApplicant as acceptPartyFinderApplicant,
   cancelPartyListing as cancelPartyFinderListing,
@@ -138,6 +138,7 @@ import {
   attackWorldBossRaid as attackWorldBossRaidState,
   joinWorldBossRaid as joinWorldBossRaidState,
 } from "../systems/worldBossRaidSystem";
+import { summonGuildWorldBoss as summonGuildWorldBossState } from "../systems/guildBossSystem";
 import {
   advanceCurrentSiege,
   normalizeSiegeState,
@@ -177,6 +178,7 @@ interface GameStore {
   attackRareSpawn: (spawnId: string) => void;
   joinWorldBossRaid: (spawnId: string) => void;
   attackWorldBossRaid: (spawnId: string) => void;
+  summonGuildWorldBoss: () => void;
   startDungeon: (dungeonId: string, difficulty?: DungeonDifficulty) => void;
   refreshPartyFinder: () => void;
   createPartyListing: (dungeonId: string, visibility?: "public" | "guild_internal") => void;
@@ -207,7 +209,6 @@ interface GameStore {
   resolveLootRoll: (choice: LootChoice) => void;
   buyMarketListing: (listingId: string) => void;
   buyActivityShopItem: (entryId: string) => void;
-  sellActivityShopItem: (shop: ActivityShopKind, itemId: string, enhancement?: number, cardIds?: string[]) => void;
   sellItem: (itemId: string, enhancement?: number, cardIds?: string[]) => void;
   repairMarket: () => void;
   socketCard: (source: "equipment" | "inventory", itemIdOrSlot: string, cardId: string, enhancement?: number, cardIds?: string[]) => void;
@@ -778,6 +779,29 @@ export const useGameStore = create<GameStore>((set, get) => ({
     commit(set, result.server, null, null);
   },
 
+  summonGuildWorldBoss: () => {
+    const { server, combat } = get();
+    if (combat || !server.characterCreated || server.currentDungeonRun) return;
+    const rng = createRng(server.seed + server.serverDay * 2051 + server.currentMinute);
+    const result = summonGuildWorldBossState(server, rng);
+    if (!result.ok) {
+      commit(set, result.server, null, {
+        id: `modal_guild_boss_summon_failed_${server.serverDay}_${server.currentMinute}`,
+        type: "guild",
+        title: "Призыв недоступен",
+        text: result.reason ?? "Не удалось призвать мирового босса.",
+        lines: [result.reason ?? "Проверь роль в гильдии, валюту и текущую локацию."],
+      });
+      return;
+    }
+    commit(set, result.server, null, {
+      id: `modal_guild_boss_summon_${server.serverDay}_${server.currentMinute}`,
+      type: "guild",
+      title: "Мировой босс призван",
+      text: result.spawn?.name ?? "Гильдейский призыв завершён.",
+      lines: result.lines ?? ["Босс появился в текущей зоне и рейд уже открыт."],
+    });
+  },
 
   startDungeon: (dungeonId, difficulty = "normal") => {
     const { server, combat } = get();
@@ -1284,10 +1308,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       source === "inventory" &&
       Boolean(item.slot) &&
       server.location.mode === "city";
-    const cardSocketGear = item.type === 'card' ? getInstanceGearScore(item, 0) : 0;
     const lines = [
       `Gear Score: ${getInstanceGearScore(item, enhancement, cardIds)}.`,
-      item.type === 'card' ? `При вставке: +${cardSocketGear} Gear Score.` : undefined,
       `Уровень предмета: ${item.levelReq}.`,
       `Класс: ${classText}.`,
       `Слот: ${item.slot ?? "нет"}.`,
@@ -1299,7 +1321,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         ? `Бонусы: ${statLines.join(" · ")}.`
         : "Бонусы: нет.",
       `Торгуемый: ${item.tradeable ? "да" : "нет"}.`,
-    ].filter((line): line is string => Boolean(line));
+    ];
     if (source === "inventory" && item.slot && server.location.mode !== "city")
       lines.push("Заточка доступна только в городе.");
     const socketCount = item.slot ? getSocketSlotCount(item, { itemId, enhancement, cardIds }) : 0;
@@ -1429,12 +1451,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
   buyActivityShopItem: (entryId) => {
     const { server } = get();
     const result = buyActivityShopItemState(server, entryId);
-    commit(set, result.server, undefined, result.modal);
-  },
-
-  sellActivityShopItem: (shop, itemId, enhancement = 0, cardIds = []) => {
-    const { server } = get();
-    const result = sellActivityShopItemState(server, shop, itemId, enhancement, cardIds);
     commit(set, result.server, undefined, result.modal);
   },
 
