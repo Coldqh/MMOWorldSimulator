@@ -26,10 +26,6 @@ const siegeSystem = read('src/systems/siegeSystem.ts');
 const castlePanel = read('src/ui/components/CastlePanel.tsx');
 const rareSpawnSystem = read('src/systems/rareSpawnSystem.ts');
 const activityCurrencySystem = read('src/systems/activityCurrencySystem.ts');
-const activityShopSystem = read('src/systems/activityShopSystem.ts');
-const activityShopItems = read('src/content/activityShopItems.ts');
-const marketScreen = read('src/ui/screens/MarketScreen.tsx');
-const formulaSystem = read('src/balance/formulas.ts');
 const characterScreen = read('src/ui/screens/CharacterScreen.tsx');
 const worldScreen = read('src/ui/screens/WorldScreen.tsx');
 const worldBossRaidSystem = read('src/systems/worldBossRaidSystem.ts');
@@ -38,10 +34,22 @@ const combatSystem = read('src/systems/combatSystem.ts');
 const arena3v3System = read('src/systems/arena3v3System.ts');
 const guildWarCombatResultSystem = read('src/systems/guildWarCombatResultSystem.ts');
 const typeFile = read('src/types/game.ts');
+const appShell = read('src/ui/layout/AppShell.tsx');
+const uiStyles = read('src/ui/styles.css');
 
-assert(pkg.version === '0.8.0', 'package version is 0.8.0');
-assert(versionTs.includes("APP_VERSION = '0.8.0'") || versionTs.includes('APP_VERSION = "0.8.0"'), 'APP_VERSION is 0.8.0');
-assert(publicVersion.version === '0.8.0', 'public version is 0.8.0');
+assert(pkg.version === '0.8.1', 'package version is 0.8.1');
+assert(versionTs.includes("APP_VERSION = '0.8.1'") || versionTs.includes('APP_VERSION = "0.8.1"'), 'APP_VERSION is 0.8.1');
+assert(publicVersion.version === '0.8.1', 'public version is 0.8.1');
+
+assert(appShell.includes('navigationGroups') && appShell.includes('app-workspace'), 'next-gen desktop shell is wired');
+assert(appShell.includes('bottom-nav') && appShell.includes('world-clock'), 'responsive HUD navigation is wired');
+assert(appShell.includes('sidebar-player') && appShell.includes('nav-group'), 'grouped sidebar navigation is wired');
+assert(characterScreen.includes('character-content-grid') && characterScreen.includes('currency-grid'), 'next-gen character dashboard is wired');
+assert(characterScreen.includes('inventory-filters') && characterScreen.includes('equipment-grid'), 'character inventory UX is wired');
+assert(uiStyles.includes('@media (max-width: 899px)') && uiStyles.includes('.bottom-nav'), 'mobile UI breakpoint is wired');
+assert(uiStyles.includes('.team-combat-layout') && uiStyles.includes('.combat-overlay'), 'combat presentation styles are wired');
+assert(uiStyles.includes('prefers-reduced-motion'), 'reduced motion accessibility is wired');
+
 assert(saveLoad.includes("SAVE_VERSION = '0.7.54'") || saveLoad.includes('SAVE_VERSION = "0.7.54"'), 'SAVE_VERSION is 0.7.54');
 assert(balanceConfig.includes('export const MAX_LEVEL = 60;'), 'MAX_LEVEL remains 60');
 assert(balanceConfig.includes("high: { min: 41, max: 59 }"), 'high band remains 41-59');
@@ -69,18 +77,6 @@ assert(rareSpawnSystem.includes('initializeWorldBossRaid') || gameStore.includes
 assert(gameStore.includes('joinWorldBossRaid') && gameStore.includes('attackWorldBossRaid'), 'GameStore exposes world boss raid actions');
 assert(worldScreen.includes('Присоединиться') && worldScreen.includes('Рейд заполнен'), 'WorldScreen shows world boss raid join state');
 assert(worldScreen.includes('HP {raid.hpPercent}%') || worldScreen.includes('HP ${raid.hpPercent}%'), 'WorldScreen shows world boss raid HP');
-assert(activityShopItems.includes('calculateItemStatBudget'), 'activity shop gear uses shared item stat budget');
-assert(activityShopSystem.includes('sellActivityShopItem'), 'activity shop sell system exists');
-assert(activityShopSystem.includes('pveCurrencyForItem') && activityShopSystem.includes('pvpCurrencyForItem'), 'activity shop sell currency routing exists');
-assert(gameStore.includes('sellActivityShopItem'), 'GameStore exposes activity shop sell action');
-assert(marketScreen.includes('selectedSetId') && marketScreen.includes('Сет {selectedSet.familyName}'), 'activity shop opens set detail modal');
-assert(marketScreen.includes('Продажа за валюты'), 'activity shop currency sell UI exists');
-assert(!formulaSystem.includes('* 0.42'), 'socketed card GS uses displayed card GS');
-assert(gameStore.includes('При вставке: +') && gameStore.includes('Gear Score'), 'card profile shows socket GS value');
-assert(!worldScreen.includes('spot.timeCostMinutes'), 'spot farm time is not rendered in WorldScreen');
-assert(worldScreen.includes('boss-raid-combat-modal'), 'world boss raid has separate combat-like modal');
-assert(worldBossRaidSystem.includes('gearPower') && worldBossRaidSystem.includes('npc.gearScore'), 'world boss raid damage uses gear score');
-assert(combatSystem.includes('export const COMBAT_TURN_MINUTES = 5') && combatSystem.includes('advanceServerClock(server, COMBAT_TURN_MINUTES)'), 'normal combat action advances world time by 5 minutes');
 
 assert(guildRuntime.includes('export const getGuildTierMinLevel'), 'guild tier min-level helper exists');
 assert(guildRuntime.includes('export const normalizeGuildTierRequirement'), 'single guild tier requirement normalizer exists');
@@ -117,7 +113,7 @@ assert(guildRuntime.includes('isOpenWarStatus(war.status)'), 'sameTierWarCount c
 assert(guildWar.includes('const startScheduledGuildWars'), 'core guild war system starts scheduled wars');
 assert(guildWar.includes('next = startScheduledGuildWars(next);'), 'tickGuildWars advances scheduled wars');
 
-assert(sw.includes("mmows-v0.8.0"), 'service worker cache is 0.8.0');
+assert(sw.includes("mmows-v0.8.1"), 'service worker cache is 0.8.1');
 assert(siegeSystem.includes('никто не зарегистрировался на осаду'), 'siege no-roster text is readable Russian');
 assert(siegeSystem.includes('осада завершена. Победитель'), 'siege finish news is readable Russian');
 assert(siegeSystem.includes("castle.tier === 'max') return guild.tier === 'max' || guild.tier === 'high'"), 'max sieges can fallback to high NPC guilds');

@@ -1,6 +1,10 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { CLASSES } from '../../content/classes';
+import { CITY_NAME, getSpotById, getZoneById } from '../../content/world';
+import { APP_VERSION } from '../../engine/version';
 import { formatTime } from '../../engine/time';
 import { getGameDayOfWeekName } from '../../systems/contractSystem';
+import { getGearScore } from '../../systems/itemSystem';
 import { useGameStore } from '../../state/gameStore';
 import type { ScreenId } from '../../types/game';
 import { ArenaScreen } from '../screens/ArenaScreen';
@@ -44,35 +48,87 @@ const screens: Record<ScreenId, ReactNode> = {
   contracts: <ContractsScreen />,
 };
 
-const bottomNav: Array<{ id: ScreenId; label: string }> = [
-  { id: 'character', label: '🧍 Герой' },
-  { id: 'world', label: '🌍 Мир' },
-  { id: 'quests', label: '📜 Квесты' },
+type NavigationEntry = {
+  id: ScreenId;
+  label: string;
+  icon: string;
+  cityOnly?: boolean;
+};
+
+type NavigationGroup = {
+  label: string;
+  entries: NavigationEntry[];
+};
+
+const navigationGroups: NavigationGroup[] = [
+  {
+    label: 'Персонаж',
+    entries: [
+      { id: 'character', label: 'Герой', icon: '◆' },
+      { id: 'goals', label: 'Цели', icon: '◎' },
+      { id: 'library', label: 'Коллекция', icon: '◇' },
+    ],
+  },
+  {
+    label: 'Мир',
+    entries: [
+      { id: 'world', label: 'Карта мира', icon: '◈' },
+      { id: 'quests', label: 'Квесты', icon: '▤' },
+      { id: 'contracts', label: 'Контракты', icon: '▦' },
+      { id: 'news', label: 'Новости', icon: '◉' },
+    ],
+  },
+  {
+    label: 'Активности',
+    entries: [
+      { id: 'partyFinder', label: 'Поиск пати', icon: '◌' },
+      { id: 'dungeon', label: 'Данжи', icon: '⚔' },
+      { id: 'raid', label: 'Рейды', icon: '♜' },
+      { id: 'arena', label: 'Арена', icon: '✦', cityOnly: true },
+    ],
+  },
+  {
+    label: 'Сообщество',
+    entries: [
+      { id: 'guild', label: 'Гильдия', icon: '♛' },
+      { id: 'server', label: 'Сервер', icon: '⌁' },
+    ],
+  },
+  {
+    label: 'Экономика',
+    entries: [
+      { id: 'market', label: 'Рынок', icon: '◫', cityOnly: true },
+      { id: 'enhance', label: 'Заточка', icon: '⬡', cityOnly: true },
+      { id: 'settings', label: 'Настройки', icon: '⚙' },
+    ],
+  },
 ];
 
-const sideNav: Array<{ id: ScreenId; label: string; cityOnly?: boolean }> = [
-  { id: 'character', label: '🧍 Герой' },
-  { id: 'world', label: '🌍 Мир' },
-  { id: 'goals', label: '🎯 Цели' },
-  { id: 'quests', label: '📜 Квесты' },
-  { id: 'contracts', label: '📋 Контракты' },
-  { id: 'partyFinder', label: '👥 Поиск пати' },
-  { id: 'dungeon', label: '⚔️ Данжи' },
-  { id: 'raid', label: '🐉 Рейды' },
-  { id: 'server', label: '📜 Сервер' },
-  { id: 'news', label: '🗞️ Новости' },
-  { id: 'library', label: '📚 Библиотека' },
-  { id: 'guild', label: '🏰 Гильдия' },
-  { id: 'market', label: '🛒 Рынок', cityOnly: true },
-  { id: 'arena', label: '🏟️ Арена', cityOnly: true },
-  { id: 'enhance', label: '🔨 Заточка', cityOnly: true },
-  { id: 'settings', label: '⚙️ Настройки' },
-];
+const screenMeta: Record<ScreenId, { label: string; section: string }> = {
+  start: { label: 'Начало', section: 'MMO World Simulator' },
+  character: { label: 'Герой', section: 'Персонаж' },
+  world: { label: 'Мир', section: 'Исследование' },
+  goals: { label: 'Цели', section: 'Прогресс' },
+  partyFinder: { label: 'Поиск пати', section: 'Активности' },
+  dungeon: { label: 'Данжи', section: 'Активности' },
+  guild: { label: 'Гильдия', section: 'Сообщество' },
+  server: { label: 'Сервер', section: 'Сообщество' },
+  market: { label: 'Рынок', section: 'Экономика' },
+  arena: { label: 'Арена', section: 'PvP' },
+  enhance: { label: 'Заточка', section: 'Мастерская' },
+  raid: { label: 'Рейды', section: 'Активности' },
+  settings: { label: 'Настройки', section: 'Система' },
+  library: { label: 'Коллекция', section: 'Персонаж' },
+  news: { label: 'Новости', section: 'Мир' },
+  quests: { label: 'Квесты', section: 'Журнал' },
+  contracts: { label: 'Контракты', section: 'Журнал' },
+};
 
 const cityOnlyScreens = new Set<ScreenId>(['market', 'arena', 'enhance']);
 
 const OnlineStatus = () => {
   const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
+
   useEffect(() => {
     const on = () => setOnline(true);
     const off = () => setOnline(false);
@@ -83,7 +139,12 @@ const OnlineStatus = () => {
       window.removeEventListener('offline', off);
     };
   }, []);
-  return <span>{online ? 'Онлайн' : 'Офлайн'}</span>;
+
+  return (
+    <span className={`connection-state ${online ? 'online' : 'offline'}`}>
+      <i />{online ? 'Сеть' : 'Офлайн'}
+    </span>
+  );
 };
 
 export const AppShell = () => {
@@ -96,10 +157,27 @@ export const AppShell = () => {
   const dungeonOpen = Boolean(server.currentDungeonRun);
   const partyLobbyOpen = Boolean(server.currentPartyListingId);
   const visibleScreen: ScreenId = server.location.mode !== 'city' && cityOnlyScreens.has(activeScreen) ? 'world' : activeScreen;
+  const playerClass = CLASSES.find((entry) => entry.id === server.player.classId)?.name ?? server.player.classId;
+  const playerGear = getGearScore(server.player.equipment);
+  const playerInitials = server.player.name.slice(0, 2).toUpperCase();
+  const meta = screenMeta[visibleScreen];
+
+  const locationLabel = useMemo(() => {
+    if (server.location.mode === 'city') return CITY_NAME;
+    if (server.location.mode === 'spot') return getSpotById(server.location.spotId ?? '')?.name ?? 'Неизвестный спот';
+    return getZoneById(server.location.zoneId ?? '')?.name ?? 'Неизвестная зона';
+  }, [server.location]);
+
+  const navigate = (screen: ScreenId) => {
+    setScreen(screen);
+    closeSidebar();
+  };
 
   if (!server.characterCreated) {
     return (
-      <main className="app-shell start-shell">
+      <main className="app-shell start-shell next-gen-shell">
+        <div className="ambient-glow ambient-glow-one" />
+        <div className="ambient-glow ambient-glow-two" />
         <section className="screen-frame start-frame">
           <StartScreen />
         </section>
@@ -110,47 +188,106 @@ export const AppShell = () => {
   const dungeonInnerScreen = visibleScreen === 'character' ? <CharacterScreen /> : <DungeonScreen />;
 
   return (
-    <main className="app-shell fantasy-shell">
+    <main className="app-shell next-gen-shell">
+      <div className="ambient-glow ambient-glow-one" />
+      <div className="ambient-glow ambient-glow-two" />
       <UpdateBanner />
-      <header className="topbar">
-        <button className="menu-button" onClick={toggleSidebar}>☰</button>
-        <div className="topbar-center">
-          <div className="app-title">MMO World Simulator</div>
-          <div className="muted">День {server.serverDay} · {getGameDayOfWeekName(server.serverDay)} · {formatTime(server.currentMinute)}</div>
-        </div>
-        <div className="topbar-player">
-          <strong>{server.player.name}</strong>
-          <span>Lv. {server.player.level}</span>
-          <span>{server.player.gold}g</span>
-          <OnlineStatus />
-        </div>
-      </header>
 
       {sidebarOpen && <button className="side-backdrop" onClick={closeSidebar} aria-label="Закрыть меню" />}
+
       <aside className={`side-drawer ${sidebarOpen ? 'open' : ''}`}>
-        <div className="side-title">Меню</div>
-        <div className="side-list">
-          {sideNav.map((entry) => {
-            const locked = entry.cityOnly && server.location.mode !== 'city';
-            return (
-              <button key={entry.id} className={visibleScreen === entry.id ? 'active' : ''} onClick={() => setScreen(entry.id)} disabled={locked || dungeonOpen || partyLobbyOpen}>
-                <span>{entry.label}</span>
-                {locked && <small>город</small>}
-                {dungeonOpen && entry.id !== 'guild' && <small>данж</small>}{partyLobbyOpen && <small>пати</small>}
-              </button>
-            );
-          })}
+        <div className="side-brand">
+          <div className="brand-mark" aria-hidden="true"><span>MW</span></div>
+          <div className="brand-copy">
+            <strong>MMO WORLD</strong>
+            <span>SIMULATOR</span>
+          </div>
+          <button className="drawer-close" onClick={closeSidebar} aria-label="Закрыть меню">×</button>
+        </div>
+
+        <button className="sidebar-player" onClick={() => navigate('character')}>
+          <span className="player-avatar">{playerInitials}</span>
+          <span className="sidebar-player-copy">
+            <strong>{server.player.name}</strong>
+            <small>Lv. {server.player.level} · {playerClass}</small>
+          </span>
+          <span className="sidebar-gs">GS {playerGear}</span>
+        </button>
+
+        <nav className="side-list" aria-label="Главное меню">
+          {navigationGroups.map((group) => (
+            <div className="nav-group" key={group.label}>
+              <div className="nav-group-title">{group.label}</div>
+              {group.entries.map((entry) => {
+                const locked = entry.cityOnly && server.location.mode !== 'city';
+                const lockedByInstance = dungeonOpen && entry.id !== 'guild' && entry.id !== 'character';
+                const disabled = locked || lockedByInstance || partyLobbyOpen;
+                return (
+                  <button
+                    key={entry.id}
+                    className={`nav-item ${visibleScreen === entry.id ? 'active' : ''}`}
+                    onClick={() => navigate(entry.id)}
+                    disabled={disabled}
+                  >
+                    <span className="nav-icon">{entry.icon}</span>
+                    <span className="nav-label">{entry.label}</span>
+                    {locked && <small className="nav-badge">город</small>}
+                    {lockedByInstance && <small className="nav-badge">занят</small>}
+                    {partyLobbyOpen && <small className="nav-badge">пати</small>}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </nav>
+
+        <div className="sidebar-footer">
+          <OnlineStatus />
+          <span>v{APP_VERSION}</span>
         </div>
       </aside>
 
-      <section className="screen-frame">{screens[visibleScreen] ?? screens.world}</section>
+      <div className="app-workspace">
+        <header className="topbar">
+          <div className="topbar-leading">
+            <button className="menu-button" onClick={toggleSidebar} aria-label="Открыть меню">
+              <span /><span /><span />
+            </button>
+            <div className="topbar-context">
+              <span>{meta.section}</span>
+              <strong>{meta.label}</strong>
+            </div>
+          </div>
+
+          <div className="world-clock">
+            <span className="world-clock-icon">◈</span>
+            <span>
+              <strong>{locationLabel}</strong>
+              <small>День {server.serverDay} · {getGameDayOfWeekName(server.serverDay)} · {formatTime(server.currentMinute)}</small>
+            </span>
+          </div>
+
+          <div className="topbar-player">
+            <span className="hud-chip"><small>GEAR</small><strong>{playerGear}</strong></span>
+            <span className="hud-chip gold"><small>GOLD</small><strong>{server.player.gold}</strong></span>
+            <button className="player-mini" onClick={() => navigate('character')} aria-label="Открыть героя">
+              <span className="player-mini-copy"><strong>{server.player.name}</strong><small>Lv. {server.player.level}</small></span>
+              <span className="player-avatar small">{playerInitials}</span>
+            </button>
+          </div>
+        </header>
+
+        <section className="screen-frame" data-screen={visibleScreen}>
+          {screens[visibleScreen] ?? screens.world}
+        </section>
+      </div>
 
       {dungeonOpen && (
         <div className="dungeon-fullscreen">
           <div className="dungeon-overlay-top">
-            <div>
-              <div className="section-title">⚔️ Экземпляр</div>
-              <strong>Экземпляр активен</strong>
+            <div className="overlay-heading">
+              <span className="overlay-icon">⚔</span>
+              <span><small>АКТИВНЫЙ ЭКЗЕМПЛЯР</small><strong>Подземелье</strong></span>
             </div>
             <div className="mini-tabs">
               <button className={visibleScreen !== 'character' ? 'active' : ''} onClick={() => setScreen('dungeon')}>Данж</button>
@@ -164,9 +301,9 @@ export const AppShell = () => {
       {partyLobbyOpen && !dungeonOpen && (
         <div className="dungeon-fullscreen party-lobby-overlay">
           <div className="dungeon-overlay-top">
-            <div>
-              <div className="section-title">👥 Поиск пати</div>
-              <strong>Лобби группы</strong>
+            <div className="overlay-heading">
+              <span className="overlay-icon">◌</span>
+              <span><small>ПОИСК ПАТИ</small><strong>Лобби группы</strong></span>
             </div>
             <div className="mini-tabs">
               <button className="active" onClick={() => setScreen('partyFinder')}>Лобби</button>
@@ -178,15 +315,19 @@ export const AppShell = () => {
 
       <ResultModal />
 
-      <nav className="bottom-nav">
-        {bottomNav.map((entry) => {
-          const lockedByDungeon = dungeonOpen && entry.id !== 'character';
-          return (
-            <button key={entry.id} className={activeScreen === entry.id ? 'active' : ''} onClick={() => setScreen(entry.id)} disabled={lockedByDungeon}>
-              {entry.label}
-            </button>
-          );
-        })}
+      <nav className="bottom-nav" aria-label="Мобильная навигация">
+        <button className={visibleScreen === 'character' ? 'active' : ''} onClick={() => navigate('character')} disabled={dungeonOpen && visibleScreen !== 'character'}>
+          <span>◆</span><small>Герой</small>
+        </button>
+        <button className={visibleScreen === 'world' ? 'active' : ''} onClick={() => navigate('world')} disabled={dungeonOpen}>
+          <span>◈</span><small>Мир</small>
+        </button>
+        <button className={visibleScreen === 'quests' ? 'active' : ''} onClick={() => navigate('quests')} disabled={dungeonOpen}>
+          <span>▤</span><small>Квесты</small>
+        </button>
+        <button className={sidebarOpen ? 'active' : ''} onClick={toggleSidebar}>
+          <span>•••</span><small>Ещё</small>
+        </button>
       </nav>
     </main>
   );

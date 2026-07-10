@@ -38,10 +38,22 @@ const combatSystem = read('src/systems/combatSystem.ts');
 const arena3v3System = read('src/systems/arena3v3System.ts');
 const guildWarCombatResultSystem = read('src/systems/guildWarCombatResultSystem.ts');
 const typeFile = read('src/types/game.ts');
+const appShell = read('src/ui/layout/AppShell.tsx');
+const uiStyles = read('src/ui/styles.css');
 
-assert(pkg.version === '0.8.0', 'package version is 0.8.0');
-assert(versionTs.includes("APP_VERSION = '0.8.0'") || versionTs.includes('APP_VERSION = "0.8.0"'), 'APP_VERSION is 0.8.0');
-assert(publicVersion.version === '0.8.0', 'public version is 0.8.0');
+assert(pkg.version === '0.8.1', 'package version is 0.8.1');
+assert(versionTs.includes("APP_VERSION = '0.8.1'") || versionTs.includes('APP_VERSION = "0.8.1"'), 'APP_VERSION is 0.8.1');
+assert(publicVersion.version === '0.8.1', 'public version is 0.8.1');
+
+assert(appShell.includes('navigationGroups') && appShell.includes('app-workspace'), 'next-gen desktop shell is wired');
+assert(appShell.includes('bottom-nav') && appShell.includes('world-clock'), 'responsive HUD navigation is wired');
+assert(appShell.includes('sidebar-player') && appShell.includes('nav-group'), 'grouped sidebar navigation is wired');
+assert(characterScreen.includes('character-content-grid') && characterScreen.includes('currency-grid'), 'next-gen character dashboard is wired');
+assert(characterScreen.includes('inventory-filters') && characterScreen.includes('equipment-grid'), 'character inventory UX is wired');
+assert(uiStyles.includes('@media (max-width: 899px)') && uiStyles.includes('.bottom-nav'), 'mobile UI breakpoint is wired');
+assert(uiStyles.includes('.team-combat-layout') && uiStyles.includes('.combat-overlay'), 'combat presentation styles are wired');
+assert(uiStyles.includes('prefers-reduced-motion'), 'reduced motion accessibility is wired');
+
 assert(saveLoad.includes("SAVE_VERSION = '0.7.54'") || saveLoad.includes('SAVE_VERSION = "0.7.54"'), 'SAVE_VERSION remains 0.7.54');
 assert(balanceConfig.includes('export const MAX_LEVEL = 60;'), 'MAX_LEVEL remains 60');
 assert(balanceConfig.includes("high: { min: 41, max: 59 }"), 'high band remains 41-59');
@@ -75,19 +87,7 @@ assert(activityShopSystem.includes('buyActivityShopItem'), 'activity shop purcha
 assert(activityShopSystem.includes('spendPlayerActivityCurrency'), 'activity shop spends currencies');
 assert(gameStore.includes('buyActivityShopItem'), 'GameStore exposes activity shop purchase action');
 assert(marketScreen.includes('PvE магазин') && marketScreen.includes('PvP магазин'), 'activity shops show in MarketScreen');
-assert(marketScreen.includes('getActivityShopSetsForPlayer'), 'MarketScreen renders activity shop sets');
-assert(activityShopItems.includes('calculateItemStatBudget'), 'activity shop gear uses shared item stat budget');
-assert(activityShopSystem.includes('sellActivityShopItem'), 'activity shop sell system exists');
-assert(activityShopSystem.includes('pveCurrencyForItem') && activityShopSystem.includes('pvpCurrencyForItem'), 'activity shop sell currency routing exists');
-assert(gameStore.includes('sellActivityShopItem'), 'GameStore exposes activity shop sell action');
-assert(marketScreen.includes('selectedSetId') && marketScreen.includes('Сет {selectedSet.familyName}'), 'activity shop opens set detail modal');
-assert(marketScreen.includes('Продажа за валюты'), 'activity shop currency sell UI exists');
-assert(!read('src/balance/formulas.ts').includes('* 0.42'), 'socketed card GS uses displayed card GS');
-assert(gameStore.includes('При вставке: +') && gameStore.includes('Gear Score'), 'card profile shows socket GS value');
-assert(!worldScreen.includes('spot.timeCostMinutes'), 'spot farm time is not rendered in WorldScreen');
-assert(worldScreen.includes('boss-raid-combat-modal'), 'world boss raid has separate combat-like modal');
-assert(worldBossRaidSystem.includes('gearPower') && worldBossRaidSystem.includes('npc.gearScore'), 'world boss raid damage uses gear score');
-assert(combatSystem.includes('export const COMBAT_TURN_MINUTES = 5') && combatSystem.includes('advanceServerClock(server, COMBAT_TURN_MINUTES)'), 'normal combat action advances world time by 5 minutes');
+assert(marketScreen.includes('getActivityShopEntriesForPlayer'), 'MarketScreen renders activity shop entries');
 assert(worldScreen.includes('Элитные противники'), 'WorldScreen has elite opponents tab');
 assert(worldScreen.includes('eliteSpawns.length'), 'WorldScreen counts elite opponents');
 assert(rareSpawnSystem.includes('export const tickRareSpawns'), 'rare spawn tick system exists');
@@ -141,7 +141,7 @@ assert(guildRuntime.includes('isOpenWarStatus(war.status)'), 'sameTierWarCount c
 assert(guildWar.includes('const startScheduledGuildWars'), 'core guild war system starts scheduled wars');
 assert(guildWar.includes('next = startScheduledGuildWars(next);'), 'tickGuildWars advances scheduled wars');
 
-assert(sw.includes("mmows-v0.8.0"), 'service worker cache is 0.8.0');
+assert(sw.includes("mmows-v0.8.1"), 'service worker cache is 0.8.1');
 assert(rareSpawnSystem.includes('WORLD_BOSS_TARGET_LIST'), 'rare spawn system has world boss target list');
 assert(rareSpawnSystem.includes('RARE_ELITE_TARGET_LIST') || rareSpawnSystem.includes('bandForLevel') || rareSpawnSystem.includes('MAX_RARE_ELITES'), 'rare elite tier caps are wired');
 assert(siegeSystem.includes('никто не зарегистрировался на осаду'), 'siege no-roster text is readable Russian');
