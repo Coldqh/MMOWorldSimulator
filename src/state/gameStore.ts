@@ -83,7 +83,11 @@ import {
   startDungeonFloorCombat,
 } from "../systems/dungeonSystem";
 import { enhanceItem, type EnhanceTarget } from "../systems/enhancementSystem";
-import { buyActivityShopItem as buyActivityShopItemState } from "../systems/activityShopSystem";
+import {
+  buyActivityShopItem as buyActivityShopItemState,
+  sellActivityShopItem as sellActivityShopItemState,
+  type ActivityShopKind,
+} from "../systems/activityShopSystem";
 import {
   acceptPartyApplicant as acceptPartyFinderApplicant,
   cancelPartyListing as cancelPartyFinderListing,
@@ -209,6 +213,7 @@ interface GameStore {
   resolveLootRoll: (choice: LootChoice) => void;
   buyMarketListing: (listingId: string) => void;
   buyActivityShopItem: (entryId: string) => void;
+  sellActivityShopItem: (shop: ActivityShopKind, itemId: string, enhancement?: number, cardIds?: string[]) => void;
   sellItem: (itemId: string, enhancement?: number, cardIds?: string[]) => void;
   repairMarket: () => void;
   socketCard: (source: "equipment" | "inventory", itemIdOrSlot: string, cardId: string, enhancement?: number, cardIds?: string[]) => void;
@@ -1451,6 +1456,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
   buyActivityShopItem: (entryId) => {
     const { server } = get();
     const result = buyActivityShopItemState(server, entryId);
+    commit(set, result.server, undefined, result.modal);
+  },
+
+  sellActivityShopItem: (shop, itemId, enhancement = 0, cardIds = []) => {
+    const { server } = get();
+    const result = sellActivityShopItemState(server, shop, itemId, enhancement, cardIds);
     commit(set, result.server, undefined, result.modal);
   },
 

@@ -85,10 +85,13 @@ assert(activityShopItems.includes('ACTIVITY_SHOP_ITEMS'), 'activity shop items e
 assert(activityShopItems.includes('activity_pve_dungeon_60') && activityShopItems.includes('activity_pvp_war_60'), 'activity shop set families exist');
 assert(activityShopItems.includes('export const ACTIVITY_SHOP_SET_DEFINITIONS'), 'activity shop set definitions are exported');
 assert(activityShopSystem.includes('buyActivityShopItem'), 'activity shop purchase system exists');
+assert(activityShopSystem.includes('sellActivityShopItem'), 'activity shop sale system exists');
 assert(activityShopSystem.includes('spendPlayerActivityCurrency'), 'activity shop spends currencies');
 assert(gameStore.includes('buyActivityShopItem'), 'GameStore exposes activity shop purchase action');
+assert(gameStore.includes('sellActivityShopItemState') && gameStore.includes('sellActivityShopItem: (shop'), 'GameStore exposes activity shop sale action');
 assert(marketScreen.includes('PvE магазин') && marketScreen.includes('PvP магазин'), 'activity shops show in MarketScreen');
-assert(marketScreen.includes('getActivityShopEntriesForPlayer'), 'MarketScreen renders activity shop entries');
+assert(marketScreen.includes('getActivityShopSetsForPlayer'), 'MarketScreen renders activity shop sets');
+assert(marketScreen.includes('state.sellActivityShopItem'), 'MarketScreen wires activity shop sale action');
 assert(worldScreen.includes('Элитные противники'), 'WorldScreen has elite opponents tab');
 assert(worldScreen.includes('eliteSpawns.length'), 'WorldScreen counts elite opponents');
 assert(rareSpawnSystem.includes('export const tickRareSpawns'), 'rare spawn tick system exists');
