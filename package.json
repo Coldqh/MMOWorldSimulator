@@ -20,17 +20,21 @@
     "content:rules": "node scripts/expansion-rule-validation.mjs"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "zustand": "latest"
+    "@vitejs/plugin-react": "6.0.3",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "zustand": "5.0.14"
   },
   "devDependencies": {
-    "@types/node": "latest",
-    "@types/react": "latest",
-    "@types/react-dom": "latest",
-    "puppeteer-core": "^25.3.0",
-    "typescript": "latest",
-    "vite": "latest"
+    "@types/node": "26.0.1",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "typescript": "6.0.3",
+    "vite": "8.1.0"
+  },
+  "packageManager": "npm@10.9.2",
+  "engines": {
+    "node": "22.16.0",
+    "npm": "10.9.2"
   }
 }
